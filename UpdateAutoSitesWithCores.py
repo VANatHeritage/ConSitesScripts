@@ -2,7 +2,7 @@
 # UpdateAutoSitesWithCores.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-11-18
-# Last Edit: 2017-01-04
+# Last Edit: 2017-07-07
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -25,6 +25,17 @@
 
 # Import modules
 import arcpy, os, sys, traceback
+from datetime import datetime as dt
+
+# Get timestamp
+ts = dt.now()
+yr = str(ts.year)
+mo = str(ts.month).zfill(2)
+dy = str(ts.day).zfill(2)
+hr = str(ts.hour).zfill(2)
+mn = str(ts.minute).zfill(2)
+sc = str(ts.second).zfill(2)
+tstring = yr + mo + dy + hr + mn + sc
 
 # Get path to toolbox, then import it
 # Scenario 1:  script is in separate folder within folder holding toolbox
@@ -50,11 +61,16 @@ inExclude = arcpy.GetParameterAsText(5) # Input delineated exclusion features
 outCS = arcpy.GetParameterAsText(6) # Output updated ConSites
 scratchGDB = arcpy.GetParameterAsText(7) # Workspace for temporary data
 
+# Create new file geodatabase to store temporary products too risky to store in memory
+gdbPath = arcpy.env.scratchFolder
+gdbName = 'tmp_%s.gdb' %tstring
+tmpWorkspace = gdbPath + os.sep + gdbName 
+arcpy.AddMessage("Some critical scratch outputs will be stored here: %s" % tmpWorkspace)
+arcpy.CreateFileGDB_management(gdbPath, gdbName)
+
 # Additional variables:
-tmpWorkspace = arcpy.env.scratchGDB # Use for temp products too risky to store in memory
-arcpy.AddMessage("Some scratch outputs will be stored here: %s" % tmpWorkspace)
 BuffDist = "1000 Meters"
-DilDist = 500
+DilDist = 250
 coalDist = 50 # Distance used to coalesce features.  Updated from 25 to 50 per Ludwig's request to coalesce features within 100m of each other
 simpDist = 25 # Distance used to simplify features (remove insignificant parts)
 tmpCS = tmpWorkspace + os.sep + 'tmpCS'
@@ -223,33 +239,36 @@ arcpy.CleanErase_consiteTools (selCores, tmpErase, coreFrags, scratchParm)
 
 # Cull Fragments (remove any core fragments not intersecting a PF)
 arcpy.AddMessage('Culling core fragments...')
-coreRtn = scratchGDB + os.sep + 'coreRtn'
+coreRtn = tmpWorkspace + os.sep + 'coreRtn'
 CullFrags(coreFrags, inPF, 0, coreRtn)
 arcpy.MakeFeatureLayer_management(coreRtn, "coreRtn_lyr")
 
-# # Process: Shrinkwrap
-# arcpy.AddMessage("Shrinkwrapping to consolidate cores...")
-# shrinkCores = tmpWorkspace + os.sep + "shrinkCores"
-# arcpy.ShrinkWrap_consiteTools(coreRtn, coalDist, shrinkCores, scratchParm)
-shrinkCores = coreRtn
 # Process:  Get Count
-numCores = (arcpy.GetCount_management(shrinkCores)).getOutput(0)
-arcpy.AddMessage('There are %s cores after consolidation' %numCores)
+numCores = (arcpy.GetCount_management(coreRtn)).getOutput(0)
+arcpy.AddMessage('There are %s cores after culling' %numCores)
 
 myFailList = []
 
 ###For use after failure
-#shrinkCores = r'D:\Users\Kirsten\Documents\ArcGIS\scratch.gdb\shrinkCoresEast_20161203'
+#coreRtn = r'D:\Users\Kirsten\Documents\ArcGIS\scratch.gdb\coreRtnEast_20161203'
 
 # Loop through the Cores
-myCores = arcpy.da.SearchCursor(shrinkCores, ["SHAPE@", "OBJECTID"])
+myCores = arcpy.da.SearchCursor(coreRtn, ["SHAPE@", "OBJECTID"])
 counter = 1
+
 for myCore in myCores:
    try:
       arcpy.AddMessage('Working on core %s' % str(counter))
+      
+      # Specify suffix to add to file names; dependent on where scratch data are saved
+      if scratchGDB == "in_memory":
+         suffix = "0" # this hopefully prevents overload failure when writing to memory
+      else:
+         suffix = str(counter).zfill(4) # this helps for trouble-shooting when writing to disk
+         
       coreSHP = myCore[0]
       coreID = myCore[1]
-      tmpCore = scratchGDB + os.sep + "tmpCore" + str(counter)
+      tmpCore = scratchGDB + os.sep + "tmpCore" + suffix
       arcpy.CopyFeatures_management (coreSHP, tmpCore) 
       
       # Process: Select Layer By Location (Get PFs intersecting core)
@@ -260,7 +279,7 @@ for myCore in myCores:
 
       # Process: Buffer
       arcpy.AddMessage("Buffering sites...")
-      SiteBuff = scratchGDB + os.sep + "SiteBuff" + str(counter)
+      SiteBuff = scratchGDB + os.sep + "SiteBuff" + suffix
       arcpy.Buffer_analysis("Sites_lyr", SiteBuff, BuffDist, "FULL", "ROUND", "ALL", "", "PLANAR")
       
       # Process:  Generalize Features
@@ -269,21 +288,21 @@ for myCore in myCores:
       arcpy.Generalize_edit(SiteBuff, "0.1 Meters")
 
       # Process:  Multipart to Singlepart
-      SiteBuff_exp = scratchGDB + os.sep + "SiteBuff_exp" + str(counter)
+      SiteBuff_exp = scratchGDB + os.sep + "SiteBuff_exp" + suffix
       arcpy.MultipartToSinglepart_management (SiteBuff, SiteBuff_exp)
       
       # Process: Shrinkwrap
       arcpy.AddMessage("Shrinkwrapping buffers...")
-      ShrinkBuff = scratchGDB + os.sep + "ShrinkBuff" + str(counter)
+      ShrinkBuff = scratchGDB + os.sep + "ShrinkBuff1_" + suffix
       arcpy.ShrinkWrap_consiteTools(SiteBuff_exp, DilDist, ShrinkBuff, scratchParm)
 
       # Process: Clean Clip
       arcpy.AddMessage("Clipping core to shrinkwrapped buffer...")
-      ClpCore = scratchGDB + os.sep + "ClpCore" + str(counter)
+      ClpCore = scratchGDB + os.sep + "ClpCore" + suffix
       arcpy.CleanClip_consiteTools(tmpCore, ShrinkBuff, ClpCore, scratchParm)
       
       # Process:  Coalesce (remove insignificant parts)
-      coalCore = scratchGDB + os.sep + 'coalCore' + str(counter)
+      coalCore = scratchGDB + os.sep + 'coalCore' + suffix
       arcpy.Coalesce_consiteTools(ClpCore, -(simpDist), coalCore, scratchParm)
       
       # Make feature layer
@@ -294,12 +313,12 @@ for myCore in myCores:
       
       # Merge (sites plus core features)
       arcpy.AddMessage("Merging clipped core features with site boundaries...")
-      SiteMerge = scratchGDB + os.sep + "SiteMerge" + str(counter)
+      SiteMerge = scratchGDB + os.sep + "SiteMerge" + suffix
       arcpy.Merge_management (["ClpCore_lyr","Sites_lyr"], SiteMerge)
       
       # Process: Shrinkwrap
       arcpy.AddMessage("Shrinkwrapping to finalize shape...")
-      ShrinkBuff2 = scratchGDB + os.sep + "ShrinkBuff2" + str(counter)
+      ShrinkBuff2 = scratchGDB + os.sep + "ShrinkBuff2_" + suffix
       arcpy.ShrinkWrap_consiteTools(SiteMerge, coalDist, ShrinkBuff2, scratchParm)
       
       outShp = ShrinkBuff2
@@ -325,30 +344,22 @@ for myCore in myCores:
    finally:
       counter +=1
       
-###For use after failure
-#tmpCS = r'E:\Testing_20161202.gdb\tmpCS'
-      
+# Clear memory before proceeding
+if scratchGDB == "in_memory":
+   del scratchGDB
+
 # Finalize features
 # Merge (sites plus core features)
 arcpy.AddMessage("Merging features...")
 SiteMerge2 = tmpWorkspace + os.sep + "SiteMerge2"
 arcpy.Merge_management ([tmpCS,inCS], SiteMerge2)
-      
-# # Process: Dissolve Features
-# arcpy.AddMessage("Dissolving adjacent features...")
-# dissFeats = scratchGDB + os.sep + "dissFeats"
-# arcpy.Dissolve_management (SiteMerge2, dissFeats, "", "", "SINGLE_PART", "")  
 
-# # Process:  Union (to remove gaps)
-# arcpy.AddMessage("Unioning to remove gaps...")
-# unionFeats = tmpWorkspace + os.sep + "unionFeats"
-# arcpy.Union_analysis ([dissFeats], unionFeats, "ONLY_FID", "", "NO_GAPS") 
+arcpy.AddMessage('The SiteMerge2 feature class you will need for the next step is saved here:')
+arcpy.AddMessage(SiteMerge2)
+arcpy.AddMessage('You should add that feature class to your map and then use it as input to the "Update AutoSites with Cores, Part 2" tool')
 
-# # Process: Dissolve Features
-# arcpy.AddMessage("Dissolving again...")
-# dissFeats2 = scratchGDB + os.sep + "dissFeats2"
-# arcpy.Dissolve_management (unionFeats, dissFeats2, "", "", "SINGLE_PART", "")
-      
+### For some reason, script often fails in the following Shrinkwrap section, although running the Shrinkwrap subroutine on the SiteMerge2 feature class after failure, separately, does work. In the case of failure, the last 3 processes below can be run by hand with the appropriate inputs.
+
 # Process: Shrinkwrap
 arcpy.AddMessage("Shrinkwrapping to consolidate nearby sites...")
 shrinkSites = tmpWorkspace + os.sep + "shrinkSites"
@@ -366,7 +377,3 @@ arcpy.EliminatePolygonPart_management (eraseFeats, outCS, "AREA", partArea, "", 
 
 if len(myFailList) > 0:
    arcpy.AddMessage("Processing failed for the following cores: %s" %myFailList)
-   
-# Clear memory
-   if scratchGDB == "in_memory":
-      del scratchGDB
