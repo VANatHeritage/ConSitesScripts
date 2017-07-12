@@ -52,7 +52,7 @@ scratchGDB = arcpy.GetParameterAsText(9) # Workspace for temporary data
 # Secondary arguments, with defaults supplied.  Once procedures are finalized these can be removed from user's view.
 selDist = arcpy.GetParameter (10) #1000
 arcpy.AddMessage('Selection distance = %s' %selDist)
-dilDist = arcpy.GetParameter(11) #500
+dilDist = arcpy.GetParameter(11) #250
 arcpy.AddMessage('Dilation distance = %s' %dilDist)
 inclDist = arcpy.GetParameter(12) #50
 arcpy.AddMessage('Inclusion distance = %s' %inclDist)
