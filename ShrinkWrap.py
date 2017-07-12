@@ -2,7 +2,7 @@
 # ShrinkWrap.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-24 (Adapted from a ModelBuilder model)
-# Last Edit: 2017-06-01
+# Last Edit: 2017-07-07
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -17,6 +17,10 @@
 
 # Import modules
 import arcpy, os, sys, traceback
+from time import time as t
+
+# Get time stamp
+ts = int(t())
 
 # Get path to toolbox, then import it
 # Scenario 1:  script is in separate folder within folder holding toolbox
@@ -40,8 +44,11 @@ DilDist = arcpy.GetParameter(1) # Dilation distance, a positive number
 outFeats = arcpy.GetParameterAsText(2) # Output shrink-wrapped features
 scratchGDB = arcpy.GetParameterAsText(3) # Workspace for temporary data
 
-# Additional parameters, etc.
-defaultGDB = arcpy.env.workspace # Used for some temp outputs that should not be stored in memory
+# Create new file geodatabase to store temporary products too risky to store in memory
+gdbPath = arcpy.env.scratchFolder
+gdbName = 'tmp_%s.gdb' %ts
+tmpWorkspace = gdbPath + os.sep + gdbName 
+arcpy.CreateFileGDB_management(gdbPath, gdbName)
 
 # Parameter check
 if DilDist <= 0:
@@ -59,7 +66,7 @@ else:
    arcpy.AddMessage("Scratch products are being stored in memory and will not persist. If processing fails inexplicably, or if you want to be able to inspect scratch products, try running this with a specified scratchGDB on disk.")
    scratchParm = ""
 
-arcpy.AddMessage("Some additional scratch products will be stored here: %s" % defaultGDB)
+arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
 
 arcpy.AddMessage("Script running under %s" % sys.version)
    
@@ -78,12 +85,14 @@ arcpy.CreateFeatureclass_management (myWorkspace, Output_fname, "POLYGON", "", "
 
 # Process:  Clean Features
 arcpy.AddMessage("Cleaning input features...")
-cleanFeats = scratchGDB + os.sep + "cleanFeats"
+cleanFeats = tmpWorkspace + os.sep + "cleanFeats"
 arcpy.CleanFeatures_consiteTools(inFeats, cleanFeats)
 
 # Process:  Dissolve Features
 arcpy.AddMessage("Dissolving adjacent features...")
-dissFeats = scratchGDB + os.sep + "dissFeats"
+dissFeats = tmpWorkspace + os.sep + "dissFeats"
+# Writing to disk in hopes of stopping geoprocessing failure
+arcpy.AddMessage("This feature class is stored here: %s" % dissFeats)
 arcpy.Dissolve_management (cleanFeats, dissFeats, "", "", "SINGLE_PART", "")
 
 # Process:  Generalize Features
@@ -93,17 +102,25 @@ arcpy.Generalize_edit(dissFeats, "0.1 Meters")
 
 # Process:  Buffer Features
 arcpy.AddMessage("Buffering features...")
-buffFeats = scratchGDB + os.sep + "buffFeats"
+buffFeats = tmpWorkspace + os.sep + "buffFeats"
 arcpy.Buffer_analysis (dissFeats, buffFeats, DilDist, "", "", "ALL")
 
 # Process:  Explode Multiparts
 arcpy.AddMessage("Exploding multipart features...")
-explFeats = scratchGDB + os.sep + "explFeats"
+explFeats = tmpWorkspace + os.sep + "explFeats"
+# Writing to disk in hopes of stopping geoprocessing failure
+arcpy.AddMessage("This feature class is stored here: %s" % explFeats)
 arcpy.MultipartToSinglepart_management (buffFeats, explFeats)
+
+# Process:  Get Count
+numWraps = (arcpy.GetCount_management(explFeats)).getOutput(0)
+arcpy.AddMessage('There are %s features after consolidation' %numWraps)
 
 # Loop through the exploded buffer features
 myFeats = arcpy.da.SearchCursor(explFeats, ["SHAPE@"])
+counter = 1
 for Feat in myFeats:
+   arcpy.AddMessage('Working on feature %s' % str(counter))
    featSHP = Feat[0]
    tmpFeat = scratchGDB + os.sep + "tmpFeat"
    arcpy.CopyFeatures_management (featSHP, tmpFeat)
@@ -135,6 +152,6 @@ for Feat in myFeats:
    arcpy.AddMessage("Appending feature...")
    arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
    
-# Clear memory
-if scratchGDB == "in_memory":
-   del scratchGDB
+   counter +=1
+   
+del tmpWorkspace
