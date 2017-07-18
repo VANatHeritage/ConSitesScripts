@@ -2,7 +2,7 @@
 # Coalesce.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-24 (Adapted from a ModelBuilder model)
-# Last Edit: 2017-07-07
+# Last Edit: 2017-07-12
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -78,14 +78,6 @@ arcpy.Buffer_analysis(Clean_PosBuff, NegBuff, NegDist, "FULL", "ROUND", "NONE", 
 
 # Process: Clean Features to get final dilated features
 arcpy.CleanFeatures_consiteTools(NegBuff, outFeats)
-
-# # Clear memory
-# if scratchGDB == "in_memory":
-   # del scratchGDB
-
-
-
-
 
 
 

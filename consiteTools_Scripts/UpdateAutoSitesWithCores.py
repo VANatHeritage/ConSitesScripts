@@ -2,7 +2,7 @@
 # UpdateAutoSitesWithCores.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-11-18
-# Last Edit: 2017-07-07
+# Last Edit: 2017-07-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -26,6 +26,7 @@
 # Import modules
 import arcpy, os, sys, traceback
 from datetime import datetime as dt
+from time import time as t
 
 # Get timestamp
 ts = dt.now()
@@ -247,14 +248,31 @@ arcpy.MakeFeatureLayer_management(coreRtn, "coreRtn_lyr")
 numCores = (arcpy.GetCount_management(coreRtn)).getOutput(0)
 arcpy.AddMessage('There are %s cores after culling' %numCores)
 
-myFailList = []
+# Clear memory before proceeding
+if scratchGDB == "in_memory":
+   arcpy.AddMessage('Clearing memory...')
+   arcpy.env.workspace = scratchGDB
+   scratchData = arcpy.ListDatasets()
+   for item in scratchData:
+      arcpy.Delete_management(scratchData)
 
-###For use after failure
-#coreRtn = r'D:\Users\Kirsten\Documents\ArcGIS\scratch.gdb\coreRtnEast_20161203'
+myFailList = []
 
 # Loop through the Cores
 myCores = arcpy.da.SearchCursor(coreRtn, ["SHAPE@", "OBJECTID"])
 counter = 1
+
+# Trying to avoid the constant crashing, setting scratchGDB to a new workspace on disk for remainder of script.
+# Get a new simple time stamp and create a new GDB
+ts = int(t())
+gdbPath = "C:" + os.sep + "TMP"
+gdbName = 'tmpCoreProc_%s.gdb' %ts
+if not os.path.exists(gdbPath):
+   arcpy.CreateFolder_management ("C:", "TMP")
+tmpWorkspace2 = gdbPath + os.sep + gdbName 
+arcpy.AddMessage("Some additional scratch outputs will be stored here: %s" % tmpWorkspace2)
+arcpy.CreateFileGDB_management(gdbPath, gdbName)
+scratchGDB = tmpWorkspace2
 
 for myCore in myCores:
    try:
@@ -344,9 +362,13 @@ for myCore in myCores:
    finally:
       counter +=1
       
-# Clear memory before proceeding
+# Clear memory again before proceeding
 if scratchGDB == "in_memory":
-   del scratchGDB
+   arcpy.AddMessage('Clearing memory...')
+   arcpy.env.workspace = scratchGDB
+   scratchData = arcpy.ListDatasets()
+   for item in scratchData:
+      arcpy.Delete_management(scratchData)
 
 # Finalize features
 # Merge (sites plus core features)
@@ -354,9 +376,9 @@ arcpy.AddMessage("Merging features...")
 SiteMerge2 = tmpWorkspace + os.sep + "SiteMerge2"
 arcpy.Merge_management ([tmpCS,inCS], SiteMerge2)
 
-arcpy.AddMessage('The SiteMerge2 feature class you will need for the next step is saved here:')
+arcpy.AddMessage('In case of failure, the SiteMerge2 feature class you will need for the next steps is saved here:')
 arcpy.AddMessage(SiteMerge2)
-arcpy.AddMessage('You should add that feature class to your map and then use it as input to the "Update AutoSites with Cores, Part 2" tool')
+arcpy.AddMessage('You should then run the following steps manually')
 
 ### For some reason, script often fails in the following Shrinkwrap section, although running the Shrinkwrap subroutine on the SiteMerge2 feature class after failure, separately, does work. In the case of failure, the last 3 processes below can be run by hand with the appropriate inputs.
 
@@ -377,3 +399,20 @@ arcpy.EliminatePolygonPart_management (eraseFeats, outCS, "AREA", partArea, "", 
 
 if len(myFailList) > 0:
    arcpy.AddMessage("Processing failed for the following cores: %s" %myFailList)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

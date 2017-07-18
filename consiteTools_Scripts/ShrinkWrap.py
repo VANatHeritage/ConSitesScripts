@@ -2,7 +2,7 @@
 # ShrinkWrap.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-24 (Adapted from a ModelBuilder model)
-# Last Edit: 2017-07-07
+# Last Edit: 2017-07-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -45,8 +45,10 @@ outFeats = arcpy.GetParameterAsText(2) # Output shrink-wrapped features
 scratchGDB = arcpy.GetParameterAsText(3) # Workspace for temporary data
 
 # Create new file geodatabase to store temporary products too risky to store in memory
-gdbPath = arcpy.env.scratchFolder
+gdbPath = "C:" + os.sep + "TMP"
 gdbName = 'tmp_%s.gdb' %ts
+if not os.path.exists(gdbPath):
+   arcpy.CreateFolder_management ("C:", "TMP")
 tmpWorkspace = gdbPath + os.sep + gdbName 
 arcpy.CreateFileGDB_management(gdbPath, gdbName)
 
@@ -153,5 +155,12 @@ for Feat in myFeats:
    arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
    
    counter +=1
-   
-del tmpWorkspace
+
+# Delete temporary workspace
+# Had to put this in a try envelope b/c ArcGIS sucks at releasing locks
+try:
+   arcpy.Delete_management(tmpWorkspace)
+except:
+   pass
+
+
