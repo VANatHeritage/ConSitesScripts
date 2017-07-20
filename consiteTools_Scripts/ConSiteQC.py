@@ -2,7 +2,7 @@
 # ConSiteQC.py
 # Version:  ArcGIS 10.1 / Python 2.7
 # Creation Date: 2016-06-07
-# Last Edit: 2016-12-20
+# Last Edit: 2017-07-20
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
@@ -151,7 +151,7 @@ arcpy.CopyFeatures_management("SingleLyr", BndChgSites, "", "0", "0", "0")
 
 # Process:  Add Fields; Calculate Fields
 for tbl in [(NewSites, "N"), (MergeSites, "M"), (SplitSites, "S"), (IdentSites, "I"), (BndChgSites, "B")]: 
-   for fld in [("ModType", "TEXT", 1), ("PercDiff", "DOUBLE", ""), ("AssignID", "LONG", ""), ("Flag", "SHORT", ""), ("Comment", "TEXT", 250)]:
+   for fld in [("ModType", "TEXT", 1), ("PercDiff", "DOUBLE", ""), ("AssignID", "TEXT", 10), ("Flag", "SHORT", ""), ("Comment", "TEXT", 250)]:
       arcpy.AddField_management (tbl[0], fld[0], fld[1], "", "", fld[2]) 
    arcpy.CalculateField_management (tbl[0], "ModType", '"%s"' %tbl[1], "PYTHON") 
    CodeBlock = """def Flag(ModType):
@@ -176,15 +176,15 @@ for site in mySites:
    try: # put all this in a TRY block so that even if one feature fails, script can proceed to next feature
       # Extract the unique ID from the data record
       myID = site.getValue("AssignID")
-      arcpy.AddMessage("\nWorking on Site ID #" + str(int(myID)))
+      arcpy.AddMessage("\nWorking on Site ID #" + myID)
       
       # Process:  Select (Analysis)
       # Create temporary feature classes including only the current new and old sites
-      myWhereClause_AutoSites = '"AssignID" = ' + str(int(myID))
+      myWhereClause_AutoSites = '"AssignID" = \'%s\'' %myID
       tmpAutoSite = "in_memory" + os.sep + "tmpAutoSite"
       arcpy.Select_analysis (BndChgSites, tmpAutoSite, myWhereClause_AutoSites)
       tmpOldSite = "in_memory" + os.sep + "tmpOldSite"
-      myWhereClause_OldSite = '"%s" = ' %Old_ID + str(int(myID))
+      myWhereClause_OldSite = '"%s" = \'%s\'' %(Old_ID,myID)
       arcpy.Select_analysis (Old_CS, tmpOldSite, myWhereClause_OldSite)
 
       # Get the area of the old site
