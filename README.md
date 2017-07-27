@@ -1,2 +1,2 @@
-# ConSitesScripts
-Python scripts and a custom ArcGIS toolbox for automation of Virginia Natural Heritage Conservation Sites.
+# Conservation Site-Building Tools
+ArcGIS toolbox and associated scripts for automation of Virginia Natural Heritage Conservation Sites.
