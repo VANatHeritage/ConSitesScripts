@@ -59,8 +59,3 @@ arcpy.Clip_analysis(inFeats, clipFeats, tmpClip)
 
 # Process: Clean Features
 arcpy.CleanFeatures_consiteTools(tmpClip, outFeats)
-
-# Clear memory
-if scratchGDB == "in_memory":
-   del scratchGDB
-

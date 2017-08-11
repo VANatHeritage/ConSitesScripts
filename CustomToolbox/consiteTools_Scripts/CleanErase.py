@@ -61,10 +61,3 @@ arcpy.Erase_analysis(inFeats, eraseFeats, tmpErased, "")
 
 # Process: Clean Features
 arcpy.CleanFeatures_consiteTools(tmpErased, outFeats)
-
-# Clear memory
-if scratchGDB == "in_memory":
-   del scratchGDB
-
-
-
