@@ -4,10 +4,10 @@
   - getScratchMsg
   - CleanFeatures
   - CleanClip
+  - CleanErase
   - Coalesce
   - Shrinkwrap
 
 - Functions to Do:
-  - CleanErase
   - CreateStandardWetlandSBB
   - UpdateFeaturesWithNew (on hold for now)
