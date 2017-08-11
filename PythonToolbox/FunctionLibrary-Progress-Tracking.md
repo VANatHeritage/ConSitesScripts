@@ -3,11 +3,11 @@
   - createTmpWorkspace
   - getScratchMsg
   - CleanFeatures
+  - CleanClip
   - Coalesce
   - Shrinkwrap
 
 - Functions to Do:
-  - CleanClip
   - CleanErase
   - CreateStandardWetlandSBB
   - UpdateFeaturesWithNew (on hold for now)
