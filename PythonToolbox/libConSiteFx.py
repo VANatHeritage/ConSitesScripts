@@ -7,6 +7,9 @@
 
 # Summary:
 # A library of functions used to automatically delineate Natural Heritage Conservation Sites 
+
+# TO DO:
+# Parse number and unit portions of dilation distance for ShrinkWrap and Coalesce
 # ----------------------------------------------------------------------------------------
 
 # Import modules
@@ -14,7 +17,7 @@ import arcpy, os, sys, traceback
 from time import time as t
 
 # Set overwrite option so that existing data may be overwritten
-   arcpy.env.overwriteOutput = True
+arcpy.env.overwriteOutput = True
    
 def createTmpWorkspace():
    '''Creates a new temporary geodatabase with a timestamp tag, within the current scratchFolder'''
@@ -131,7 +134,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    '''If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'''
    # Parameter check
    if dilDist == 0:
-   arcpy.AddError("You need to enter a non-zero value for the dilation distance")
+      arcpy.AddError("You need to enter a non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
    
    # Determine where temporary data are written
@@ -240,21 +243,21 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
       featSHP = Feat[0]
       tmpFeat = scratchGDB + os.sep + "tmpFeat"
       arcpy.CopyFeatures_management (featSHP, tmpFeat)
-      trashList.append.(tmpFeat)
+      trashList.append(tmpFeat)
       
       # Process:  Repair Geometry
       arcpy.RepairGeometry_management (tmpFeat, "DELETE_NULL")
       
       # Process:  Make Feature Layer
       arcpy.MakeFeatureLayer_management (dissFeats, "dissFeatsLyr", "", "", "")
-      trashList.append(dissFeatsLyr)
+      trashList.append("dissFeatsLyr")
 
       # Process: Select Layer by Location (Get dissolved features within each exploded buffer feature)
       arcpy.SelectLayerByLocation_management ("dissFeatsLyr", "INTERSECT", tmpFeat, "", "NEW_SELECTION")
       
       # Process:  Coalesce features (expand)
       coalFeats = scratchGDB + os.sep + 'coalFeats'
-      Coalesce("dissFeatsLyr", 8*dilDist, coalFeats, scratchParm)
+      Coalesce("dissFeatsLyr", 8*dilDist, coalFeats, scratchGDB)
       # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
       trashList.append(coalFeats)
       
