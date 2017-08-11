@@ -2,6 +2,7 @@
 - Functions Done:
   - createTmpWorkspace
   - getScratchMsg
+  - garbagePickup
   - CleanFeatures
   - CleanClip
   - CleanErase
