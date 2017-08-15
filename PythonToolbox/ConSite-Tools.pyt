@@ -1,4 +1,16 @@
-# This is an automatically generated Python toolbox template, created in ArcCatalog.
+# ----------------------------------------------------------------------------------------
+# ConSite-Tools.pyt
+# Version:  ArcGIS 10.3.1 / Python 2.7.8
+# Creation Date: 2017-08-11
+# Last Edit: 2017-08-15
+# Creator:  Kirsten R. Hazler
+
+# Summary:
+# A toolbox for automatic delineation of Natural Heritage Conservation Sites
+
+# TO DO:
+#
+# ----------------------------------------------------------------------------------------
 
 import arcpy
 import libConSiteFx
@@ -29,21 +41,21 @@ class shrinkwrap(object):
          datatype = "GPFeatureLayer",
          parameterType = "Required",
          direction = "Input")
-         
+
       dilDist = arcpy.Parameter(
          displayName = "Dilation distance",
          name = "dilDist",
          datatype = "GPLinearUnit",
          parameterType = "Required",
          direction = "Input")
-         
+
       outFeats = arcpy.Parameter(
          displayName = "Output features",
          name = "outFeats",
          datatype = "DEFeatureClass",
          parameterType = "Required",
          direction = "Output")
-         
+
       scratchGDB = arcpy.Parameter(
          displayName = "Scratch geodatabase",
          name = "scratchGDB",
@@ -51,7 +63,7 @@ class shrinkwrap(object):
          parameterType = "Optional",
          direction = "Input")
       scratchGDB.filter.list = ["Local Database"]
-      
+
       params = [inFeats, dilDist, outFeats, scratchGDB]
       return params
 
@@ -76,10 +88,19 @@ class shrinkwrap(object):
       dilDist = parameters[1].valueAsText
       outFeats = parameters[2].valueAsText
       scratchGDB = parameters[3].valueAsText
-      
+
       if not scratchGDB:
          scratchGDB = "in_memory"
-      
+
       ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB)
-      arcpy.AddMessage('So far so good.')
-      return
+
+      return outFeats
+
+# # For debugging...
+# def main():
+   # tbx = Toolbox()
+   # tool = shrinkwrap()
+   # tool.execute(tool.getParameterInfo(),None)
+
+# if __name__ == '__main__':
+   # main()

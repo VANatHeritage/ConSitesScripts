@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------------------
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
-# Creation Date: 2017-08-08 (Adapted from a ModelBuilder model)
+# Creation Date: 2017-08-08
 # Last Edit: 2017-08-11
 # Creator:  Kirsten R. Hazler
 
@@ -9,7 +9,7 @@
 # A library of functions used to automatically delineate Natural Heritage Conservation Sites 
 
 # TO DO:
-# Parse number and unit portions of dilation distance for ShrinkWrap and Coalesce
+#
 # ----------------------------------------------------------------------------------------
 
 # Import modules
@@ -18,6 +18,16 @@ from time import time as t
 
 # Set overwrite option so that existing data may be overwritten
 arcpy.env.overwriteOutput = True
+   
+def multiMeasure(meas, multi):
+   '''Given a measurement string such as "100 METERS" and a multiplier, multiplies the number by the specified multiplier, and returns a new measurement string along with its individual components'''
+   parseMeas = meas.split(" ") # parse number and units
+   num = float(parseMeas[0]) # convert string to number
+   units = parseMeas[1]
+   num = num * multi
+   newMeas = str(num) + " " + units
+   measTuple = (num, units, newMeas)
+   return measTuple
    
 def createTmpWorkspace():
    '''Creates a new temporary geodatabase with a timestamp tag, within the current scratchFolder'''
@@ -132,8 +142,14 @@ def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
    
 def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    '''If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'''
+   
+   # Parse dilation distance and get the negative
+   origDist, units, meas = multiMeasure(dilDist, 1)
+   negDist, units, negMeas = multiMeasure(dilDist, -1)
+
    # Parameter check
-   if dilDist == 0:
+
+   if origDist == 0:
       arcpy.AddError("You need to enter a non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
    
@@ -142,8 +158,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    arcpy.AddMessage(msg)
    
    # Set parameters. Dissolve parameter depends on dilation distance.
-   oppDist = -dilDist
-   if dilDist > 0:
+   if origDist > 0:
       dissolve1 = "ALL"
       dissolve2 = "NONE"
    else:
@@ -152,7 +167,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process: Buffer
    Buff1 = scratchGDB + os.sep + "Buff1"
-   arcpy.Buffer_analysis(inFeats, Buff1, dilDist, "FULL", "ROUND", dissolve1, "", "PLANAR")
+   arcpy.Buffer_analysis(inFeats, Buff1, meas, "FULL", "ROUND", dissolve1, "", "PLANAR")
 
    # Process: Clean Features
    Clean_Buff1 = scratchGDB + os.sep + "CleanBuff1"
@@ -164,7 +179,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process: Buffer
    Buff2 = scratchGDB + os.sep + "NegativeBuffer"
-   arcpy.Buffer_analysis(Clean_Buff1, Buff2, oppDist, "FULL", "ROUND", dissolve2, "", "PLANAR")
+   arcpy.Buffer_analysis(Clean_Buff1, Buff2, negMeas, "FULL", "ROUND", dissolve2, "", "PLANAR")
 
    # Process: Clean Features to get final dilated features
    CleanFeatures(Buff2, outFeats)
@@ -173,8 +188,12 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    garbagePickup([Buff1, Clean_Buff1, Buff2])
    
 def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
+   # Parse dilation distance, and increase it to get smoothing distance
+   origDist, units, meas = multiMeasure(dilDist, 1)
+   smthDist, units, smthMeas = multiMeasure(dilDist, 8)
+
    # Parameter check
-   if dilDist <= 0:
+   if origDist <= 0:
       arcpy.AddError("You need to enter a positive, non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
 
@@ -220,7 +239,7 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Process:  Buffer Features
    arcpy.AddMessage("Buffering features...")
    buffFeats = tmpWorkspace + os.sep + "buffFeats"
-   arcpy.Buffer_analysis (dissFeats, buffFeats, dilDist, "", "", "ALL")
+   arcpy.Buffer_analysis (dissFeats, buffFeats, meas, "", "", "ALL")
    trashList.append(buffFeats)
 
    # Process:  Explode Multiparts
@@ -257,7 +276,7 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
       
       # Process:  Coalesce features (expand)
       coalFeats = scratchGDB + os.sep + 'coalFeats'
-      Coalesce("dissFeatsLyr", 8*dilDist, coalFeats, scratchGDB)
+      Coalesce("dissFeatsLyr", smthMeas, coalFeats, scratchGDB)
       # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
       trashList.append(coalFeats)
       
