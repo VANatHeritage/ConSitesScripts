@@ -9,7 +9,7 @@
 # A library of functions used to automatically delineate Natural Heritage Conservation Sites 
 
 # TO DO:
-#
+# Continue making SBB functions starting with Rule 5
 # ----------------------------------------------------------------------------------------
 
 # Import modules
