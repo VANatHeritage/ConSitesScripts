@@ -19,6 +19,11 @@ from time import time as t
 # Set overwrite option so that existing data may be overwritten
 arcpy.env.overwriteOutput = True
    
+def countFeatures(features):
+   '''Gets count of features'''
+   count = int((arcpy.GetCount_management(features)).getOutput(0))
+   return count
+   
 def multiMeasure(meas, multi):
    '''Given a measurement string such as "100 METERS" and a multiplier, multiplies the number by the specified multiplier, and returns a new measurement string along with its individual components'''
    parseMeas = meas.split(" ") # parse number and units
@@ -73,7 +78,7 @@ def garbagePickup(trashList):
       except:
          pass
    return
-   
+
 def CleanFeatures(inFeats, outFeats):
    '''Repairs geometry, then explodes multipart polygons to prepare features for geoprocessing.'''
    
