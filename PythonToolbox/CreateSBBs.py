@@ -2,11 +2,14 @@
 # CreateSBBs.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-01-29
-# Last Edit: 2017-08-15
+# Last Edit: 2017-08-17
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
 #  Creates rule-specific Site Building Blocks (SBBs) from Procedural Features (PFs).
+#
+# Usage Notes:
+# The main function here is "CreateSBBs". All the others are helper functions. If you want to create SBBs outside of ArcMap, go down to the bottom of the script and edit the "main" function to use the desired values for the input variables. Then you can simply run the script from an IDE such as PyScripter.
 # ----------------------------------------------------------------------------------------
 # Import function libraries and settings
 import libConSiteFx
@@ -18,12 +21,12 @@ def warnings(rule):
    '''Generates warning messages specific to SBB rules'''
    warnMsgs = arcpy.GetMessages(1)
    if warnMsgs:
-      arcpy.AddWarning('Finished processing Rule %s, but there were some problems.' % str(rule))
-      arcpy.AddWarning(warnMsgs)
+      printWrng('Finished processing Rule %s, but there were some problems.' % str(rule))
+      printWrng(warnMsgs)
    else:
-      arcpy.AddMessage('Rule %s SBBs completed' % str(rule))
+      printMsg('Rule %s SBBs completed' % str(rule))
 
-def PrepProcFeats(in_PF, tmpWorkspace):
+def PrepProcFeats(in_PF, fld_Rule, fld_Buff, tmpWorkspace):
    '''Makes a copy of the Procedural Features, preps them for SBB processing'''
    try:
       # Process: Copy Features
@@ -78,19 +81,19 @@ def CreateStandardSBB(in_PF, out_SBB, fld_Buff, scratchGDB = "in_memory"):
       arcpy.MakeFeatureLayer_management(in_PF, "tmpLyr", selQry)
 
       # Count records and proceed accordingly
-      count = getCount("tmpLyr")
+      count = countFeatures("tmpLyr")
       if count > 0:
          # Process: Buffer
          tmpSBB = scratchGDB + os.sep + 'tmpSBB'
          arcpy.Buffer_analysis("tmpLyr", tmpSBB, fld_Buff, "FULL", "ROUND", "NONE", "", "PLANAR")
          # Append to output and cleanup
          arcpy.Append_management (tmpSBB, out_SBB, "NO_TEST")
-         arcpy.AddMessage('Simple buffer SBBs completed')
+         printMsg('Simple buffer SBBs completed')
          garbagePickup([tmpSBB])
       else:
-         arcpyAddMessage('There are no PFs using the simple buffer rules')
+         printMsg('There are no PFs using the simple buffer rules')
    except:
-      arcpy.AddWarning('Unable to process the simple buffer features')
+      printWrng('Unable to process the simple buffer features')
       tback()
 
 def CreateNoBuffSBB(in_PF, out_SBB):
@@ -101,16 +104,15 @@ def CreateNoBuffSBB(in_PF, out_SBB):
       arcpy.MakeFeatureLayer_management(in_PF, "tmpLyr", selQry)
 
       # Count records and proceed accordingly
-      count = getCount("tmpLyr")
+      count = countFeatures("tmpLyr")
       if count > 0:
          # Append to output and cleanup
          arcpy.Append_management ("tmpLyr", out_SBB, "NO_TEST")
-         arcpy.AddMessage('No-buffer SBBs completed')
-         garbagePickup([tmpSBB])
+         printMsg('No-buffer SBBs completed')
       else:
-         arcpyAddMessage('There are no PFs using the no-buffer rules')
+         printMsg('There are no PFs using the no-buffer rules')
    except:
-      arcpy.AddWarning('Unable to process the no-buffer features.')
+      printWrng('Unable to process the no-buffer features.')
       tback()
 
 def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratchGDB = "in_memory"):
@@ -122,73 +124,98 @@ def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, 
    # Set up some variables
    tmpWorkspace = createTmpWorkspace()
    sr = arcpy.Describe(in_PF).spatialReference
-   arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
+   printMsg("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
    sub_PF = scratchGDB + os.sep + 'sub_PF' # for storing PF subsets
 
    # Set up trashList for later garbage collection
    trashList = [sub_PF]
 
    # Prepare input procedural featuers
-   arcpy.AddMessage('Prepping input procedural features')
-   tmp_PF = PrepProcFeats(in_PF, tmpWorkspace)
+   printMsg('Prepping input procedural features')
+   tmp_PF = PrepProcFeats(in_PF, fld_Rule, fld_Buff, tmpWorkspace)
    trashList.append(tmp_PF)
 
-   arcpy.AddMessage('Beginning SBB creation...')
+   printMsg('Beginning SBB creation...')
 
    # Create empty feature class to store SBBs
-   arcpy.CreateFeatureclass_management (tmpWorkspace, out_SBB, "POLYGON", tmp_PF, '', '', sr)
+   printMsg('Creating empty feature class for output')
+   if arcpy.Exists(out_SBB):
+      arcpy.Delete_management(out_SBB)
+   outDir = os.path.dirname(out_SBB)
+   outName = os.path.basename(out_SBB)
+   printMsg('Creating %s in %s' %(outName, outDir))
+   arcpy.CreateFeatureclass_management (outDir, outName, "POLYGON", tmp_PF, '', '', sr)
 
    # Standard buffer SBBs
-   arcpy.AddMessage('Processing the simple defined-buffer features...')
+   printMsg('Processing the simple defined-buffer features...')
    CreateStandardSBB(tmp_PF, out_SBB, 'fltBuffer')
 
    # No buffer SBBs
-   arcpy.AddMessage('Processing the no-buffer features')
+   printMsg('Processing the no-buffer features')
    CreateNoBuffSBB(tmp_PF, out_SBB)
 
    # Rule 5 SBBs
-   arcpy.AddMessage('Processing the Rule 5 features')
+   printMsg('Processing the Rule 5 features')
    selQry = "intRule = 5"
    in_NWI = in_nwi5
    try:
       CreateWetlandSBB(tmp_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace, "in_memory")
       warnings(5)
    except:
-      arcpy.AddWarning('Unable to process Rule 5 features')
+      printWrng('Unable to process Rule 5 features')
       tback()
 
    # Rule 6 SBBs
-   arcpy.AddMessage('Processing the Rule 6 features')
+   printMsg('Processing the Rule 6 features')
    selQry = "intRule = 6"
    in_NWI = in_nwi67
    try:
       CreateWetlandSBB(tmp_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace, "in_memory")
       warnings(6)
    except:
-      arcpy.AddWarning('Unable to process Rule 6 features')
+      printWrng('Unable to process Rule 6 features')
       tback()
 
    # Rule 7 SBBs
-   arcpy.AddMessage('Processing the Rule 7 features')
+   printMsg('Processing the Rule 7 features')
    selQry = "intRule = 7"
    in_NWI = in_nwi67
    try:
       CreateWetlandSBB(tmp_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace, "in_memory")
       warnings(7)
    except:
-      arcpy.AddWarning('Unable to process Rule 7 features')
+      printWrng('Unable to process Rule 7 features')
       tback()
 
    # Rule 9 SBBs
-   arcpy.AddMessage('Processing the Rule 9 features')
+   printMsg('Processing the Rule 9 features')
    selQry = "intRule = 9"
    in_NWI = in_nwi9
    try:
       CreateWetlandSBB(tmp_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace, "in_memory")
       warnings(9)
    except:
-      arcpy.AddWarning('Unable to process Rule 9 features')
+      printWrng('Unable to process Rule 9 features')
       tback()
 
-   arcpyAddMessage('SBB processing complete')
+   printMsg('SBB processing complete')
+   
    return out_SBB
+
+def main():
+   # Set up your variables here
+   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20170605.gdb\ProcFeats_20170605_114532'
+   fld_SFID = 'SFID' # probably can leave this as is
+   fld_Rule = 'RULE' # probably can leave this as is
+   fld_Buff = 'BUFFER' # probably can leave this as is
+   in_nwi5 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\SBB_Tools_Inputs_BAK20160919.gdb\VA_Wetlands_Rule5'
+   in_nwi67 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\SBB_Tools_Inputs_BAK20160919.gdb\VA_Wetlands_Rule67'
+   in_nwi9 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\SBB_Tools_Inputs_BAK20160919.gdb\VA_Wetlands_Rule9'
+   out_SBB = r'C:\Testing\Testing.gdb\SBB_test3'
+   scratchGDB = "in_memory"
+   # End of user input
+   
+   CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratchGDB = "in_memory")
+
+if __name__ == '__main__':
+   main()

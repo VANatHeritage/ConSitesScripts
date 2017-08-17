@@ -2,7 +2,7 @@
 # CreateStandardWetlandSBB.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2013-01-23
-# Last Edit: 2017-08-16
+# Last Edit: 2017-08-17
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
@@ -38,141 +38,147 @@ from libConSiteFx import *
 
 def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "in_memory", scratchGDB = "in_memory"):
    '''Creates standard wetland SBBs'''
-   # Declare some additional parameters
-   # These can be tweaked as desired
-   nwiBuff = 100 # buffer to be used for NWI features (may or may not equal minBuff)
-   minBuff = 250 # minimum buffer to include in SBB
-   maxBuff = 500 # maximum buffer to include in SBB
-   searchDist = 15 # search distance for inclusion of NWI features
-
    # Process: Select PFs
    sub_PF = tmpWorkspace + os.sep + 'sub_PF'
    arcpy.Select_analysis (in_PF, sub_PF, selQry)
+   
+   # Count records and proceed accordingly
+   count = countFeatures(sub_PF)
+   if count > 0:
+      # Declare some additional parameters
+      # These can be tweaked as desired
+      nwiBuff = 100 # buffer to be used for NWI features (may or may not equal minBuff)
+      minBuff = 250 # minimum buffer to include in SBB
+      maxBuff = 500 # maximum buffer to include in SBB
+      searchDist = 15 # search distance for inclusion of NWI features
+   
+      # Process: Make Feature Layer (Data Management)
+      # Create a feature layer of NWI polygons
+      printMsg("Making an NWI feature layer...")
+      arcpy.MakeFeatureLayer_management (in_NWI, "NWI_lyr", "", "", "")
 
-   # Process: Make Feature Layer (Data Management)
-   # Create a feature layer of NWI polygons
-   arcpy.AddMessage("Making an NWI feature layer...")
-   arcpy.MakeFeatureLayer_management (in_NWI, "NWI_lyr", "", "", "")
+      # Set workspace
+      arcpy.env.workspace = scratchGDB
 
-   # Set workspace
-   arcpy.env.workspace = scratchGDB
+      # Create an empty list to store IDs of features that fail to get processed
+      myFailList = []
 
-   # Create an empty list to store IDs of features that fail to get processed
-   myFailList = []
+      # Set up cursor and counter
+      myProcFeats = arcpy.da.SearchCursor(sub_PF, [fld_SFID, "SHAPE@"]) # Get the set of features
+      myIndex = 1 # Set a counter index
 
-   # Set up cursor and counter
-   myProcFeats = arcpy.da.SearchCursor(sub_PF, [fld_SFID], "SHAPE@") # Get the set of features
-   myIndex = 1 # Set a counter index
+      # Loop through the individual Procedural Features
+      for myPF in myProcFeats:
+      # for each Procedural Feature in the set, do the following...
+         try: # Even if one feature fails, script can proceed to next feature
 
-   # Loop through the individual Procedural Features
-   for myPF in myProcFeats:
-   # for each Procedural Feature in the set, do the following...
-      try: # Even if one feature fails, script can proceed to next feature
+            # Extract the unique Source Feature ID and geometry object
+            myID = myPF[0]
+            myShape = myPF[1]
 
-         # Extract the unique Source Feature ID and geometry object
-         myID = myPF[0]
-         myShape = myPF[1]
+            # Add a progress message
+            printMsg("\nWorking on feature %s, with SFID = %s" %(str(myIndex), myID))
 
-         # Add a progress message
-         arcpy.AddMessage("\nWorking on feature %s, with SFID = %s" %(str(myIndex), myID))
-
-         # Process:  Select (Analysis)
-         # Create a temporary feature class including only the current PF
-         selQry = fld_SFID + " = '%s'" % myID
-         arcpy.Select_analysis (Input_PF, "tmpPF", selQry)
-
-         # Process:  Buffer (Analysis)
-         # Step 1: Create a minimum buffer around the Procedural Feature
-         arcpy.AddMessage("Creating minimum buffer")
-         myMinBuffer = myShape.buffer(minBuff)
-
-         # Process:  Buffer (Analysis)
-         # Step 2: Create a maximum buffer around the Procedural Feature
-         arcpy.AddMessage("Creating maximum buffer")
-         myMaxBuffer = myShape.buffer(maxBuff)
-
-         # Process: Select Layer by Location (Data Management)
-         # Step 3: Select NWI features within range
-         arcpy.AddMessage("Selecting nearby NWI features")
-         arcpy.SelectLayerByLocation_management ("NWI_lyr", "WITHIN_A_DISTANCE", "tmpPF", searchDist, "NEW_SELECTION")
-
-         # Determine how many NWI features were selected
-         selFeats = int(arcpy.GetCount_management("NWI_lyr")[0])
-
-         # If NWI features are in range, then process
-         if selFeats > 0:
-            # Process:  Clip (Analysis)
-            # Clip the NWI to the maximum buffer
-            arcpy.AddMessage("Clipping NWI features to maximum buffer...")
-            arcpy.Clip_analysis("NWI_lyr", myMaxBuffer, "tmpClipNWI")
+            # Process:  Select (Analysis)
+            # Create a temporary feature class including only the current PF
+            selQry = fld_SFID + " = '%s'" % myID
+            arcpy.Select_analysis (in_PF, "tmpPF", selQry)
 
             # Process:  Buffer (Analysis)
-            # Step 4: Create a buffer around the NWI feature(s)
-            arcpy.AddMessage("Buffering selected NWI features...")
-            arcpy.Buffer_analysis (myClipNWI, "nwiBuff", nwiBuff)
+            # Step 1: Create a minimum buffer around the Procedural Feature
+            printMsg("Creating minimum buffer")
+            myMinBuffer = arcpy.Buffer_analysis (myShape, "minBuffer", minBuff)
 
-            # Process: Merge (Data Management)
-            # Step 5: Merge the minimum buffer with the NWI buffer
-            arcpy.AddMessage("Merging buffered PF with buffered NWI feature(s)...")
-            feats2merge = [myMinBuffer, myNWIBuffer]
-            arcpy.Merge_management(feats2merge, "tmpMerged")
+            # Process:  Buffer (Analysis)
+            # Step 2: Create a maximum buffer around the Procedural Feature
+            printMsg("Creating maximum buffer")
+            myMaxBuffer = myShape.buffer(maxBuff)
 
-            # Process:  Dissolve (Data Management)
-            # Dissolve features into a single polygon
-            arcpy.AddMessage("Dissolving buffered PF and NWI features into a single feature...")
-            arcpy.Dissolve_management ("tmpMerged", "tmpDissolved", "", "", "", "")
+            # Process: Select Layer by Location (Data Management)
+            # Step 3: Select NWI features within range
+            printMsg("Selecting nearby NWI features")
+            arcpy.SelectLayerByLocation_management ("NWI_lyr", "WITHIN_A_DISTANCE", "tmpPF", searchDist, "NEW_SELECTION")
 
-            # Process:  Clip (Analysis)
-            # Step 6: Clip the dissolved feature to the maximum buffer
-            arcpy.AddMessage("Clipping dissolved feature to maximum buffer...")
-            arcpy.Clip_analysis ("tmpDissolved", myMaxBuffer, "tmpClip", "")
+            # Determine how many NWI features were selected
+            selFeats = int(arcpy.GetCount_management("NWI_lyr")[0])
 
-            # Use the clipped, combined feature geometry as the final shape
-            myFinalShape = arcpy.SearchCursor("tmpClip").next().Shape
-         else:
-            # Use the simple minimum buffer as the final shape
-            arcpy.AddMessage("No NWI features found within specified search distance")
-            myFinalShape = myMinBuffer
+            # If NWI features are in range, then process
+            if selFeats > 0:
+               # Process:  Clip (Analysis)
+               # Clip the NWI to the maximum buffer
+               printMsg("Clipping NWI features to maximum buffer...")
+               arcpy.Clip_analysis("NWI_lyr", myMaxBuffer, "tmpClipNWI")
 
-         # Update the PF shape
-         myCurrentPF_rows = arcpy.UpdateCursor("tmpPF", "", "", "Shape", "")
-         myPF_row = myCurrentPF_rows.next()
-         myPF_row.Shape = myFinalShape
-         myCurrentPF_rows.updateRow(myPF_row)
+               # Process:  Buffer (Analysis)
+               # Step 4: Create a buffer around the NWI feature(s)
+               printMsg("Buffering selected NWI features...")
+               arcpy.Buffer_analysis ("tmpClipNWI", "nwiBuff", nwiBuff)
 
-         # Process:  Append
-         # Append the final geometry to the SBB feature class.
-         arcpy.AddMessage("Appending final shape to SBB feature class...")
-         arcpy.Append_management("tmpPF", out_SBB, "NO_TEST", "", "")
+               # Process: Merge (Data Management)
+               # Step 5: Merge the minimum buffer with the NWI buffer
+               printMsg("Merging buffered PF with buffered NWI feature(s)...")
+               feats2merge = [myMinBuffer, "nwiBuff"]
+               print str(feats2merge)
+               arcpy.Merge_management(feats2merge, "tmpMerged")
 
-         # Add final progress message
-         arcpy.AddMessage("Finished processing feature " + str(myIndex))
+               # Process:  Dissolve (Data Management)
+               # Dissolve features into a single polygon
+               printMsg("Dissolving buffered PF and NWI features into a single feature...")
+               arcpy.Dissolve_management ("tmpMerged", "tmpDissolved", "", "", "", "")
 
-      except:
-         # Add failure message and append failed feature ID to list
-         arcpy.AddMessage("\nFailed to fully process feature " + str(myIndex))
-         myFailList.append(int(myID))
+               # Process:  Clip (Analysis)
+               # Step 6: Clip the dissolved feature to the maximum buffer
+               printMsg("Clipping dissolved feature to maximum buffer...")
+               arcpy.Clip_analysis ("tmpDissolved", myMaxBuffer, "tmpClip", "")
 
-         # Error handling code swiped from "A Python Primer for ArcGIS"
-         tb = sys.exc_info()[2]
-         tbinfo = traceback.format_tb(tb)[0]
-         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
-         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
+               # Use the clipped, combined feature geometry as the final shape
+               myFinalShape = arcpy.SearchCursor("tmpClip").next().Shape
+            else:
+               # Use the simple minimum buffer as the final shape
+               printMsg("No NWI features found within specified search distance")
+               myFinalShape = arcpy.SearchCursor(myMinBuffer).next().Shape
 
-         arcpy.AddWarning(msgs)
-         arcpy.AddWarning(pymsg)
-         arcpy.AddMessage(arcpy.GetMessages(1))
+            # Update the PF shape
+            myCurrentPF_rows = arcpy.UpdateCursor("tmpPF", "", "", "Shape", "")
+            myPF_row = myCurrentPF_rows.next()
+            myPF_row.Shape = myFinalShape
+            myCurrentPF_rows.updateRow(myPF_row)
 
-         # Add status message
-         arcpy.AddMessage("\nMoving on to the next feature.  Note that the SBB output will be incomplete.")
+            # Process:  Append
+            # Append the final geometry to the SBB feature class.
+            printMsg("Appending final shape to SBB feature class...")
+            arcpy.Append_management("tmpPF", out_SBB, "NO_TEST", "", "")
 
-      finally:
-        # Increment the index by one
-         myIndex += 1
+            # Add final progress message
+            printMsg("Finished processing feature " + str(myIndex))
 
-   # Once the script as a whole has succeeded, let the user know if any individual
-   # features failed
-   if len(myFailList) == 0:
-      arcpy.AddMessage("All features successfully processed")
+         except:
+            # Add failure message and append failed feature ID to list
+            printMsg("\nFailed to fully process feature " + str(myIndex))
+            myFailList.append(int(myID))
+
+            # Error handling code swiped from "A Python Primer for ArcGIS"
+            tb = sys.exc_info()[2]
+            tbinfo = traceback.format_tb(tb)[0]
+            pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
+            msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
+
+            printWrng(msgs)
+            printWrng(pymsg)
+            printMsg(arcpy.GetMessages(1))
+
+            # Add status message
+            printMsg("\nMoving on to the next feature.  Note that the SBB output will be incomplete.")
+
+         finally:
+           # Increment the index by one
+            myIndex += 1
+
+      # Once the script as a whole has succeeded, let the user know if any individual
+      # features failed
+      if len(myFailList) == 0:
+         printMsg("All features successfully processed")
+      else:
+         printWrng("Processing failed for the following features: " + str(myFailList))
    else:
-      arcpy.AddWarning("Processing failed for the following features: " + str(myFailList))
+      printMsg('There are no PFs with this rule; passing...')

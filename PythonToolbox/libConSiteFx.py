@@ -56,6 +56,18 @@ def getScratchMsg(scratchGDB):
    
    return msg
    
+def printMsg(msg):
+   arcpy.AddMessage(msg)
+   print msg
+   
+def printWrng(msg):
+   arcpy.AddWarning(msg)
+   print 'Warning: ' + msg
+   
+def printErr(msg):
+   arcpy.AddError(msg)
+   print 'Error: ' + msg
+ 
 def tback():
    '''Standard error handling routing to add to bottom of scripts'''
    tb = sys.exc_info()[2]
@@ -64,9 +76,9 @@ def tback():
    msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
    msgList = [pymsg, msgs]
 
-   arcpy.AddError(msgs)
-   arcpy.AddError(pymsg)
-   arcpy.AddMessage(arcpy.GetMessages(1))
+   printErr(msgs)
+   printErr(pymsg)
+   printMsg(arcpy.GetMessages(1))
    
    return msgList
    

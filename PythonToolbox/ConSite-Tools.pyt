@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2017-08-15
+# Last Edit: 2017-08-17
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -50,7 +50,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [shrinkwrap]
+      self.tools = [shrinkwrap, sbb]
 
 # Define the tools
 class shrinkwrap(object):
@@ -110,14 +110,14 @@ class sbb(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm0 = defineParam('in_PF', "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
-      parm1 = defineParam('fld_SFID', "Source Feature ID field", "Field", "Required", "Input", 'SFID')
-      parm2 = defineParam('fld_Rule', "SBB Rule field", "Field", "Required", "Input", 'RULE')
-      parm3 = defineParam('fld_Buff', "SBB Buffer field", "Field", "Required", "Input", 'BUFFER')
-      parm4 = defineParam('in_nwi5', "Input Rule 5 NWI Features", "GPFeatureLayer", "Required", "Input")
-      parm5 = defineParam('in_nwi67', "Input Rule 6/7 NWI Features", "GPFeatureLayer", "Required", "Input")
-      parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input")
-      parm7 = defineParam('out_SBB', "Output Site Building Blocks", "GPFeatureLayer", "Required", "Output")
-      parm8 = defineParam('scratch_GDB', "Output Site Building Blocks", "DEWorkspace", "Optional", "Output", 'in_memory')
+      parm1 = defineParam('fld_SFID', "Source Feature ID field", "String", "Required", "Input", 'SFID')
+      parm2 = defineParam('fld_Rule', "SBB Rule field", "String", "Required", "Input", 'RULE')
+      parm3 = defineParam('fld_Buff', "SBB Buffer field", "String", "Required", "Input", 'BUFFER')
+      parm4 = defineParam('in_nwi5', "Input Rule 5 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule5")
+      parm5 = defineParam('in_nwi67', "Input Rule 67 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule67")
+      parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule9")
+      parm7 = defineParam('out_SBB', "Output Site Building Blocks", "DEFeatureClass", "Required", "Output")
+      parm8 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8]
       return parms
@@ -144,21 +144,15 @@ class sbb(object):
 
    def execute(self, parameters, messages):
       """The source code of the tool."""
-      # Get the parameter names and values
-      setParams(parameters, 8)
+      # Set up parameter names and values
+      declareParams(parameters)
 
-      if not scratch_GDB:
-         scratch_GDB = "in_memory"
+      if scratch_GDB != 'None':
+         scratchParm = scratch_GDB 
+      else:
+         scratchParm = "in_memory" 
 
       CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratch_GDB)
+      arcpy.MakeFeatureLayer_management (out_SBB, "SBB_lyr")
 
       return out_SBB
-      
-# # For debugging...
-# def main():
-   # tbx = Toolbox()
-   # tool = shrinkwrap()
-   # tool.execute(tool.getParameterInfo(),None)
-
-# if __name__ == '__main__':
-   # main()
