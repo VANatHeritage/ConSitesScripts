@@ -17,6 +17,7 @@ import libConSiteFx, CreateSBBs
 from libConSiteFx import *
 from CreateSBBs import *
 
+# First define some handy functions
 def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction, defaultVal = None):
    '''Simplifies parameter creation. Thanks to http://joelmccune.com/lessons-learned-and-ideas-for-python-toolbox-coding/'''
    param = arcpy.Parameter(
@@ -28,14 +29,19 @@ def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction,
    param.value = defaultVal 
    return param
 
-def setParams(parameters, topVal):
-   '''Sets up parameters to be used in execute statement'''
-   for i in range(topVal+1):
-      name = str(parameters[i].name)
-      value = str(parameters[i].valueAsText)
-      locals()[name] = value
-   return
-   
+def declareParams(params):
+   '''Sets up parameter dictionary, then uses it to declare parameter values'''
+   d = {}
+   for p in params:
+      name = str(p.name)
+      value = str(p.valueAsText)
+      d[name] = value
+      
+   for p in d:
+      globals()[p] = d[p]
+   return 
+
+# Define the toolbox
 class Toolbox(object):
    def __init__(self):
       """Define the toolbox (the name of the toolbox is the name of the
@@ -46,6 +52,7 @@ class Toolbox(object):
       # List of tool classes associated with this toolbox
       self.tools = [shrinkwrap]
 
+# Define the tools
 class shrinkwrap(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
@@ -54,38 +61,15 @@ class shrinkwrap(object):
       self.canRunInBackground = True
 
    def getParameterInfo(self):
-      """Define parameter definitions"""
-      inFeats = arcpy.Parameter(
-         displayName = "Input features",
-         name = "inFeats",
-         datatype = "GPFeatureLayer",
-         parameterType = "Required",
-         direction = "Input")
-
-      dilDist = arcpy.Parameter(
-         displayName = "Dilation distance",
-         name = "dilDist",
-         datatype = "GPLinearUnit",
-         parameterType = "Required",
-         direction = "Input")
-
-      outFeats = arcpy.Parameter(
-         displayName = "Output features",
-         name = "outFeats",
-         datatype = "DEFeatureClass",
-         parameterType = "Required",
-         direction = "Output")
-
-      scratchGDB = arcpy.Parameter(
-         displayName = "Scratch geodatabase",
-         name = "scratchGDB",
-         datatype = "DEWorkspace",
-         parameterType = "Optional",
-         direction = "Input")
-      scratchGDB.filter.list = ["Local Database"]
-
-      params = [inFeats, dilDist, outFeats, scratchGDB]
-      return params
+      """Define parameters"""
+      parm0 = defineParam("in_Feats", "Input features", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("dil_Dist", "Dilation distance", "GPLinearUnit", "Required", "Input")
+      parm2 = defineParam("out_Feats", "Output features", "DEFeatureClass", "Required", "Output")
+      parm3 = defineParam("scratch_GDB", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
+      
+      parm3.filter.list = ["Local Database"]
+      parms = [parm0, parm1, parm2, parm3]
+      return parms
 
    def isLicensed(self):
       """Set whether tool is licensed to execute."""
@@ -104,17 +88,17 @@ class shrinkwrap(object):
 
    def execute(self, parameters, messages):
       """The source code of the tool."""
-      inFeats = parameters[0].valueAsText
-      dilDist = parameters[1].valueAsText
-      outFeats = parameters[2].valueAsText
-      scratchGDB = parameters[3].valueAsText
+      # Set up parameter names and values
+      declareParams(parameters)
 
-      if not scratchGDB:
-         scratchGDB = "in_memory"
+      if scratch_GDB != 'None':
+         scratchParm = scratch_GDB 
+      else:
+         scratchParm = "in_memory" 
+      
+      ShrinkWrap(in_Feats, dil_Dist, out_Feats, scratchParm)
 
-      ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB)
-
-      return outFeats
+      return out_Feats
 
 class sbb(object):
    def __init__(self):
@@ -133,9 +117,9 @@ class sbb(object):
       parm5 = defineParam('in_nwi67', "Input Rule 6/7 NWI Features", "GPFeatureLayer", "Required", "Input")
       parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input")
       parm7 = defineParam('out_SBB', "Output Site Building Blocks", "GPFeatureLayer", "Required", "Output")
-      parm8 = defineParam('scratchGDB', "Output Site Building Blocks", "DEWorkspace", "Optional", "Output", 'in_memory')
+      parm8 = defineParam('scratch_GDB', "Output Site Building Blocks", "DEWorkspace", "Optional", "Output", 'in_memory')
 
-      parms = ['parm %s' %num for num in range(8+1)]
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8]
       return parms
 
    def isLicensed(self):
@@ -163,10 +147,10 @@ class sbb(object):
       # Get the parameter names and values
       setParams(parameters, 8)
 
-      if not scratchGDB:
-         scratchGDB = "in_memory"
+      if not scratch_GDB:
+         scratch_GDB = "in_memory"
 
-      CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratchGDB)
+      CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratch_GDB)
 
       return out_SBB
       

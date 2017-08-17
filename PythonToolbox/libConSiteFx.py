@@ -153,15 +153,10 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    negDist, units, negMeas = multiMeasure(dilDist, -1)
 
    # Parameter check
-
    if origDist == 0:
       arcpy.AddError("You need to enter a non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
-   
-   # Determine where temporary data are written
-   msg = getScratchMsg(scratchGDB)
-   arcpy.AddMessage(msg)
-   
+
    # Set parameters. Dissolve parameter depends on dilation distance.
    if origDist > 0:
       dissolve1 = "ALL"
