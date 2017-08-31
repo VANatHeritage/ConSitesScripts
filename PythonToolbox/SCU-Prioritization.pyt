@@ -102,7 +102,8 @@ class flowDistBuffer(object):
       if out_Scratch != 'None':
          scratchParm = out_Scratch 
       else:
-         scratchParm = "in_memory" 
+         scratchParm = arcpy.env.scratchGDB
+         #Note: I wanted to use 'in_memory' here, but was getting aberrant results for no discernible reason. Code works fine when using scratch workspace on disk; outputs square blocks if processing in memory. WHY???
       
       delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, mDist, scratchParm)
 
@@ -163,8 +164,8 @@ class scuPrior(object):
       if out_Scratch != 'None':
          scratchParm = out_Scratch 
       else:
-         scratchParm = "in_memory" 
+         scratchParm = 'in_memory'
       
-      prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, loInteg, in_ConsPriority, in_Vulnerability, out_Feats, out_Scratch)
+      prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, loInteg, in_ConsPriority, in_Vulnerability, out_Feats, scratchParm)
 
       return out_Feats

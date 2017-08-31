@@ -42,6 +42,8 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
    # Set environment setting and other variables
    arcpy.env.snapRaster = in_FlowDir
    procDist = 2*maxDist
+   dist = float(cellSize)
+   dilDist = "%s %ss" % (str(dist), linUnit)
 
    # Check if input features and input flow direction have same spatial reference.
    # If so, just make a copy. If not, reproject features to match raster.
@@ -60,38 +62,48 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
          geoTrans = transList[0]
       arcpy.Project_management (in_Feats, out_Feats, srRast, geoTrans)
 
+   # Count features and report
+   numFeats = countFeatures(out_Feats)
+   printMsg('There are %s features to process.' % numFeats)
+      
    # Create an empty list to store IDs of features that fail to get processed
    myFailList = []
 
    # Set up processing cursor and loop
    flags = [] # Initialize empty list to keep track of suspects
    cursor = arcpy.da.UpdateCursor(out_Feats, [fld_ID, "SHAPE@"])
+   counter = 1
    for row in cursor:
+      trashList = [] # Empty list for trash collection
       try:
          # Extract the unique ID and geometry object
          myID = row[0]
          myShape = row[1]
 
-         printMsg('Working on feature %s' %str(myID))
+         printMsg('Working on feature %s with ID %s' % (counter, str(myID)))
 
          # Process:  Select (Analysis)
          # Create a temporary feature class including only the current feature
          selQry = "%s = %s" % (fld_ID, str(myID))
          tmpFeat = out_Scratch + os.sep + 'tmpFeat'
+         trashList.append(tmpFeat)
          arcpy.Select_analysis (out_Feats, tmpFeat, selQry)
 
          # Convert feature to raster
          printMsg('Converting feature to raster...')
          srcRast = out_Scratch + os.sep + 'srcRast'
+         trashList.append(srcRast)
          arcpy.PolygonToRaster_conversion (tmpFeat, fld_ID, srcRast, "MAXIMUM_COMBINED_AREA", fld_ID, cellSize)
          
          # Clip flow direction raster to processing buffer
          procBuff = out_Scratch + os.sep + 'procBuff'
+         trashList.append(procBuff)
          printMsg('Buffering feature to set maximum processing distance')
          arcpy.Buffer_analysis (tmpFeat, procBuff, procDist, "", "", "ALL", "")
          myExtent = str(arcpy.Describe(procBuff).extent).replace(" NaN", "")
          printMsg('Extent: %s' %myExtent)
          clp_FlowDir = out_Scratch + os.sep + 'clp_FlowDir'
+         trashList.append(clp_FlowDir)
          printMsg('Clipping flow direction raster to processing buffer')
          arcpy.Clip_management (in_FlowDir, myExtent, clp_FlowDir, procBuff, "", "ClippingGeometry")
          arcpy.env.extent = clp_FlowDir
@@ -99,19 +111,23 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
          # Burn SCU feature into flow direction raster as sink
          printMsg('Creating sink from feature...')
          snk_FlowDir = Con(IsNull(srcRast),clp_FlowDir)
+         trashList.append(snk_FlowDir)
          snk_FlowDir.save(out_Scratch + os.sep + 'snk_FlowDir')
          
          # Calculate flow distance down to sink
          printMsg('Calculating flow distance to feature...')
          FlowDist = FlowLength (snk_FlowDir, "DOWNSTREAM")
          FlowDist.save(out_Scratch + os.sep + 'FlowDist')
+         trashList.append(FlowDist)
          
          # Clip flow distance raster to the maximum distance buffer
          clipBuff = out_Scratch + os.sep + 'clipBuff'
+         trashList.append(clipBuff)
          arcpy.Buffer_analysis (tmpFeat, clipBuff, maxDist, "", "", "ALL", "")
          myExtent = str(arcpy.Describe(clipBuff).extent).replace(" NaN", "")
-         printMsg('Extent: %s' %myExtent)
+         #printMsg('Extent: %s' %myExtent)
          clp_FlowDist = out_Scratch + os.sep + 'clp_FlowDist'
+         trashList.append(clp_FlowDist)
          printMsg('Clipping flow distance raster to maximum distance buffer')
          arcpy.Clip_management (FlowDist, myExtent, clp_FlowDist, clipBuff, "", "ClippingGeometry")
          arcpy.env.extent = clp_FlowDist
@@ -122,16 +138,20 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
                   (Con((IsNull(srcRast)== 0),1,0)),
                   (Con((Raster(clp_FlowDist) <= maxDist),1,0)))
          binRast.save(out_Scratch + os.sep + 'binRast')
+         trashList.append(binRast)
          printMsg('Boundary cleaning...')
          cleanRast = BoundaryClean (binRast, 'NO_SORT', 'TWO_WAY')
          cleanRast.save(out_Scratch + os.sep + 'cleanRast')
+         trashList.append(cleanRast)
          printMsg('Setting zeros to nulls...')
          prePoly = SetNull (cleanRast, 1, 'Value = 0')
          prePoly.save(out_Scratch + os.sep + 'prePoly')
+         trashList.append(prePoly)
 
          # Convert raster to polygon
          printMsg('Converting flow distance raster to polygon...')
          finPoly = out_Scratch + os.sep + 'finPoly'
+         trashList.append(finPoly)
          arcpy.RasterToPolygon_conversion (prePoly, finPoly, "NO_SIMPLIFY")
 
          # # Eliminate parts because some features will make you cry/scream if you don't
@@ -141,10 +161,9 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
 
          # Shrinkwrap to assure final shape is a nice smooth feature with no holes
          printMsg('Smoothing shape...')
-         dist = float(cellSize)
-         dilDist = "%s %ss" % (str(dist), linUnit)
          shrinkPoly = out_Scratch + os.sep + 'shrinkPoly'
-         ShrinkWrap(finPoly, dilDist, shrinkPoly, out_Scratch)
+         trashList.append(shrinkPoly)
+         ShrinkWrap(finPoly, dilDist, shrinkPoly, 'in_memory')
          
          # Check the number of features at this point. 
          # It should be just one. If more, the output is likely bad and should be flagged.
@@ -164,6 +183,16 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
          
          # Reset extent, because Arc is stupid.
          arcpy.env.extent = "MAXOF"
+         
+         # Throw out trash after every cycle and compact the scratch GDB periodically. 
+         # Grasping at straws here to avoid failure processing large datasets.
+         garbagePickup(trashList) 
+         if counter%25 == 0:
+            printMsg('Compacting scratch geodatabase...')
+            arcpy.Compact_management (out_Scratch)
+         
+         # Update counter
+         counter += 1
 
       except:
          # Add failure message and append failed feature ID to list
@@ -196,7 +225,7 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
    # Step 2: For each buffered SCU in subset, get zonal stats for Watershed Integrity, Conservation Priority and Vulnerability. Do this in loop in case of buffer overlap.
       
    # Process: Add fields to hold the stats
-   for f in ['INTEG', 'CPRIOR', 'VULN']:
+   for f in ['INTEG', 'CPRIOR', 'VULN', 'SCORE']:
       arcpy.AddField_management (out_Feats, f, 'FLOAT')
       
    # Set up some variables used in loop
@@ -250,10 +279,31 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
          # Add status message
          printMsg("\nMoving on to the next feature.  Note that the output will be incomplete.")
 
-   # Step 3: Score catchments based on BRANK, Watershed Integrity, Conservation Priority, and Vulnerability, then rank
-   codeblock = '''def score(brank, integ, crprior, vuln):
-      if brank'''
-
+   # Step 3: Score catchments based on BRANK, Watershed Integrity, Conservation Priority, and Vulnerability
+   codeblock = '''def ConScore(brank, integ, crprior, vuln):
+      bDict = {'B1': 0, 'B2': -5, 'B3':-10, 'B4': -15, 'B5': -20}
+      b = bDict[brank]
+      if integ >= %s:
+         i = 1
+      else:
+         i = 0
+      if vuln >= 80:
+         v = 0
+      elif vuln <= 20:
+         v = -20
+      else:
+         v = -5*vuln + 80
+      rawScore = crprior + v + b
+      if rawScore > 100:
+         score = 100
+      elif rawScore < 0:
+         score = 0
+      else: 
+         score = rawScore
+      return score''' % lo_Integrity
+   expression = 'ConScore(!%s!, !INTEG!, !CPRIOR!, !VULN!)' % fld_BRANK
+   arcpy.CalculateField_management(out_Feats, 'SCORE', expression, "PYTHON", codeblock)
+   
 # Use the main function below to run the flow distance buffer function directly from Python IDE with hard-coded variables
 def main():
    in_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCUs20170724.shp\dk_1500912213976.shp'

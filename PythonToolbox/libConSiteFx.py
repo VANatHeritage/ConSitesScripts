@@ -209,12 +209,12 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
       arcpy.AddError("You need to enter a positive, non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
 
-   # Determine where temporary data are written
-   msg = getScratchMsg(scratchGDB)
-   arcpy.AddMessage(msg)
+   # # Determine where temporary data are written
+   # msg = getScratchMsg(scratchGDB)
+   # arcpy.AddMessage(msg)
 
-   tmpWorkspace = createTmpWorkspace()
-   arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
+   tmpWorkspace = arcpy.env.scratchGDB
+   #arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
    
    # Set up empty trashList for later garbage collection
    trashList = []
@@ -226,51 +226,51 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    Output_fname = filename
 
    # Process:  Create Feature Class (to store output)
-   arcpy.AddMessage("Creating feature class to store output features...")
+   #arcpy.AddMessage("Creating feature class to store output features...")
    arcpy.CreateFeatureclass_management (myWorkspace, Output_fname, "POLYGON", "", "", "", inFeats) 
 
    # Process:  Clean Features
-   arcpy.AddMessage("Cleaning input features...")
+   #arcpy.AddMessage("Cleaning input features...")
    cleanFeats = tmpWorkspace + os.sep + "cleanFeats"
    CleanFeatures(inFeats, cleanFeats)
    trashList.append(cleanFeats)
 
    # Process:  Dissolve Features
-   arcpy.AddMessage("Dissolving adjacent features...")
+   #arcpy.AddMessage("Dissolving adjacent features...")
    dissFeats = tmpWorkspace + os.sep + "dissFeats"
    # Writing to disk in hopes of stopping geoprocessing failure
-   arcpy.AddMessage("This feature class is stored here: %s" % dissFeats)
+   #arcpy.AddMessage("This feature class is stored here: %s" % dissFeats)
    arcpy.Dissolve_management (cleanFeats, dissFeats, "", "", "SINGLE_PART", "")
    trashList.append(dissFeats)
 
    # Process:  Generalize Features
    # This should prevent random processing failures on features with many vertices, and also speed processing in general
-   arcpy.AddMessage("Simplifying features...")
+   #arcpy.AddMessage("Simplifying features...")
    arcpy.Generalize_edit(dissFeats, "0.1 Meters")
 
    # Process:  Buffer Features
-   arcpy.AddMessage("Buffering features...")
+   #arcpy.AddMessage("Buffering features...")
    buffFeats = tmpWorkspace + os.sep + "buffFeats"
    arcpy.Buffer_analysis (dissFeats, buffFeats, meas, "", "", "ALL")
    trashList.append(buffFeats)
 
    # Process:  Explode Multiparts
-   arcpy.AddMessage("Exploding multipart features...")
+   #arcpy.AddMessage("Exploding multipart features...")
    explFeats = tmpWorkspace + os.sep + "explFeats"
    # Writing to disk in hopes of stopping geoprocessing failure
-   arcpy.AddMessage("This feature class is stored here: %s" % explFeats)
+   #arcpy.AddMessage("This feature class is stored here: %s" % explFeats)
    arcpy.MultipartToSinglepart_management (buffFeats, explFeats)
    trashList.append(explFeats)
 
    # Process:  Get Count
    numWraps = (arcpy.GetCount_management(explFeats)).getOutput(0)
-   arcpy.AddMessage('There are %s features after consolidation' %numWraps)
+   arcpy.AddMessage('Shrinkwrapping: There are %s features after consolidation' %numWraps)
 
    # Loop through the exploded buffer features
    myFeats = arcpy.da.SearchCursor(explFeats, ["SHAPE@"])
    counter = 1
    for Feat in myFeats:
-      arcpy.AddMessage('Working on feature %s' % str(counter))
+      arcpy.AddMessage('Working on shrink feature %s' % str(counter))
       featSHP = Feat[0]
       tmpFeat = scratchGDB + os.sep + "tmpFeat"
       arcpy.CopyFeatures_management (featSHP, tmpFeat)
@@ -310,7 +310,5 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
       counter +=1
 
    # Cleanup
-   garbagePickup([tmpWorkspace])
+   # garbagePickup([tmpWorkspace])
    garbagePickup(trashList)
-   
-   
