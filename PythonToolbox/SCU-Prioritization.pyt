@@ -15,11 +15,11 @@
 # ----------------------------------------------------------------------------------------
 
 # Import modules and function library
-import scuFX
-from scuFX import *
+import libScuFx
+from libScuFx import *
 
 # Define functions that help build the toolbox
-# NOTE: These "defineParam" and "declareParams" functions MUST reside within the toolbox script, not imported from some other module!
+# NOTE: The "defineParam" and "declareParams" functions MUST reside within the toolbox script, not imported from some other module!
 def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction, defaultVal = None):
    '''Simplifies parameter creation. Thanks to http://joelmccune.com/lessons-learned-and-ideas-for-python-toolbox-coding/'''
    param = arcpy.Parameter(
@@ -51,13 +51,13 @@ class Toolbox(object):
       self.alias = "SCU Prioritization Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [catchDelin]
+      self.tools = [flowDistBuffer]
       
 # Define the tools
-class catchDelin(object):
+class flowDistBuffer(object):
    def __init__(self):
-      """Delineates catchments for polygons, out to a maximum distance."""
-      self.label = "Delineate truncated catchments"
+      """Delineates buffers for polygons based on flow distance."""
+      self.label = "Delineate buffers based on flow distance"
       self.description = ""
       self.canRunInBackground = True
 
@@ -66,9 +66,9 @@ class catchDelin(object):
       parm0 = defineParam("in_Feats", "Input SCU features", "GPFeatureLayer", "Required", "Input")
       parm1 = defineParam("fld_ID", "Unique ID field (integer)", "String", "Required", "Input")
       parm2 = defineParam("in_FlowDir", "Input flow direction raster", "GPRasterLayer", "Required", "Input")
-      parm3 = defineParam("out_Catch", "Output SCU catchments", "DEFeatureClass", "Required", "Output")
-      parm4 = defineParam("maxDist", "Maximum distance", "GPLinearUnit", "Required", "Input")
-      parm4.value = "1000 METERS"
+      parm3 = defineParam("out_Buff", "Output flow distance buffers", "DEFeatureClass", "Required", "Output")
+      parm4 = defineParam("maxDist", "Maximum distance", "GPDouble", "Required", "Input")
+      parm4.value = 1000
       parm5 = defineParam("out_Scratch", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
       parm5.filter.list = ["Local Database"]
       parms = [parm0, parm1, parm2, parm3, parm4, parm5]
@@ -97,12 +97,13 @@ class catchDelin(object):
       """The source code of the tool."""
       # Set up parameter names and values
       declareParams(parameters)
+      mDist = float(maxDist) # Convert string back to number
 
       if out_Scratch != 'None':
          scratchParm = out_Scratch 
       else:
          scratchParm = "in_memory" 
       
-      delineatePolyCatchments(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, scratchParm)
+      delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Buff, mDist, scratchParm)
 
-      return out_Catch
+      return out_Buff
