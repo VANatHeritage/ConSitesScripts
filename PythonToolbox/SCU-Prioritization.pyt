@@ -68,7 +68,7 @@ class flowDistBuffer(object):
       parm2 = defineParam("in_FlowDir", "Input flow direction raster", "GPRasterLayer", "Required", "Input")
       parm3 = defineParam("out_Buff", "Output flow distance buffers", "DEFeatureClass", "Required", "Output")
       parm4 = defineParam("maxDist", "Maximum distance", "GPDouble", "Required", "Input")
-      parm4.value = 1000
+      parm4.value = 500
       parm5 = defineParam("out_Scratch", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
       parm5.filter.list = ["Local Database"]
       parms = [parm0, parm1, parm2, parm3, parm4, parm5]

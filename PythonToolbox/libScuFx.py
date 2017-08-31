@@ -2,7 +2,7 @@
 # libScuFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-29
-# Last Edit: 2017-08-30
+# Last Edit: 2017-08-31
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -30,8 +30,8 @@ import os, sys, datetime, traceback
 arcpy.env.overwriteOutput = True
 
 # Define functions used to create toolbox tools
-def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scratch = 'in_memory'):
-   """Delineates polygons for input SCUs based on flow distance down and a specified maximum distance"""
+def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch = 'in_memory'):
+   """Delineates buffers based on flow distance down to features (rather than straight distance)"""
    # Get cell size and output spatial reference from in_FlowDir
    cellSize = (arcpy.GetRasterProperties_management(in_FlowDir, "CELLSIZEX")).getOutput(0)
    srRast = arcpy.Describe(in_FlowDir).spatialReference
@@ -48,7 +48,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
    srFeats = arcpy.Describe(in_Feats).spatialReference
    if srFeats.Name == srRast.Name:
       printMsg('Coordinate systems for features and raster are the same. Copying...')
-      arcpy.CopyFeatures_management (in_Feats, out_Catch)
+      arcpy.CopyFeatures_management (in_Feats, out_Feats)
    else:
       printMsg('Reprojecting features to match raster...')
       # Check if geographic transformation is needed, and handle accordingly.
@@ -58,14 +58,14 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
       else:
          transList = arcpy.ListTransformations(srFeats,srRast)
          geoTrans = transList[0]
-      arcpy.Project_management (in_Feats, out_Catch, srRast, geoTrans)
+      arcpy.Project_management (in_Feats, out_Feats, srRast, geoTrans)
 
    # Create an empty list to store IDs of features that fail to get processed
    myFailList = []
 
    # Set up processing cursor and loop
    flags = [] # Initialize empty list to keep track of suspects
-   cursor = arcpy.da.UpdateCursor(out_Catch, [fld_ID, "SHAPE@"])
+   cursor = arcpy.da.UpdateCursor(out_Feats, [fld_ID, "SHAPE@"])
    for row in cursor:
       try:
          # Extract the unique ID and geometry object
@@ -78,7 +78,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
          # Create a temporary feature class including only the current feature
          selQry = "%s = %s" % (fld_ID, str(myID))
          tmpFeat = out_Scratch + os.sep + 'tmpFeat'
-         arcpy.Select_analysis (out_Catch, tmpFeat, selQry)
+         arcpy.Select_analysis (out_Feats, tmpFeat, selQry)
 
          # Convert feature to raster
          printMsg('Converting feature to raster...')
@@ -108,7 +108,6 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
          
          # Clip flow distance raster to the maximum distance buffer
          clipBuff = out_Scratch + os.sep + 'clipBuff'
-         printMsg('Clipping catchment to maximum distance...')
          arcpy.Buffer_analysis (tmpFeat, clipBuff, maxDist, "", "", "ALL", "")
          myExtent = str(arcpy.Describe(clipBuff).extent).replace(" NaN", "")
          printMsg('Extent: %s' %myExtent)
@@ -120,8 +119,8 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
          # Make a binary raster based on flow distance
          printMsg('Creating binary raster from flow distance...')
          binRast = Con((IsNull(clp_FlowDist) == 1),
-                     (Con((IsNull(srcRast)== 0),1,0)),
-                     (Con((clp_FlowDist <= 1000),1,0)))
+                  (Con((IsNull(srcRast)== 0),1,0)),
+                  (Con((Raster(clp_FlowDist) <= maxDist),1,0)))
          binRast.save(out_Scratch + os.sep + 'binRast')
          printMsg('Boundary cleaning...')
          cleanRast = BoundaryClean (binRast, 'NO_SORT', 'TWO_WAY')
@@ -140,8 +139,8 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
          # elimCatch = out_Scratch + os.sep + 'elimCatch'
          # arcpy.EliminatePolygonPart_management (clipCatch, elimCatch, "PERCENT", "", 10, "ANY")
 
-         # Shrinkwrap to assure final catchment is a nice smooth feature with no holes
-         printMsg('Smoothing catchment...')
+         # Shrinkwrap to assure final shape is a nice smooth feature with no holes
+         printMsg('Smoothing shape...')
          dist = float(cellSize)
          dilDist = "%s %ss" % (str(dist), linUnit)
          shrinkPoly = out_Scratch + os.sep + 'shrinkPoly'
@@ -154,7 +153,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
             printWrng('Output is suspect for feature %s' % str(myID))
             flags.append(myID)
          
-         # Use the catchment geometry as the final shape
+         # Use the flow distance buffer geometry as the final shape
          myFinalShape = arcpy.SearchCursor(shrinkPoly).next().Shape
 
          # Update the feature with its final shape
@@ -186,7 +185,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scra
    
    if len(flags) > 0:
       printWrng('These features may be incorrect: %s' % str(flags))
-   return out_Catch
+   return out_Feats
 
 def prioritizeSCUs(in_SCU, in_Catch, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, in_ConsPriority, in_Vulnerability, out_SCU, out_Scratch = 'in_memory'):
    '''Prioritizes Stream Conservation Units (SCUs) for conservation, based on biodiversity rank (BRANK), watershed integrity and conservation priority (from ConservationVision Watershed Model), and vulnerability (from ConservationVision Development Vulnerability Model)'''
@@ -209,17 +208,17 @@ def prioritizeSCUs(in_SCU, in_Catch, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, 
 
    # Step 3: Score catchments based on BRANK, Watershed Integrity, Conservation Priority, and Vulnerability, then rank
 
-# Use the main function below to run the catchment function directly from Python IDE with hard-coded variables
+# Use the main function below to run the flow distance buffer function directly from Python IDE with hard-coded variables
 def main():
    in_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCUs20170724.shp\dk_1500912213976.shp'
    fld_ID = 'lngID'
    in_FlowDir = r'H:\Backups\DCR_Work_DellD\GIS_Data_VA_proc\Finalized\NHDPlus_Virginia.gdb\fdir_VA'
-   out_Catch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuCatch'
-   maxDist = '1000 METERS'
-   out_Scratch = 'in_memory'
+   out_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuFlowBuffs500'
+   maxDist = 500
+   out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch-20170831.gdb'
    # End of user input
 
-   delineatePolyCatchments(in_Feats, fld_ID, in_FlowDir, out_Catch, maxDist, out_Scratch)
+   delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch)
 
 if __name__ == '__main__':
    main()
