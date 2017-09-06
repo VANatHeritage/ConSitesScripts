@@ -2,7 +2,7 @@
 # CreateStandardWetlandSBB.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2013-01-23
-# Last Edit: 2017-08-17
+# Last Edit: 2017-09-06
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
@@ -12,10 +12,11 @@
 #     Carries out the following general procedures:
 #     1.  Buffer the PF by 250-m.  This is the minimum buffer.
 #     2.  Buffer the PF by 500-m.  This is the maximum buffer.
-#     3.  Select any appropriate NWI wetland features within 15-m of the PF.
-#     4.  Buffer the selected NWI feature(s), if applicable, by 100-m.
-#     5.  Merge the minimum buffer with the buffered NWI feature(s).
-#     6.  Clip the merged feature to the maximum buffer.
+#     3.  Clip any NWI wetland features to the maximum buffer, then shrinkwrap features.
+#     4.  Select clipped NWI features within 15-m of the PF.
+#     5.  Buffer the selected NWI feature(s), if applicable, by 100-m.
+#     6.  Merge the minimum buffer with the buffered NWI feature(s).
+#     7.  Clip the merged feature to the maximum buffer.
 #
 # Usage Tips:
 #     *  This tool accepts a shapefile or geodatabase feature classes as vector inputs.
@@ -47,18 +48,14 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
    if count > 0:
       # Declare some additional parameters
       # These can be tweaked as desired
-      nwiBuff = 100 # buffer to be used for NWI features (may or may not equal minBuff)
-      minBuff = 250 # minimum buffer to include in SBB
-      maxBuff = 500 # maximum buffer to include in SBB
-      searchDist = 15 # search distance for inclusion of NWI features
-   
-      # Process: Make Feature Layer (Data Management)
-      # Create a feature layer of NWI polygons
-      printMsg("Making an NWI feature layer...")
-      arcpy.MakeFeatureLayer_management (in_NWI, "NWI_lyr", "", "", "")
+      nwiBuff = "100 METERS"# buffer to be used for NWI features (may or may not equal minBuff)
+      minBuff = "250 METERS" # minimum buffer to include in SBB
+      maxBuff = "500 METERS" # maximum buffer to include in SBB
+      searchDist = "15 METERS" # search distance for inclusion of NWI features
 
-      # Set workspace
+      # Set workspace and some additional variables
       arcpy.env.workspace = scratchGDB
+      num, units, newMeas = multiMeasure(searchDist, 0.5)
 
       # Create an empty list to store IDs of features that fail to get processed
       myFailList = []
@@ -84,19 +81,23 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
             selQry = fld_SFID + " = '%s'" % myID
             arcpy.Select_analysis (in_PF, "tmpPF", selQry)
 
-            # Process:  Buffer (Analysis)
             # Step 1: Create a minimum buffer around the Procedural Feature
             printMsg("Creating minimum buffer")
-            myMinBuffer = arcpy.Buffer_analysis (myShape, "minBuffer", minBuff)
+            arcpy.Buffer_analysis ("tmpPF", "myMinBuffer", minBuff)
 
-            # Process:  Buffer (Analysis)
             # Step 2: Create a maximum buffer around the Procedural Feature
             printMsg("Creating maximum buffer")
-            myMaxBuffer = myShape.buffer(maxBuff)
+            arcpy.Buffer_analysis ("tmpPF", "myMaxBuffer", maxBuff)
+            
+            # Step 3: Clip the NWI to the maximum buffer, and shrinkwrap
+            printMsg("Clipping NWI features to maximum buffer and shrinkwrapping...")
+            arcpy.Clip_analysis(in_NWI, "myMaxBuffer", "tmpClipNWI")
+            shrinkNWI = scratchGDB + os.sep + "shrinkNWI"
+            ShrinkWrap("tmpClipNWI", newMeas, shrinkNWI, "in_memory")
 
-            # Process: Select Layer by Location (Data Management)
-            # Step 3: Select NWI features within range
+            # Step 4: Select shrinkwrapped NWI features within range
             printMsg("Selecting nearby NWI features")
+            arcpy.MakeFeatureLayer_management ("shrinkNWI", "NWI_lyr", "", "", "")
             arcpy.SelectLayerByLocation_management ("NWI_lyr", "WITHIN_A_DISTANCE", "tmpPF", searchDist, "NEW_SELECTION")
 
             # Determine how many NWI features were selected
@@ -104,39 +105,30 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
 
             # If NWI features are in range, then process
             if selFeats > 0:
-               # Process:  Clip (Analysis)
-               # Clip the NWI to the maximum buffer
-               printMsg("Clipping NWI features to maximum buffer...")
-               arcpy.Clip_analysis("NWI_lyr", myMaxBuffer, "tmpClipNWI")
-
-               # Process:  Buffer (Analysis)
-               # Step 4: Create a buffer around the NWI feature(s)
+               # Step 5: Create a buffer around the NWI feature(s)
                printMsg("Buffering selected NWI features...")
-               arcpy.Buffer_analysis ("tmpClipNWI", "nwiBuff", nwiBuff)
+               arcpy.Buffer_analysis ("NWI_lyr", "nwiBuff", nwiBuff)
 
-               # Process: Merge (Data Management)
-               # Step 5: Merge the minimum buffer with the NWI buffer
+               # Step 6: Merge the minimum buffer with the NWI buffer
                printMsg("Merging buffered PF with buffered NWI feature(s)...")
-               feats2merge = [myMinBuffer, "nwiBuff"]
+               feats2merge = ["myMinBuffer", "nwiBuff"]
                print str(feats2merge)
                arcpy.Merge_management(feats2merge, "tmpMerged")
 
-               # Process:  Dissolve (Data Management)
                # Dissolve features into a single polygon
                printMsg("Dissolving buffered PF and NWI features into a single feature...")
                arcpy.Dissolve_management ("tmpMerged", "tmpDissolved", "", "", "", "")
 
-               # Process:  Clip (Analysis)
-               # Step 6: Clip the dissolved feature to the maximum buffer
+               # Step 7: Clip the dissolved feature to the maximum buffer
                printMsg("Clipping dissolved feature to maximum buffer...")
-               arcpy.Clip_analysis ("tmpDissolved", myMaxBuffer, "tmpClip", "")
+               arcpy.Clip_analysis ("tmpDissolved", "myMaxBuffer", "tmpClip", "")
 
                # Use the clipped, combined feature geometry as the final shape
                myFinalShape = arcpy.SearchCursor("tmpClip").next().Shape
             else:
                # Use the simple minimum buffer as the final shape
                printMsg("No NWI features found within specified search distance")
-               myFinalShape = arcpy.SearchCursor(myMinBuffer).next().Shape
+               myFinalShape = arcpy.SearchCursor("myMinBuffer").next().Shape
 
             # Update the PF shape
             myCurrentPF_rows = arcpy.UpdateCursor("tmpPF", "", "", "Shape", "")
@@ -151,7 +143,7 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
 
             # Add final progress message
             printMsg("Finished processing feature " + str(myIndex))
-
+            
          except:
             # Add failure message and append failed feature ID to list
             printMsg("\nFailed to fully process feature " + str(myIndex))
@@ -173,6 +165,9 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
          finally:
            # Increment the index by one
             myIndex += 1
+            
+            # Release cursor row
+            del myPF
 
       # Once the script as a whole has succeeded, let the user know if any individual
       # features failed
