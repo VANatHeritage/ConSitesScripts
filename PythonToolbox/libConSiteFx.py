@@ -1,12 +1,15 @@
 # ----------------------------------------------------------------------------------------
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
-# Creation Date: 2017-08-08 (Adapted from a ModelBuilder model created)
-# Last Edit: 2017-09-06
+# Creation Date: 2017-08-08
+# Last Edit: 2017-08-11
 # Creator:  Kirsten R. Hazler
 
 # Summary:
 # A library of functions used to automatically delineate Natural Heritage Conservation Sites 
+
+# TO DO:
+# Continue making SBB functions starting with Rule 5
 # ----------------------------------------------------------------------------------------
 
 # Import modules
@@ -15,6 +18,21 @@ from time import time as t
 
 # Set overwrite option so that existing data may be overwritten
 arcpy.env.overwriteOutput = True
+   
+def countFeatures(features):
+   '''Gets count of features'''
+   count = int((arcpy.GetCount_management(features)).getOutput(0))
+   return count
+   
+def multiMeasure(meas, multi):
+   '''Given a measurement string such as "100 METERS" and a multiplier, multiplies the number by the specified multiplier, and returns a new measurement string along with its individual components'''
+   parseMeas = meas.split(" ") # parse number and units
+   num = float(parseMeas[0]) # convert string to number
+   units = parseMeas[1]
+   num = num * multi
+   newMeas = str(num) + " " + units
+   measTuple = (num, units, newMeas)
+   return measTuple
    
 def createTmpWorkspace():
    '''Creates a new temporary geodatabase with a timestamp tag, within the current scratchFolder'''
@@ -38,6 +56,18 @@ def getScratchMsg(scratchGDB):
    
    return msg
    
+def printMsg(msg):
+   arcpy.AddMessage(msg)
+   print msg
+   
+def printWrng(msg):
+   arcpy.AddWarning(msg)
+   print 'Warning: ' + msg
+   
+def printErr(msg):
+   arcpy.AddError(msg)
+   print 'Error: ' + msg
+ 
 def tback():
    '''Standard error handling routing to add to bottom of scripts'''
    tb = sys.exc_info()[2]
@@ -46,9 +76,9 @@ def tback():
    msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
    msgList = [pymsg, msgs]
 
-   arcpy.AddError(msgs)
-   arcpy.AddError(pymsg)
-   arcpy.AddMessage(arcpy.GetMessages(1))
+   printErr(msgs)
+   printErr(pymsg)
+   printMsg(arcpy.GetMessages(1))
    
    return msgList
    
@@ -60,7 +90,7 @@ def garbagePickup(trashList):
       except:
          pass
    return
-   
+
 def CleanFeatures(inFeats, outFeats):
    '''Repairs geometry, then explodes multipart polygons to prepare features for geoprocessing.'''
    
@@ -129,18 +159,18 @@ def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
    
 def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    '''If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'''
+   
+   # Parse dilation distance and get the negative
+   origDist, units, meas = multiMeasure(dilDist, 1)
+   negDist, units, negMeas = multiMeasure(dilDist, -1)
+
    # Parameter check
-   if dilDist == 0:
-   arcpy.AddError("You need to enter a non-zero value for the dilation distance")
+   if origDist == 0:
+      arcpy.AddError("You need to enter a non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
-   
-   # Determine where temporary data are written
-   msg = getScratchMsg(scratchGDB)
-   arcpy.AddMessage(msg)
-   
+
    # Set parameters. Dissolve parameter depends on dilation distance.
-   oppDist = -dilDist
-   if dilDist > 0:
+   if origDist > 0:
       dissolve1 = "ALL"
       dissolve2 = "NONE"
    else:
@@ -149,7 +179,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process: Buffer
    Buff1 = scratchGDB + os.sep + "Buff1"
-   arcpy.Buffer_analysis(inFeats, Buff1, dilDist, "FULL", "ROUND", dissolve1, "", "PLANAR")
+   arcpy.Buffer_analysis(inFeats, Buff1, meas, "FULL", "ROUND", dissolve1, "", "PLANAR")
 
    # Process: Clean Features
    Clean_Buff1 = scratchGDB + os.sep + "CleanBuff1"
@@ -161,7 +191,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process: Buffer
    Buff2 = scratchGDB + os.sep + "NegativeBuffer"
-   arcpy.Buffer_analysis(Clean_Buff1, Buff2, oppDist, "FULL", "ROUND", dissolve2, "", "PLANAR")
+   arcpy.Buffer_analysis(Clean_Buff1, Buff2, negMeas, "FULL", "ROUND", dissolve2, "", "PLANAR")
 
    # Process: Clean Features to get final dilated features
    CleanFeatures(Buff2, outFeats)
@@ -170,17 +200,21 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    garbagePickup([Buff1, Clean_Buff1, Buff2])
    
 def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
+   # Parse dilation distance, and increase it to get smoothing distance
+   origDist, units, meas = multiMeasure(dilDist, 1)
+   smthDist, units, smthMeas = multiMeasure(dilDist, 8)
+
    # Parameter check
-   if dilDist <= 0:
+   if origDist <= 0:
       arcpy.AddError("You need to enter a positive, non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
 
-   # Determine where temporary data are written
-   msg = getScratchMsg(scratchGDB)
-   arcpy.AddMessage(msg)
+   # # Determine where temporary data are written
+   # msg = getScratchMsg(scratchGDB)
+   # arcpy.AddMessage(msg)
 
-   tmpWorkspace = createTmpWorkspace()
-   arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
+   tmpWorkspace = arcpy.env.scratchGDB
+   #arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
    
    # Set up empty trashList for later garbage collection
    trashList = []
@@ -192,69 +226,69 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    Output_fname = filename
 
    # Process:  Create Feature Class (to store output)
-   arcpy.AddMessage("Creating feature class to store output features...")
+   #arcpy.AddMessage("Creating feature class to store output features...")
    arcpy.CreateFeatureclass_management (myWorkspace, Output_fname, "POLYGON", "", "", "", inFeats) 
 
    # Process:  Clean Features
-   arcpy.AddMessage("Cleaning input features...")
+   #arcpy.AddMessage("Cleaning input features...")
    cleanFeats = tmpWorkspace + os.sep + "cleanFeats"
    CleanFeatures(inFeats, cleanFeats)
    trashList.append(cleanFeats)
 
    # Process:  Dissolve Features
-   arcpy.AddMessage("Dissolving adjacent features...")
+   #arcpy.AddMessage("Dissolving adjacent features...")
    dissFeats = tmpWorkspace + os.sep + "dissFeats"
    # Writing to disk in hopes of stopping geoprocessing failure
-   arcpy.AddMessage("This feature class is stored here: %s" % dissFeats)
+   #arcpy.AddMessage("This feature class is stored here: %s" % dissFeats)
    arcpy.Dissolve_management (cleanFeats, dissFeats, "", "", "SINGLE_PART", "")
    trashList.append(dissFeats)
 
    # Process:  Generalize Features
    # This should prevent random processing failures on features with many vertices, and also speed processing in general
-   arcpy.AddMessage("Simplifying features...")
+   #arcpy.AddMessage("Simplifying features...")
    arcpy.Generalize_edit(dissFeats, "0.1 Meters")
 
    # Process:  Buffer Features
-   arcpy.AddMessage("Buffering features...")
+   #arcpy.AddMessage("Buffering features...")
    buffFeats = tmpWorkspace + os.sep + "buffFeats"
-   arcpy.Buffer_analysis (dissFeats, buffFeats, dilDist, "", "", "ALL")
+   arcpy.Buffer_analysis (dissFeats, buffFeats, meas, "", "", "ALL")
    trashList.append(buffFeats)
 
    # Process:  Explode Multiparts
-   arcpy.AddMessage("Exploding multipart features...")
+   #arcpy.AddMessage("Exploding multipart features...")
    explFeats = tmpWorkspace + os.sep + "explFeats"
    # Writing to disk in hopes of stopping geoprocessing failure
-   arcpy.AddMessage("This feature class is stored here: %s" % explFeats)
+   #arcpy.AddMessage("This feature class is stored here: %s" % explFeats)
    arcpy.MultipartToSinglepart_management (buffFeats, explFeats)
    trashList.append(explFeats)
 
    # Process:  Get Count
    numWraps = (arcpy.GetCount_management(explFeats)).getOutput(0)
-   arcpy.AddMessage('There are %s features after consolidation' %numWraps)
+   arcpy.AddMessage('Shrinkwrapping: There are %s features after consolidation' %numWraps)
 
    # Loop through the exploded buffer features
    myFeats = arcpy.da.SearchCursor(explFeats, ["SHAPE@"])
    counter = 1
    for Feat in myFeats:
-      arcpy.AddMessage('Working on feature %s' % str(counter))
+      arcpy.AddMessage('Working on shrink feature %s' % str(counter))
       featSHP = Feat[0]
       tmpFeat = scratchGDB + os.sep + "tmpFeat"
       arcpy.CopyFeatures_management (featSHP, tmpFeat)
-      trashList.append.(tmpFeat)
+      trashList.append(tmpFeat)
       
       # Process:  Repair Geometry
       arcpy.RepairGeometry_management (tmpFeat, "DELETE_NULL")
       
       # Process:  Make Feature Layer
       arcpy.MakeFeatureLayer_management (dissFeats, "dissFeatsLyr", "", "", "")
-      trashList.append(dissFeatsLyr)
+      trashList.append("dissFeatsLyr")
 
       # Process: Select Layer by Location (Get dissolved features within each exploded buffer feature)
       arcpy.SelectLayerByLocation_management ("dissFeatsLyr", "INTERSECT", tmpFeat, "", "NEW_SELECTION")
       
       # Process:  Coalesce features (expand)
       coalFeats = scratchGDB + os.sep + 'coalFeats'
-      Coalesce("dissFeatsLyr", 8*dilDist, coalFeats, scratchParm)
+      Coalesce("dissFeatsLyr", smthMeas, coalFeats, scratchGDB)
       # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
       trashList.append(coalFeats)
       
@@ -273,10 +307,8 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
       arcpy.AddMessage("Appending feature...")
       arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
       
-      # Update
-      del Feat
       counter +=1
 
    # Cleanup
-   garbagePickup([tmpWorkspace])
+   # garbagePickup([tmpWorkspace])
    garbagePickup(trashList)
