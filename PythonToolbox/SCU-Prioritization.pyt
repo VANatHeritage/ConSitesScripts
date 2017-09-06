@@ -123,15 +123,16 @@ class scuPrior(object):
       parm2 = defineParam("fld_BRANK", "BRANK field", "String", "Required", "Input")
       parm3 = defineParam("lo_BRANK", "Lowest BRANK to consider", "String", "Required", "Input")
       parm3.value = 'B2'
+      parm3.filter.list = ['B1', 'B2', 'B3', 'B4', 'B5']
       parm4 = defineParam("in_Integrity", "Input Watershed Integrity Raster", "GPRasterLayer", "Required", "Input")
       parm5 = defineParam("lo_Integrity", "Minimum integrity value to consider", "GPLong", "Required", "Input")
       parm5.value = 80
       parm6 = defineParam("in_ConsPriority", "Input Conservation Priority Raster", "GPRasterLayer", "Required", "Input")
       parm7 = defineParam("in_Vulnerability", "Input Development Vulnerability Raster", "GPRasterLayer", "Required", "Input")
-      parm8 = defineParam("out_Feats", "Output scored features", "GPFeatureLayer", "Required", "Output")
+      parm8 = defineParam("out_Feats", "Output scored features", "DEFeatureClass", "Required", "Output")
       parm9 = defineParam("out_Scratch", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
       parm9.filter.list = ["Local Database"]
-      parms = [parm0, parm1, parm2, parm3, parm4, parm5]
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9]
       return parms
 
    def isLicensed(self):

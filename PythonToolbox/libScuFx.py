@@ -2,7 +2,7 @@
 # libScuFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-29
-# Last Edit: 2017-08-31
+# Last Edit: 2017-09-06
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -24,10 +24,7 @@ from arcpy.sa import *
 arcpy.CheckOutExtension("Spatial")
 import libConSiteFx
 from libConSiteFx import *
-import os, sys, datetime, traceback
-
-# Set overwrite option so that existing data may be overwritten
-arcpy.env.overwriteOutput = True
+import os, sys, datetime, traceback, gc
 
 # Define functions used to create toolbox tools
 def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch = 'in_memory'):
@@ -40,6 +37,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
    printMsg('Flow modeling is strongly dependent on cell size.')
 
    # Set environment setting and other variables
+   arcpy.env.overwriteOutput = True
    arcpy.env.snapRaster = in_FlowDir
    procDist = 2*maxDist
    dist = float(cellSize)
@@ -178,6 +176,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
          # Update the feature with its final shape
          row[1] = myFinalShape
          cursor.updateRow(row)
+         del row 
 
          printMsg('Finished processing feature %s' %str(myID))
          
@@ -186,7 +185,9 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
          
          # Throw out trash after every cycle and compact the scratch GDB periodically. 
          # Grasping at straws here to avoid failure processing large datasets.
-         garbagePickup(trashList) 
+         garbagePickup(trashList)        
+         for item in trashList:
+            del item
          if counter%25 == 0:
             printMsg('Compacting scratch geodatabase...')
             arcpy.Compact_management (out_Scratch)
@@ -214,50 +215,77 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
    
    if len(flags) > 0:
       printWrng('These features may be incorrect: %s' % str(flags))
+   if len(myFailList) > 0:
+      printWrng('These features failed to process: %s' % str(myFailList))
    return out_Feats
 
 def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integrity, in_ConsPriority, in_Vulnerability, out_Feats, out_Scratch = 'in_memory'):
    '''Prioritizes Stream Conservation Units (SCUs) for conservation, based on biodiversity rank (BRANK), watershed integrity and conservation priority (from ConservationVision Watershed Model), and vulnerability (from ConservationVision Development Vulnerability Model)'''
+   
+   # Environment settings
+   arcpy.env.overwriteOutput = True
+   cellSize = (arcpy.GetRasterProperties_management(in_Integrity, "CELLSIZEX")).getOutput(0)   
+   arcpy.env.cellSize = cellSize
+   printMsg('Cell Size is %s map units' % str(cellSize))
+   arcpy.env.snapRaster = in_Integrity
+   
    # Step 1: First cut: Create subset of buffered SCUs ranked lo_BRANK or better
    selQry = "%s <= '%s'" % (fld_BRANK, lo_BRANK)
    arcpy.Select_analysis (in_Feats, out_Feats, selQry)
    
    # Step 2: For each buffered SCU in subset, get zonal stats for Watershed Integrity, Conservation Priority and Vulnerability. Do this in loop in case of buffer overlap.
-      
-   # Process: Add fields to hold the stats
-   for f in ['INTEG', 'CPRIOR', 'VULN', 'SCORE']:
+   
+   # Add fields to hold the stats
+   for f in ['INTEG', 'CPRIOR_MEAN', 'CPRIOR_MAX', 'VULN', 'SCORE']:
       arcpy.AddField_management (out_Feats, f, 'FLOAT')
       
    # Set up some variables used in loop
    tmpFeat = out_Scratch + os.sep + 'tmpFeat' # temp feature class 
    tmpTab = out_Scratch + os.sep + 'tmpTab' # temp table 
-   flags = [] # empty list to keep track of suspects
+   myFailList = [] # empty list to keep track of failures
+   
+   # Count features and report
+   numFeats = countFeatures(out_Feats)
+   printMsg('There are %s features to process.' % numFeats)
    
    # Set up processing cursor and loop
-   cursor = arcpy.da.UpdateCursor(out_Feats, [fld_ID, 'INTEG', 'CPRIOR', 'VULN'])
+   fields = [fld_ID, 'INTEG', 'CPRIOR_MEAN', 'CPRIOR_MAX', 'VULN']
+   cursor = arcpy.da.UpdateCursor(out_Feats, fields)
+   counter = 1
    for row in cursor:
       try:
          myID = row[0]
          
+         printMsg('Working on zonal stats for feature %s with ID %s' % (counter, str(myID)))
+         
          # Make temporary feature class
-         selQry = "%s <= %s" % (fld_ID, str(myID))
+         selQry = "%s = %s" % (fld_ID, str(myID))
          arcpy.Select_analysis (out_Feats, tmpFeat, selQry)
          
          # Run zonal stats, extract values, and update fields
          outTab = ZonalStatisticsAsTable (tmpFeat, fld_ID, in_Integrity, tmpTab, 'DATA', 'MEAN')
          val = arcpy.SearchCursor(tmpTab).next().MEAN
+         printMsg('The watershed integrity mean is %s' % str(val))
          row[1] = val
          
-         outTab = ZonalStatisticsAsTable (tmpFeat, fld_ID, in_ConsPriority, tmpTab, 'DATA', 'MEAN')
+         outTab = ZonalStatisticsAsTable (tmpFeat, fld_ID, in_ConsPriority, tmpTab, 'DATA', 'ALL')
          val = arcpy.SearchCursor(tmpTab).next().MEAN
+         printMsg('The conservation priority mean is %s' % str(val))
          row[2] = val
+         val = arcpy.SearchCursor(tmpTab).next().MAX
+         printMsg('The conservation priority maximum is %s' % str(val))
+         row[3] = val
          
          outTab = ZonalStatisticsAsTable (tmpFeat, fld_ID, in_Vulnerability, tmpTab, 'DATA', 'MEAN')
          val = arcpy.SearchCursor(tmpTab).next().MEAN
-         row[3] = val
+         printMsg('The development vulnerability mean is %s' % str(val))
+         row[4] = val
          
+         # Updates
          cursor.updateRow(row)
-         
+         del row, val, outTab
+         counter += 1
+                  
          # Reset extent, because Arc is stupid.
          arcpy.env.extent = "MAXOF"
          
@@ -280,8 +308,8 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
          printMsg("\nMoving on to the next feature.  Note that the output will be incomplete.")
 
    # Step 3: Score catchments based on BRANK, Watershed Integrity, Conservation Priority, and Vulnerability
-   codeblock = '''def ConScore(brank, integ, crprior, vuln):
-      bDict = {'B1': 0, 'B2': -5, 'B3':-10, 'B4': -15, 'B5': -20}
+   codeblock = '''def ConScore(brank, integ, cprior_mean, cprior_max, vuln):
+      bDict = {'B1': 5, 'B2': 0, 'B3': -5, 'B4': -10, 'B5': -15}
       b = bDict[brank]
       if integ >= %s:
          i = 1
@@ -290,10 +318,11 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
       if vuln >= 80:
          v = 0
       elif vuln <= 20:
-         v = -20
+         v = 20
       else:
-         v = -5*vuln + 80
-      rawScore = crprior + v + b
+         v = -vuln/3 + 26.67
+      cprior = (cprior_mean + cprior_max)/2
+      rawScore = i*((integ + cprior)/2 + b - v)
       if rawScore > 100:
          score = 100
       elif rawScore < 0:
@@ -301,17 +330,22 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
       else: 
          score = rawScore
       return score''' % lo_Integrity
-   expression = 'ConScore(!%s!, !INTEG!, !CPRIOR!, !VULN!)' % fld_BRANK
+   expression = 'ConScore(!%s!, !INTEG!, !CPRIOR_MEAN!, !CPRIOR_MAX!, !VULN!)' % fld_BRANK
    arcpy.CalculateField_management(out_Feats, 'SCORE', expression, "PYTHON", codeblock)
    
-# Use the main function below to run the flow distance buffer function directly from Python IDE with hard-coded variables
+   if len(myFailList) > 0:
+      printWrng('These features failed to process: %s' % str(myFailList))
+      
+   return out_Feats
+   
+# Use the main function below to run the flow distance buffer function directly from Python IDE or command line with hard-coded variables
 def main():
    in_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCUs20170724.shp\dk_1500912213976.shp'
    fld_ID = 'lngID'
    in_FlowDir = r'H:\Backups\DCR_Work_DellD\GIS_Data_VA_proc\Finalized\NHDPlus_Virginia.gdb\fdir_VA'
-   out_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuFlowBuffs500'
+   out_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuFlowBuffs250'
    maxDist = 250
-   out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch-20170831.gdb'
+   out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb'
    # End of user input
 
    delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch)
