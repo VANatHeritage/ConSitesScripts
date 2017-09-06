@@ -10,6 +10,9 @@
 #
 # Usage Notes:
 # The main function here is "CreateSBBs". All the others are helper functions. If you want to create SBBs outside of ArcMap, go down to the bottom of the script and edit the "main" function to use the desired values for the input variables. Then you can simply run the script from an IDE such as PyScripter.
+
+# TO DO:
+# Continue making SBB functions starting with Rule 5
 # ----------------------------------------------------------------------------------------
 # Import function libraries and settings
 import libConSiteFx

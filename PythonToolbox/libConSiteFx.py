@@ -2,14 +2,12 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2017-08-11
+# Last Edit: 2017-09-06
 # Creator:  Kirsten R. Hazler
 
 # Summary:
 # A library of functions used to automatically delineate Natural Heritage Conservation Sites 
 
-# TO DO:
-# Continue making SBB functions starting with Rule 5
 # ----------------------------------------------------------------------------------------
 
 # Import modules
@@ -308,7 +306,7 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
       arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
       
       counter +=1
+      del Feat
 
    # Cleanup
-   # garbagePickup([tmpWorkspace])
    garbagePickup(trashList)
