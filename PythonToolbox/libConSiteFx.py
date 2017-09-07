@@ -310,3 +310,69 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Cleanup
    garbagePickup(trashList)
+   
+def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats):
+   ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
+   # Process: Make Feature Layer (subset of selected features)
+   arcpy.MakeFeatureLayer_management(inFeats, "Selected_lyr", selQry)
+
+   # Process: Dissolve
+   DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
+   arcpy.Dissolve_management("Selected_lyr", DissEraseFeats, "", "", "SINGLE_PART")
+
+   # Process: Coalesce
+   CoalEraseFeats = scratchGDB + os.sep + 'CoalEraseFeats'
+   arcpy.Coalesce_consiteTools(DissEraseFeats, -(elimDist), CoalEraseFeats, scratchParm)
+
+   # Process: Clean Features
+   arcpy.CleanFeatures_consiteTools(CoalEraseFeats, outEraseFeats)
+   
+   return outEraseFeats
+   
+def CullEraseFeats (inEraseFeats, inBnd, in_PF, fld_SFID, PerCov, outEraseFeats):
+   '''For ConSite creation: Culls exclusion features containing a significant percentage of any 
+Procedural Feature's area'''
+   # Process:  Add Field (Erase ID) and Calculate
+   arcpy.AddField_management (inEraseFeats, "eFID", "LONG")
+   arcpy.CalculateField_management (inEraseFeats, "eFID", "!OBJECTID!", "PYTHON")
+   
+   # Process: Tabulate Intersection
+   # This tabulates the percentage of each PF that is contained within each erase feature
+   TabIntersect = scratchGDB + os.sep + "TabInter"
+   arcpy.TabulateIntersection_analysis(in_PF, fld_SFID, inEraseFeats, TabIntersect, "eFID", "", "", "HECTARES")
+   
+   # Process: Summary Statistics
+   # This tabulates the maximum percentage of ANY PF within each erase feature
+   TabMax = scratchGDB + os.sep + "TabMax"
+   arcpy.Statistics_analysis(TabIntersect, TabMax, "PERCENTAGE MAX", "eFID")
+   
+   # Process: Join Field
+   # This joins the max percentage value back to the original erase features
+   arcpy.JoinField_management(inEraseFeats, "eFID", TabMax, "eFID", "MAX_PERCENTAGE")
+   
+   # Process: Select
+   # Any erase features containing a large enough percentage of a PF are discarded
+   WhereClause = "MAX_PERCENTAGE < %s OR MAX_PERCENTAGE IS null" % PerCov
+   selEraseFeats = scratchGDB + os.sep + 'selEraseFeats'
+   arcpy.Select_analysis(inEraseFeats, selEraseFeats, WhereClause)
+   
+   # Process:  Clean Erase (Use in_PF to chop out areas of remaining exclusion features)
+   arcpy.CleanErase_consiteTools (selEraseFeats, in_PF, outEraseFeats, scratchParm)
+   
+   return outEraseFeats
+   
+def CullFrags (inFrags, in_PF, searchDist, outFrags):
+   '''For ConSite creation: Culls SBB or ConSite fragments farther than specified search distance from 
+   Procedural Features'''
+   
+   # Process: Near
+   arcpy.Near_analysis(inFrags, in_PF, searchDist, "NO_LOCATION", "NO_ANGLE", "PLANAR")
+
+   # Process: Make Feature Layer
+   WhereClause = '"NEAR_FID" <> -1'
+   arcpy.MakeFeatureLayer_management(inFrags, "Frags_lyr", WhereClause)
+
+   # Process: Clean Features
+   arcpy.CleanFeatures_consiteTools("Frags_lyr", outFrags)
+   
+   return outFrags
