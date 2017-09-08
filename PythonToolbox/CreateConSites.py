@@ -61,29 +61,29 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    myWorkspace = drive + path
    Output_CS_fname = filename
    
-# Process: If applicable, clear any selections on non-SBB inputs
-for fc in [in_PF, in_TranSurf, in_Hydro, in_Exclude]:
-   typeFC= (arcpy.Describe(fc)).dataType
-   if typeFC == 'FeatureLayer':
-      arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
+   # If applicable, clear any selections on non-SBB inputs
+   for fc in [in_PF, in_TranSurf, in_Hydro, in_Exclude]:
+      typeFC= (arcpy.Describe(fc)).dataType
+      if typeFC == 'FeatureLayer':
+         arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
    
-# Process: Make Feature Layer from PFs
-arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")   
+   # Make Feature Layer from PFs
+   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")   
 
-# Set up output locations for subsets of SBBs and PFs to process
-SBB_sub = myWorkspace + os.sep + 'SBB_sub'
-PF_sub = myWorkspace + os.sep + 'PF_sub'
+   # Set up output locations for subsets of SBBs and PFs to process
+   SBB_sub = myWorkspace + os.sep + 'SBB_sub'
+   PF_sub = myWorkspace + os.sep + 'PF_sub'
 
-if ysn_Expand == "true":
-   # Process:  Expand SBB selection
-   arcpy.AddMessage('Expanding the current SBB selection and making copies of the SBBs and PFs...')
-   arcpy.ExpandSBBselection_consiteTools(in_SBB, "PF_lyr", fld_SFID, in_ConSites, selDist, SBB_sub, PF_sub)
-else:
-   # Process:  Subset PFs and SBBs
-   arcpy.AddMessage('Using the current SBB selection and making copies of the SBBs and PFs...')
-   arcpy.SubsetSBBandPF_consiteTools(in_SBB, "PF_lyr", "PF", fld_SFID, SBB_sub, PF_sub)
+   if ysn_Expand == "true":
+      # Expand SBB selection
+      arcpy.AddMessage('Expanding the current SBB selection and making copies of the SBBs and PFs...')
+      arcpy.ExpandSBBselection(in_SBB, "PF_lyr", fld_SFID, in_ConSites, selDist, SBB_sub, PF_sub)
+   else:
+      # Subset PFs and SBBs
+      arcpy.AddMessage('Using the current SBB selection and making copies of the SBBs and PFs...')
+      arcpy.SubsetSBBandPF(in_SBB, "PF_lyr", "PF", fld_SFID, SBB_sub, PF_sub)
 
-# Process: Make Feature Layers from inclusion features, and from subsets of PFs and SBBs
+# Make Feature Layers from inclusion features, and from subsets of PFs and SBBs
 arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
 arcpy.MakeFeatureLayer_management(SBB_sub, "SBB_lyr") 
 

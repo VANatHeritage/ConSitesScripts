@@ -382,3 +382,92 @@ def CullFrags (inFrags, in_PF, searchDist, outFrags):
    arcpy.CleanFeatures_consiteTools("Frags_lyr", outFrags)
    
    return outFrags
+   
+def ExpandSBBselection(inSBB, inPF, SFID, inConSites, SearchDist, outSBB, outPF):
+   '''Given an initial selection of Site Building Blocks (SBB) features, selects additional SBB features in the vicinity that should be included in any Conservation Site update. Also selects the Procedural Features (PF) corresponding to selected SBBs. Outputs the selected SBBs and PFs to new feature classes.'''
+   # If applicable, clear any selections on the PFs and ConSites inputs
+   typePF = (arcpy.Describe(inPF)).dataType
+   typeCS = (arcpy.Describe(inConSites)).dataType
+   if typePF == 'FeatureLayer':
+      arcpy.SelectLayerByAttribute_management (inPF, "CLEAR_SELECTION")
+   if typeCS == 'FeatureLayer':
+      arcpy.SelectLayerByAttribute_management (inConSites, "CLEAR_SELECTION")
+      
+   # Make Feature Layers from PFs and ConSites
+   arcpy.MakeFeatureLayer_management(inPF, "PF_lyr")   
+   arcpy.MakeFeatureLayer_management(inConSites, "Sites_lyr")
+      
+   # Process: Select subset of terrestrial ConSites
+   # WhereClause = "TYPE = 'Conservation Site'" 
+   arcpy.SelectLayerByAttribute_management ("Sites_lyr", "NEW_SELECTION", '')
+
+   # Initialize row count variables
+   initRowCnt = 0
+   finRowCnt = 1
+
+   while initRowCnt < finRowCnt:
+      # Keep adding to the SBB selection as long as the counts of selected records keep changing
+      # Get count of records in initial SBB selection
+      initRowCnt = int(arcpy.GetCount_management(inSBB).getOutput(0))
+      
+      # Select SBBs within distance of current selection
+      arcpy.SelectLayerByLocation_management(inSBB, "WITHIN_A_DISTANCE", inSBB, SearchDist, "ADD_TO_SELECTION", "NOT_INVERT")
+      
+      # Select ConSites intersecting current SBB selection
+      arcpy.SelectLayerByLocation_management("Sites_lyr", "INTERSECT", inSBB, "", "NEW_SELECTION", "NOT_INVERT")
+      
+      # Select SBBs within current selection of ConSites
+      arcpy.SelectLayerByLocation_management(inSBB, "INTERSECT", "Sites_lyr", "", "ADD_TO_SELECTION", "NOT_INVERT")
+      
+      # Make final selection
+      arcpy.SelectLayerByLocation_management(inSBB, "WITHIN_A_DISTANCE", inSBB, SearchDist, "ADD_TO_SELECTION", "NOT_INVERT")
+      
+      # Get count of records in final SBB selection
+      finRowCnt = int(arcpy.GetCount_management(inSBB).getOutput(0))
+      
+   # Save subset of SBBs and corresponding PFs to output feature classes
+   SubsetSBBandPF(inSBB, inPF, "PF", SFID, outSBB, outPF)
+   
+   featTuple = (outSBB, outPF)
+   return featTuple
+   
+def SubsetSBBandPF(inSBB, inPF, selOption, SFID, outSBB, outPF):
+   '''Given selected input Site Building Blocks (SBB) features, selects the corresponding Procedural Features (PF). Or vice versa.  Outputs the selected SBBs and PFs to new feature classes.'''
+   if selOption == "PF":
+      inSelector = inSBB
+      inSelectee = inPF
+      outSelector = outSBB
+      outSelectee = outPF
+   elif selOption == "SBB":
+      inSelector = inPF
+      inSelectee = inSBB
+      outSelector = outPF
+      outSelectee = outSBB
+   else:
+      printErr('Invalid selection option')
+     
+   # If applicable, clear any selections on the Selectee input
+   typeSelectee = (arcpy.Describe(inSelectee)).dataType
+   if typeSelectee == 'FeatureLayer':
+      arcpy.SelectLayerByAttribute_management (inSelectee, "CLEAR_SELECTION")
+      
+   # Copy the selected Selector features to the output feature class
+   arcpy.CopyFeatures_management (inSelector, outSelector) 
+
+   # Make Feature Layer from Selectee features
+   arcpy.MakeFeatureLayer_management(inSelectee, "Selectee_lyr") 
+
+   # Get the Selectees associated with the Selectors, keeping only common records
+   arcpy.AddJoin_management ("Selectee_lyr", joinFld, outSelector, joinFld, "KEEP_COMMON")
+
+   # Select all Selectees that were joined
+   arcpy.SelectLayerByAttribute_management ("Selectee_lyr", "NEW_SELECTION")
+
+   # Remove the join
+   arcpy.RemoveJoin_management ("Selectee_lyr")
+
+   # Copy the selected Selectee features to the output feature class
+   arcpy.CopyFeatures_management ("Selectee_lyr", outSelectee)
+   
+   featTuple = (outPF, outSBB)
+   return featTuple
