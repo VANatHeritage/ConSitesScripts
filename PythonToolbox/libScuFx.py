@@ -152,12 +152,7 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist 
          trashList.append(finPoly)
          arcpy.RasterToPolygon_conversion (prePoly, finPoly, "NO_SIMPLIFY")
 
-         # # Eliminate parts because some features will make you cry/scream if you don't
-         # printMsg('Eliminating trivial parts of catchment polygon...')
-         # elimCatch = out_Scratch + os.sep + 'elimCatch'
-         # arcpy.EliminatePolygonPart_management (clipCatch, elimCatch, "PERCENT", "", 10, "ANY")
-
-         # If user desires, coalesce to smooth
+         # If user specifies, coalesce to smooth
          if dilDist == 0:
             printMsg('Final shape will not be smoothed.')
             coalPoly = finPoly
@@ -173,6 +168,10 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist 
          if count > 1:
             printWrng('Output is suspect for feature %s' % str(myID))
             flags.append(myID)
+            # Dissolve to create a multipart feature so at least we can finish the job.
+            multiPoly = out_Scratch + os.sep + 'multiPoly'
+            arcpy.Dissolve_management (coalPoly, multiPoly, "", "", "MULTI_PART")
+            coalPoly = multiPoly
          
          # Use the flow distance buffer geometry as the final shape
          myFinalShape = arcpy.SearchCursor(coalPoly).next().Shape
