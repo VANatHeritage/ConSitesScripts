@@ -158,9 +158,15 @@ def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
 def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    '''If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'''
    
-   # Parse dilation distance and get the negative
-   origDist, units, meas = multiMeasure(dilDist, 1)
-   negDist, units, negMeas = multiMeasure(dilDist, -1)
+   # If it's a string, parse dilation distance and get the negative
+   if type(dilDist) == str:
+      origDist, units, meas = multiMeasure(dilDist, 1)
+      negDist, units, negMeas = multiMeasure(dilDist, -1)
+   else:
+      origDist = dilDist
+      meas = dilDist
+      negDist = -1*origDist
+      negMeas = negDist
 
    # Parameter check
    if origDist == 0:

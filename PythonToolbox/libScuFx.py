@@ -27,7 +27,7 @@ from libConSiteFx import *
 import os, sys, datetime, traceback, gc
 
 # Define functions used to create toolbox tools
-def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch = 'in_memory'):
+def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist = 0, out_Scratch = 'in_memory'):
    """Delineates buffers based on flow distance down to features (rather than straight distance)"""
    # Get cell size and output spatial reference from in_FlowDir
    cellSize = (arcpy.GetRasterProperties_management(in_FlowDir, "CELLSIZEX")).getOutput(0)
@@ -40,8 +40,8 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
    arcpy.env.overwriteOutput = True
    arcpy.env.snapRaster = in_FlowDir
    procDist = 2*maxDist
-   dist = float(cellSize)
-   dilDist = "%s %ss" % (str(dist), linUnit)
+   # dist = float(cellSize)
+   # dilDist = "%s %ss" % (str(dist), linUnit) # decided to make this a user input
 
    # Check if input features and input flow direction have same spatial reference.
    # If so, just make a copy. If not, reproject features to match raster.
@@ -157,21 +157,25 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scra
          # elimCatch = out_Scratch + os.sep + 'elimCatch'
          # arcpy.EliminatePolygonPart_management (clipCatch, elimCatch, "PERCENT", "", 10, "ANY")
 
-         # Shrinkwrap to assure final shape is a nice smooth feature with no holes
-         printMsg('Smoothing shape...')
-         shrinkPoly = out_Scratch + os.sep + 'shrinkPoly'
-         trashList.append(shrinkPoly)
-         ShrinkWrap(finPoly, dilDist, shrinkPoly, 'in_memory')
+         # If user desires, coalesce to smooth
+         if dilDist == 0:
+            printMsg('Final shape will not be smoothed.')
+            coalPoly = finPoly
+         else:
+            printMsg('Smoothing final shape...')
+            coalPoly = out_Scratch + os.sep + 'coalPoly'
+            Coalesce(finPoly, dilDist, coalPoly, 'in_memory')
+         trashList.append(coalPoly)
          
          # Check the number of features at this point. 
          # It should be just one. If more, the output is likely bad and should be flagged.
-         count = countFeatures(shrinkPoly)
+         count = countFeatures(coalPoly)
          if count > 1:
             printWrng('Output is suspect for feature %s' % str(myID))
             flags.append(myID)
          
          # Use the flow distance buffer geometry as the final shape
-         myFinalShape = arcpy.SearchCursor(shrinkPoly).next().Shape
+         myFinalShape = arcpy.SearchCursor(coalPoly).next().Shape
 
          # Update the feature with its final shape
          row[1] = myFinalShape

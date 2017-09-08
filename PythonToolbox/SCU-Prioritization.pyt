@@ -67,11 +67,12 @@ class flowDistBuffer(object):
       parm1 = defineParam("fld_ID", "Unique ID field (integer)", "String", "Required", "Input")
       parm2 = defineParam("in_FlowDir", "Input flow direction raster", "GPRasterLayer", "Required", "Input")
       parm3 = defineParam("out_Feats", "Output flow distance buffers", "DEFeatureClass", "Required", "Output")
-      parm4 = defineParam("maxDist", "Maximum distance", "GPDouble", "Required", "Input")
+      parm4 = defineParam("maxDist", "Maximum distance (in map units)", "GPDouble", "Required", "Input")
       parm4.value = 250
-      parm5 = defineParam("out_Scratch", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
-      parm5.filter.list = ["Local Database"]
-      parms = [parm0, parm1, parm2, parm3, parm4, parm5]
+      parm5 = defineParam("dilDist", "Dilation distance for smoothing final shape (in map units)", "GPDouble", "Optional", "Input")
+      parm6 = defineParam("out_Scratch", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
+      parm6.filter.list = ["Local Database"]
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6]
       return parms
 
    def isLicensed(self):
@@ -98,6 +99,11 @@ class flowDistBuffer(object):
       # Set up parameter names and values
       declareParams(parameters)
       mDist = float(maxDist) # Convert distance string back to number
+      
+      if dilDist == 'None':
+         dDist = 0.0
+      else:
+         dDist = float(dilDist)
 
       if out_Scratch != 'None':
          scratchParm = out_Scratch 
@@ -105,7 +111,7 @@ class flowDistBuffer(object):
          scratchParm = arcpy.env.scratchGDB
          #Note: I wanted to use 'in_memory' here, but was getting aberrant results for no discernible reason. Code works fine when using scratch workspace on disk; outputs square blocks if processing in memory. WHY???
       
-      delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, mDist, scratchParm)
+      delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, mDist, dDist, scratchParm)
 
       return out_Feats
       
