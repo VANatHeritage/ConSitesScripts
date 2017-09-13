@@ -2,13 +2,13 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2017-09-07
+# Last Edit: 2017-09-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
-# Given a set of Site Building Blocks, corresponding Procedural Features, polygons delineating open water and road right-of-ways, and "Exclusion" features, creates a set of Conservation Sites.  Exclusion features are manually or otherwise delineated areas that are used to erase unsuitable areas from ProtoSites.  ***This tool version allows users to tweak parameters.
+# Given a set of Site Building Blocks, corresponding Procedural Features, polygons delineating open water and road right-of-ways, and "Exclusion" features, creates a set of Conservation Sites.  Exclusion features are manually or otherwise delineated areas that are used to erase unsuitable areas from ProtoSites.  
 
-# TO DO: Continue converting to function from line 63
+# TO DO: Test code as it is now, then delete proposed deletions and test again.
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
@@ -141,114 +141,115 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
          # Clip exclusion features to buffer
          printMsg('Clipping transportation features to buffer...')
          tranClp = scratchGDB + os.sep + 'tranClp'
-         arcpy.CleanClip_consiteTools (in_TranSurf, tmpBuff, tranClp, scratchParm)
-         arcpy.AddMessage('Clipping hydro features to buffer...')
+         CleanClip(in_TranSurf, tmpBuff, tranClp, scratchParm)
+         printMsg('Clipping hydro features to buffer...')
          hydroClp = scratchGDB + os.sep + 'hydroClp'
-         arcpy.CleanClip_consiteTools (in_Hydro, tmpBuff, hydroClp, scratchParm)
-         arcpy.AddMessage('Clipping Exclusion Features to buffer...')
+         CleanClip(in_Hydro, tmpBuff, hydroClp, scratchParm)
+         printMsg('Clipping Exclusion Features to buffer...')
          efClp = scratchGDB + os.sep + 'efClp'
-         arcpy.CleanClip_consiteTools (in_Exclude, tmpBuff, efClp, scratchParm)
+         CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
          
-         # Process:  Get ROW Erase Features
+         # Get Transportation Surface Erase Features
          rowErase = scratchGDB + os.sep + 'rowErase'
          GetEraseFeats (tranClp, transQry, transElimDist, rowErase)
          
-         # Process:  Cull Erase Features (from rowErase)
-         arcpy.AddMessage('Culling ROW erase features...')
+         # Cull Transportation Surface Erase Features 
+         printMsg('Culling ROW erase features...')
          rowRtn = scratchGDB + os.sep + 'rowRtn'
          CullEraseFeats (rowErase, tmpBuff, tmpPF, fld_SFID, transPerCov, rowRtn)
          
-         # Process:  Get Hydro Erase Features
+         # Get Hydro Erase Features
          hydroErase = scratchGDB + os.sep + 'hydroErase'
          GetEraseFeats (hydroClp, hydroQry, hydroElimDist, hydroErase)
          
-         # Process:  Cull Erase Features (from hydroErase)
-         arcpy.AddMessage('Culling hydro erase features...')
+         # Cull Hydro Erase Features
+         printMsg('Culling hydro erase features...')
          hydroRtn = scratchGDB + os.sep + 'hydroRtn'
          CullEraseFeats (hydroErase, tmpBuff, tmpPF, fld_SFID, hydroPerCov, hydroRtn)
          
-         # Process:  Merge (efClp, rowRtn, and hydroRtn)
-         arcpy.AddMessage('Merging erase features...')
+         # Merge Erase Features (Exclusion features and retained Hydro and Transp features)
+         printMsg('Merging erase features...')
          tmpErase = scratchGDB + os.sep + 'tmpErase'
          arcpy.Merge_management ([efClp, rowRtn, hydroRtn], tmpErase) 
          
-         # Process:  Clean Erase (Use tmpErase to chop out areas of SBBs)
-         arcpy.AddMessage('Erasing portions of SBBs...')
+         # Use erase features to chop out areas of SBBs
+         printMsg('Erasing portions of SBBs...')
          sbbFrags = scratchGDB + os.sep + 'sbbFrags'
-         arcpy.CleanErase_consiteTools (tmpSBB, tmpErase, sbbFrags, scratchParm) 
+         CleanErase (tmpSBB, tmpErase, sbbFrags, scratchParm) 
          
-         # Cull Fragments (remove any SBB fragments too far from a PF)
-         arcpy.AddMessage('Culling SBB fragments...')
+         # Remove any SBB fragments too far from a PF
+         printMsg('Culling SBB fragments...')
          sbbRtn = scratchGDB + os.sep + 'sbbRtn'
          CullFrags(sbbFrags, tmpPF, searchDist, sbbRtn)
          arcpy.MakeFeatureLayer_management(sbbRtn, "sbbRtn_lyr")
          
-         # Process:  Clean Erase (Use tmpErase to chop out areas of ProtoSites)
-         arcpy.AddMessage('Erasing portions of ProtoSites...')
+         # Use erase features to chop out areas of ProtoSites
+         printMsg('Erasing portions of ProtoSites...')
          psFrags = scratchGDB + os.sep + 'psFrags'
-         arcpy.CleanErase_consiteTools (psSHP, tmpErase, psFrags, scratchParm) 
+         CleanErase (psSHP, tmpErase, psFrags, scratchParm) 
          
-         # Process:  Cull Fragments (remove any ProtoSite fragments too far from a PF)
-         arcpy.AddMessage('Culling ProtoSite fragments...')
+         # Remove any ProtoSite fragments too far from a PF
+         printMsg('Culling ProtoSite fragments...')
          psRtn = scratchGDB + os.sep + 'psRtn'
          CullFrags(psFrags, tmpPF, searchDist, psRtn)
          
-         # Process:  Coalesce (re-merge split sites, if applicable
+         # Re-merge split sites, if applicable
          coalFrags = scratchGDB + os.sep + 'coalFrags'
          arcpy.Coalesce_consiteTools(psRtn, coalDist, coalFrags, scratchParm)
          
-         # Loop through the split, shrunken ProtoSites
+         # Loop through the final (split) ProtoSites
          mySplitSites = arcpy.da.SearchCursor(coalFrags, ["SHAPE@"])
          counter2 = 1
          for mySS in mySplitSites:
-            arcpy.AddMessage('Working on split site %s' % str(counter2))
+            printMsg('Working on split site %s' % str(counter2))
             
             ssSHP = mySS[0]
             tmpSS = scratchGDB + os.sep + "tmpSS" + str(counter2)
             arcpy.CopyFeatures_management (ssSHP, tmpSS) 
             
-            # Process:  Make Feature Layer
+            # Make Feature Layer from split site
             arcpy.MakeFeatureLayer_management (tmpSS, "splitSiteLyr", "", "", "")
                      
-            # Process: Select Layer By Location (Get PFs within split site)
+            # Get PFs within split site
             arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", tmpSS, "", "NEW_SELECTION", "NOT_INVERT")
             
-            # Process:  Subset SBBs and PFs (select SBB fragments corresponding to tmpPF)
+            # Select retained SBB fragments corresponding to selected PFs
             tmpSBB2 = scratchGDB + os.sep + 'tmpSBB2' 
             tmpPF2 = scratchGDB + os.sep + 'tmpPF2'
             arcpy.SubsetSBBandPF_consiteTools(sbbRtn, "PF_lyr", "SBB", fld_SFID, tmpSBB2, tmpPF2)
             
-            # Process:  ShrinkWrap
+            # ShrinkWrap retained SBB fragments
             csShrink = scratchGDB + os.sep + 'csShrink' + str(counter2)
             arcpy.ShrinkWrap_consiteTools(tmpSBB2, dilDist, csShrink, scratchParm)
             
-            # Process:  Intersect 
+            # Intersect shrinkwrap with original split site
+            ### WHY did I do this?? I think this step should be deleted...
             csInt = scratchGDB + os.sep + 'csInt' + str(counter2)
             arcpy.Intersect_analysis ([tmpSS, csShrink], csInt, "ONLY_FID") 
          
-            # Process:  Union (to remove gaps within sites)
+            # Remove gaps within site
             csNoGap = scratchGDB + os. sep + 'csNoGap' + str(counter2)
             arcpy.Union_analysis (csInt, csNoGap, "ONLY_FID", "", "NO_GAPS")
-            
-            # Process:  Dissolve
             csDiss = scratchGDB + os.sep + 'csDissolved' + str(counter2)
             arcpy.Dissolve_management (csNoGap, csDiss, "", "", "SINGLE_PART") 
             
-            # Process:  Cull Fragments (remove any fragments too far from a PF)
+            # Remove any fragments too far from a PF
+            ### WHY would there be any more fragments at this point??? Delete this step??
             csRtn = scratchGDB + os.sep + 'csRtn'
             CullFrags(csDiss, tmpPF2, searchDist, csRtn)
             
-            # Process:  Coalesce (final smoothing of the site)  -- Is this even necessary??  Delete??
+            # Process:  Coalesce (final smoothing of the site)  
+            # WHY?? Probably should delete this step...
             csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
             arcpy.Coalesce_consiteTools(csRtn, (coalDist), csCoal, scratchParm)
             
             # Process:  Clean Erase (final removal of exclusion features)
-            arcpy.AddMessage('Excising manually delineated exclusion features...')
+            printMsg('Excising manually delineated exclusion features...')
             csBnd = scratchGDB + os.sep + 'csBnd' + str(counter2)
-            arcpy.CleanErase_consiteTools (csCoal, efClp, csBnd, scratchParm) 
+            CleanErase (csCoal, efClp, csBnd, scratchParm) 
 
             # Append the final geometry to the ConSites feature class.
-            arcpy.AddMessage("Appending feature...")
+            printMsg("Appending feature...")
             arcpy.Append_management(csBnd, out_ConSites, "NO_TEST", "", "")
             
             counter2 +=1
