@@ -26,9 +26,8 @@ import libConSiteFx
 from libConSiteFx import *
 import os, sys, datetime, traceback, gc
 
-# Define functions used to create toolbox tools
 def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist = 0, out_Scratch = 'in_memory'):
-   """Delineates buffers based on flow distance down to features (rather than straight distance)"""
+   '''Delineates buffers based on flow distance down to features (rather than straight distance)'''
    # Get cell size and output spatial reference from in_FlowDir
    cellSize = (arcpy.GetRasterProperties_management(in_FlowDir, "CELLSIZEX")).getOutput(0)
    srRast = arcpy.Describe(in_FlowDir).spatialReference
@@ -222,6 +221,121 @@ def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist 
       printWrng('These features failed to process: %s' % str(myFailList))
    return out_Feats
 
+def getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, type_Stats, out_Polys, out_Scratch = 'in_memory'):
+   '''Attaches zonal statistics from a raster to polygons'''
+   # Environment settings
+   arcpy.env.overwriteOutput = True
+   cellSize = (arcpy.GetRasterProperties_management(in_Raster, "CELLSIZEX")).getOutput(0)   
+   arcpy.env.cellSize = cellSize
+   printMsg('Cell Size is %s map units' % str(cellSize))
+   arcpy.env.snapRaster = in_Raster
+   
+   # Check if input polygons and raster have same spatial reference.
+   # If so, all good. If not, reproject features to match raster.
+   srPolys = arcpy.Describe(in_Polys).spatialReference
+   srRast = arcpy.Describe(in_Raster).spatialReference
+   if srPolys.Name == srRast.Name:
+      printMsg('Coordinate systems for features and raster are the same. Copying...')
+      arcpy.CopyFeatures_management (in_Polys, out_Polys)
+   else:
+      printMsg('Reprojecting features to match raster...')
+      # Check if geographic transformation is needed, and handle accordingly.
+      if srPolys.GCS.Name == srRast.GCS.Name:
+         geoTrans = ""
+         printMsg('No geographic transformation needed...')
+      else:
+         transList = arcpy.ListTransformations(srPolys,srRast)
+         geoTrans = transList[0]
+      arcpy.Project_management (in_Polys, out_Polys, srRast, geoTrans)
+      
+   # Set up some variables used in loop below
+   tmpFeat = out_Scratch + os.sep + 'tmpFeat' # temp feature class 
+   tmpTab = out_Scratch + os.sep + 'tmpTab' # temp table 
+   mstrTab = out_Scratch + os.sep + 'mstrTab' # master table
+   for t in [tmpTab, mstrTab]:
+      if arcpy.Exists(t):
+         arcpy.Delete_management(t)
+   myFailList = [] # empty list to keep track of failures
+   
+   # Count features and report
+   numFeats = countFeatures(out_Polys)
+   printMsg('There are %s features to process.' % numFeats)
+   
+   # Set up processing cursor and loop through polygons to get zonal stats. 
+   # This is done in a loop instead of all at once to avoid problems if polys overlap.
+   cursor = arcpy.da.SearchCursor(out_Polys, '%s' % fld_ID)
+   counter = 1
+   for row in cursor:
+      try:
+         myID = row[0]
+         printMsg('Working on zonal stats for feature %s with ID %s' % (counter, str(myID)))
+         
+         # Make temporary feature class
+         selQry = "%s = %s" % (fld_ID, str(myID))
+         arcpy.Select_analysis (out_Polys, tmpFeat, selQry)
+         
+         # Run zonal stats and append to master table
+         outTab = ZonalStatisticsAsTable (tmpFeat, fld_ID, in_Raster, tmpTab, 'DATA', 'ALL')
+         if arcpy.Exists(mstrTab):
+            arcpy.Append_management(tmpTab, mstrTab, 'NO_TEST')
+         else:
+            arcpy.Copy_management(tmpTab, mstrTab)
+         
+         # Updates
+         del row, outTab
+         counter += 1
+                  
+         # Reset extent, because Arc is stupid.
+         arcpy.env.extent = "MAXOF"
+         
+      except:
+      # Add failure message and append failed feature ID to list
+         printMsg("\nFailed to fully process feature " + str(myID))
+         myFailList.append(myID)
+
+         # Error handling code swiped from "A Python Primer for ArcGIS"
+         tb = sys.exc_info()[2]
+         tbinfo = traceback.format_tb(tb)[0]
+         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
+         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
+
+         printWrng(msgs)
+         printWrng(pymsg)
+         printMsg(arcpy.GetMessages(1))
+
+         # Add status message
+         printMsg("\nMoving on to the next feature.  Note that the output will be incomplete.")
+   del cursor
+   
+   # For each stats type, manipulate the fields
+   printMsg('Appending stats fields to output features')
+   polyFldNames = [field.name for field in arcpy.ListFields(out_Polys)]
+   printMsg(polyFldNames)
+   for t in type_Stats:
+      fldName = fld_Stats + '_' + t
+      if fldName in polyFldNames:
+         arcpy.DeleteField_management(out_Polys, fldName)
+      arcpy.AddField_management (mstrTab, fldName, 'FLOAT')
+      expression = '!%s!' % t
+      try:
+         arcpy.CalculateField_management(mstrTab, fldName, expression, 'PYTHON')
+         arcpy.JoinField_management(out_Polys, fld_ID, mstrTab, fld_ID, fldName)
+         # I put this in a try block b/c certain stats, such as MEDIAN, are apparently only available for integer rasters.
+      except:
+         printWrng('Unable to add %s' %t)
+
+         # Error handling code swiped from "A Python Primer for ArcGIS"
+         tb = sys.exc_info()[2]
+         tbinfo = traceback.format_tb(tb)[0]
+         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
+         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
+
+         printWrng(msgs)
+         printWrng(pymsg)
+         printMsg(arcpy.GetMessages(1))
+
+   return out_Polys
+   
 def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integrity, in_ConsPriority, in_Vulnerability, out_Feats, out_Scratch = 'in_memory'):
    '''Prioritizes Stream Conservation Units (SCUs) for conservation, based on biodiversity rank (BRANK), watershed integrity and conservation priority (from ConservationVision Watershed Model), and vulnerability (from ConservationVision Development Vulnerability Model)'''
    
@@ -245,6 +359,8 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
    # Set up some variables used in loop
    tmpFeat = out_Scratch + os.sep + 'tmpFeat' # temp feature class 
    tmpTab = out_Scratch + os.sep + 'tmpTab' # temp table 
+   if arcpy.Exists(tmpTab):
+      arcpy.Delete_management(tmpTab)
    myFailList = [] # empty list to keep track of failures
    
    # Count features and report
@@ -341,17 +457,31 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
       
    return out_Feats
    
-# Use the main function below to run the flow distance buffer function directly from Python IDE or command line with hard-coded variables
+# # Use the main function below to run the delinFlowDistBuff function directly from Python IDE or command line with hard-coded variables
+# def main():
+   # in_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCUs20170724.shp\dk_1500912213976.shp'
+   # fld_ID = 'lngID'
+   # in_FlowDir = r'H:\Backups\DCR_Work_DellD\GIS_Data_VA_proc\Finalized\NHDPlus_Virginia.gdb\fdir_VA'
+   # out_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuFlowBuffs250'
+   # maxDist = 250
+   # out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb'
+   # # End of user input
+
+   # delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch)
+   
+# Use the main function below to run the getZonalStats function
 def main():
-   in_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCUs20170724.shp\dk_1500912213976.shp'
+   # Set up hard-coded variables
+   in_Polys = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work_20170903.gdb\scuFlowBuff250_examples'
+   in_Raster = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\ConsPrior.tif'
    fld_ID = 'lngID'
-   in_FlowDir = r'H:\Backups\DCR_Work_DellD\GIS_Data_VA_proc\Finalized\NHDPlus_Virginia.gdb\fdir_VA'
-   out_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuFlowBuffs250'
-   maxDist = 250
+   fld_Stats = 'ConsPrior'
+   type_Stats = ['MIN', 'MAX', 'MEAN', 'MEDIAN']
+   out_Polys = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb\test'
    out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb'
    # End of user input
-
-   delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch)
+   
+   getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, type_Stats, out_Polys, out_Scratch)
 
 if __name__ == '__main__':
    main()

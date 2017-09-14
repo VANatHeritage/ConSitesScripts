@@ -51,7 +51,7 @@ class Toolbox(object):
       self.alias = "SCU Prioritization Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [flowDistBuffer, scuPrior]
+      self.tools = [flowDistBuffer, zonalStats, scuPrior]
       
 # Define the tools
 class flowDistBuffer(object):
@@ -114,6 +114,58 @@ class flowDistBuffer(object):
       delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, mDist, dDist, scratchParm)
 
       return out_Feats
+
+class zonalStats(object):
+   def __init__(self):
+      """Attaches zonal statistics from a raster to polygons."""
+      self.label = "Get zonal statistics for polygons"
+      self.description = ""
+      self.canRunInBackground = True
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_Polys", "Input polygons", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("in_Raster", "Input raster", "GPRasterLayer", "Required", "Input")
+      parm2 = defineParam("fld_ID", "Unique ID field (integer)", "String", "Required", "Input", "lngID")
+      parm3 = defineParam("fld_Stats", "Statistics field basename", "String", "Required", "Input")
+      parm4 = defineParam("type_Stats", "Statistics to append", "String", "Required", "Input")
+      parm4.filter.list = ['MIN', 'MAX', 'MEAN', 'STD', 'MEDIAN']
+      parm4.multiValue = True
+      parm5 = defineParam("out_Polys", "Output attributed polygons", "DEFeatureClass", "Required", "Output")
+      parm6 = defineParam("out_Scratch", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
+      parm6.filter.list = ["Local Database"]
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6]
+      return parms
+      
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+      
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+      
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+      
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      statsList = type_Stats.split(";")
+
+      if out_Scratch != 'None':
+         scratchParm = out_Scratch 
+      else:
+         scratchParm = arcpy.env.scratchGDB
+         #Note: I wanted to use 'in_memory' here, but was getting aberrant results for no discernible reason. Code works fine when using scratch workspace on disk; outputs square blocks if processing in memory. WHY???
+      
+      getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, statsList, out_Polys, scratchParm)
+
+      return in_Polys
       
 class scuPrior(object):
    def __init__(self):
