@@ -336,6 +336,53 @@ def getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, type_Stats, out_Polys,
 
    return out_Polys
    
+def getLandscapeScore(in_Feats, fld_ForWet, fld_ImpSur):
+   '''Scores features based on forest/wetland and impervious surface cover'''
+   
+   # If needed, add fields to hold the scores
+   printMsg('Adding fields')
+   fldNames = [field.name for field in arcpy.ListFields(in_Feats)]
+   for f in ['ForWet_score', 'ImpSur_score', 'Landscape_score']:
+      if f not in fldNames:
+         arcpy.AddField_management (in_Feats, f, 'FLOAT')
+      
+   # Get forest/wetland score
+   printMsg('Calculating forest/wetland score')
+   codeblock = '''def forwetScore(forwet):
+      fMax = 0.85
+      fMin = 0.15
+      if forwet <= fMin:
+         score = 0
+      elif forwet >= fMax:
+         score = 100
+      else:
+         score = 100*(forwet - fMin)/(fMax - fMin)
+      return score'''
+   expression = 'forwetScore(!%s!)' % fld_ForWet
+   arcpy.CalculateField_management(in_Feats, 'ForWet_score', expression, "PYTHON", codeblock)
+         
+   # Get impervious surface score
+   printMsg('Calculating impervious surface score')
+   codeblock = '''def impsurScore(impsur):
+      iMax = 0.25
+      iMin = 0.05
+      if impsur <= iMin:
+         score = 100
+      elif impsur >= iMax:
+         score = 0
+      else:
+         score = 100*(iMax - impsur)/(iMax - iMin)
+      return score''' 
+   expression = 'impsurScore(!%s!)' % fld_ImpSur
+   arcpy.CalculateField_management(in_Feats, 'ImpSur_score', expression, "PYTHON", codeblock)
+     
+   # Get landscape score
+   printMsg('Calculating landscape score')
+   expression = r'(!ForWet_score! + !ImpSur_score!)/2' 
+   arcpy.CalculateField_management(in_Feats, 'Landscape_score', expression, "PYTHON")
+   
+   return in_Feats
+
 def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integrity, in_ConsPriority, in_Vulnerability, out_Feats, out_Scratch = 'in_memory'):
    '''Prioritizes Stream Conservation Units (SCUs) for conservation, based on biodiversity rank (BRANK), watershed integrity and conservation priority (from ConservationVision Watershed Model), and vulnerability (from ConservationVision Development Vulnerability Model)'''
    

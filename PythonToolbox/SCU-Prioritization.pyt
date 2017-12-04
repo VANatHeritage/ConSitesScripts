@@ -51,7 +51,7 @@ class Toolbox(object):
       self.alias = "SCU Prioritization Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [flowDistBuffer, zonalStats, scuPrior]
+      self.tools = [flowDistBuffer, zonalStats, landscapeScore, scuPrior]
       
 # Define the tools
 class flowDistBuffer(object):
@@ -166,6 +166,49 @@ class zonalStats(object):
       getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, statsList, out_Polys, scratchParm)
 
       return in_Polys
+      
+class landscapeScore(object):
+   def __init__(self):
+      """Assigns a landscape score to features based on forest/wetland and impervious surface cover."""
+      self.label = "Assign landscape score to features"
+      self.description = ""
+      self.canRunInBackground = True
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_Feats", "Input features", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("fld_ForWet", "Field containing forest/wetland cover", "String", "Required", "Input")
+      parm2 = defineParam("fld_ImpSur", "Field containing impervious surface cover", "String", "Required", "Input")
+      parms = [parm0, parm1, parm2]
+      return parms
+      
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+      
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      if parameters[0].altered:
+         in_Feats = parameters[0].valueAsText
+         fldNames = [field.name for field in arcpy.ListFields(in_Feats)]
+         parameters[1].filter.list = fldNames
+         parameters[2].filter.list = fldNames
+      return
+      
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+      
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      
+      getLandscapeScore(in_Feats, fld_ForWet, fld_ImpSur)
+
+      return in_Feats
       
 class scuPrior(object):
    def __init__(self):
