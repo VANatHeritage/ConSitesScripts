@@ -361,14 +361,14 @@ def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, 
 
 def main():
    # Set up your variables here
-   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20170605.gdb\ProcFeats_20170605_114532'
+   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308'
    fld_SFID = 'SFID' # probably can leave this as is
    fld_Rule = 'RULE' # probably can leave this as is
    fld_Buff = 'BUFFER' # probably can leave this as is
-   in_nwi5 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\SBB_Tools_Inputs_BAK20160919.gdb\VA_Wetlands_Rule5'
-   in_nwi67 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\SBB_Tools_Inputs_BAK20160919.gdb\VA_Wetlands_Rule67'
-   in_nwi9 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\SBB_Tools_Inputs_BAK20160919.gdb\VA_Wetlands_Rule9'
-   out_SBB = r'C:\Testing\Testing.gdb\SBB_test3'
+   in_nwi5 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule5'
+   in_nwi67 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule67'
+   in_nwi9 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule9'
+   out_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206'
    scratchGDB = "in_memory"
    # End of user input
    
