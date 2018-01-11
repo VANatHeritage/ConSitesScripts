@@ -25,7 +25,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    hydroElimDist = "10 METERS" # Distance used to eliminate insignificant water features from the set of erasing features. Portions of water bodies less than double this width will not be used to split or erase portions of sites.
    transPerCov = 50 #The minimum percent cover of any PF that must be within a given transportation surface feature, for that feature to be eliminated from the set of features which are used to erase portions of the site.
    transQry = "" #"DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
-   transElimDist = "10 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
+   transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
    coalDist = "25 METERS" # Distance for coalescing split sites back together. This value, multiplied by 4, is also used as a final site smoothing parameter.
@@ -281,7 +281,7 @@ def main():
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\Biotics_20170605.gdb\ConSites_20170605_114532" # Current Conservation Sites; for template
-   out_ConSites = r"C:\Testing\ConSiteTests20180111.gdb\acs01_NoCoresNoRail" # Output new Conservation Sites
+   out_ConSites = r"C:\Testing\ConSiteTests20180111.gdb\acs01_NoCoresNoRailTrans5" # Output new Conservation Sites
    scratchGDB = r"C:\Testing\scratch20180111.gdb" # Workspace for temporary data
    # End of user input
 
