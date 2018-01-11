@@ -130,7 +130,7 @@ def CleanClip(inFeats, clipFeats, outFeats, scratchGDB = "in_memory"):
    arcpy.Clip_analysis(inFeats, clipFeats, tmpClip)
 
    # Process: Clean Features
-   arcpy.CleanFeatures_consiteTools(tmpClip, outFeats)
+   CleanFeatures(tmpClip, outFeats)
    
    # Cleanup
    garbagePickup([tmpClip])
@@ -148,7 +148,7 @@ def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
    arcpy.Erase_analysis(inFeats, eraseFeats, tmpErased, "")
 
    # Process: Clean Features
-   arcpy.CleanFeatures_consiteTools(tmpErased, outFeats)
+   CleanFeatures(tmpErased, outFeats)
    
    # Cleanup
    garbagePickup([tmpErased])
@@ -317,7 +317,7 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Cleanup
    garbagePickup(trashList)
    
-def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats):
+def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_memory"):
    ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
    # Process: Make Feature Layer (subset of selected features)
    arcpy.MakeFeatureLayer_management(inFeats, "Selected_lyr", selQry)
@@ -326,16 +326,26 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats):
    DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
    arcpy.Dissolve_management("Selected_lyr", DissEraseFeats, "", "", "SINGLE_PART")
 
+   # If it's a string, parse elimination distance and get the negative
+   if type(elimDist) == str:
+      origDist, units, meas = multiMeasure(elimDist, 1)
+      negDist, units, negMeas = multiMeasure(elimDist, -1)
+   else:
+      origDist = elimDist
+      meas = elimDist
+      negDist = -1*origDist
+      negMeas = negDist
+   
    # Process: Coalesce
    CoalEraseFeats = scratchGDB + os.sep + 'CoalEraseFeats'
-   arcpy.Coalesce_consiteTools(DissEraseFeats, -(elimDist), CoalEraseFeats, scratchParm)
+   Coalesce(DissEraseFeats, negDist, CoalEraseFeats, scratchGDB)
 
    # Process: Clean Features
-   arcpy.CleanFeatures_consiteTools(CoalEraseFeats, outEraseFeats)
+   CleanFeatures(CoalEraseFeats, outEraseFeats)
    
    return outEraseFeats
    
-def CullEraseFeats (inEraseFeats, inBnd, in_PF, fld_SFID, PerCov, outEraseFeats):
+def CullEraseFeats (inEraseFeats, inBnd, in_PF, fld_SFID, PerCov, outEraseFeats, scratchGDB = "in_memory"):
    '''For ConSite creation: Culls exclusion features containing a significant percentage of any 
 Procedural Feature's area'''
    # Process:  Add Field (Erase ID) and Calculate
@@ -363,7 +373,7 @@ Procedural Feature's area'''
    arcpy.Select_analysis(inEraseFeats, selEraseFeats, WhereClause)
    
    # Process:  Clean Erase (Use in_PF to chop out areas of remaining exclusion features)
-   arcpy.CleanErase_consiteTools (selEraseFeats, in_PF, outEraseFeats, scratchParm)
+   CleanErase(selEraseFeats, in_PF, outEraseFeats, scratchGDB)
    
    return outEraseFeats
    
@@ -379,11 +389,11 @@ def CullFrags (inFrags, in_PF, searchDist, outFrags):
    arcpy.MakeFeatureLayer_management(inFrags, "Frags_lyr", WhereClause)
 
    # Process: Clean Features
-   arcpy.CleanFeatures_consiteTools("Frags_lyr", outFrags)
+   CleanFeatures("Frags_lyr", outFrags)
    
    return outFrags
    
-def ExpandSBBselection(inSBB, inPF, SFID, inConSites, SearchDist, outSBB, outPF):
+def ExpandSBBselection(inSBB, inPF, joinFld, inConSites, SearchDist, outSBB, outPF):
    '''Given an initial selection of Site Building Blocks (SBB) features, selects additional SBB features in the vicinity that should be included in any Conservation Site update. Also selects the Procedural Features (PF) corresponding to selected SBBs. Outputs the selected SBBs and PFs to new feature classes.'''
    # If applicable, clear any selections on the PFs and ConSites inputs
    typePF = (arcpy.Describe(inPF)).dataType
@@ -426,12 +436,12 @@ def ExpandSBBselection(inSBB, inPF, SFID, inConSites, SearchDist, outSBB, outPF)
       finRowCnt = int(arcpy.GetCount_management(inSBB).getOutput(0))
       
    # Save subset of SBBs and corresponding PFs to output feature classes
-   SubsetSBBandPF(inSBB, inPF, "PF", SFID, outSBB, outPF)
+   SubsetSBBandPF(inSBB, inPF, "PF", joinFld, outSBB, outPF)
    
    featTuple = (outSBB, outPF)
    return featTuple
    
-def SubsetSBBandPF(inSBB, inPF, selOption, SFID, outSBB, outPF):
+def SubsetSBBandPF(inSBB, inPF, selOption, joinFld, outSBB, outPF):
    '''Given selected input Site Building Blocks (SBB) features, selects the corresponding Procedural Features (PF). Or vice versa.  Outputs the selected SBBs and PFs to new feature classes.'''
    if selOption == "PF":
       inSelector = inSBB

@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2017-09-13
+# Last Edit: 2018-01-11
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -24,7 +24,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    hydroQry = "Hydro = 1" # Expression used to select appropriate hydro features to create erase features
    hydroElimDist = "10 METERS" # Distance used to eliminate insignificant water features from the set of erasing features. Portions of water bodies less than double this width will not be used to split or erase portions of sites.
    transPerCov = 50 #The minimum percent cover of any PF that must be within a given transportation surface feature, for that feature to be eliminated from the set of features which are used to erase portions of the site.
-   transQry = "DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
+   transQry = "" #"DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
    transElimDist = "10 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
@@ -77,11 +77,11 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    if ysn_Expand == "true":
       # Expand SBB selection
       printMsg('Expanding the current SBB selection and making copies of the SBBs and PFs...')
-      arcpy.ExpandSBBselection(in_SBB, "PF_lyr", fld_SFID, in_ConSites, selDist, SBB_sub, PF_sub)
+      ExpandSBBselection(in_SBB, "PF_lyr", fld_SFID, in_ConSites, selDist, SBB_sub, PF_sub)
    else:
       # Subset PFs and SBBs
       printMsg('Using the current SBB selection and making copies of the SBBs and PFs...')
-      arcpy.SubsetSBBandPF(in_SBB, "PF_lyr", "PF", fld_SFID, SBB_sub, PF_sub)
+      SubsetSBBandPF(in_SBB, "PF_lyr", "PF", fld_SFID, SBB_sub, PF_sub)
 
    # Make Feature Layers from from subsets of PFs and SBBs
    arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
@@ -96,10 +96,10 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    outPS = myWorkspace + os.sep + 'ProtoSites'
       # Saving ProtoSites to hard drive, just in case...
    printMsg('ProtoSites will be stored here: %s' % outPS)
-   arcpy.ShrinkWrap_consiteTools(SBB_sub, dilDist, outPS, scratchParm)
+   ShrinkWrap(SBB_sub, dilDist, outPS, scratchParm)
 
    # Process:  Get Count
-   numPS = (arcpy.GetCount_management(outPS)).getOutput(0)
+   numPS = countFeatures(outPS)
    printMsg('There are %s ProtoSites' %numPS)
 
    # Loop through the ProtoSites to create final ConSites
@@ -154,7 +154,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
          GetEraseFeats (tranClp, transQry, transElimDist, rowErase)
          
          # Cull Transportation Surface Erase Features 
-         printMsg('Culling ROW erase features...')
+         printMsg('Culling transportation erase features...')
          rowRtn = scratchGDB + os.sep + 'rowRtn'
          CullEraseFeats (rowErase, tmpBuff, tmpPF, fld_SFID, transPerCov, rowRtn)
          
@@ -195,7 +195,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
          
          # Re-merge split sites, if applicable
          coalFrags = scratchGDB + os.sep + 'coalFrags'
-         arcpy.Coalesce_consiteTools(psRtn, coalDist, coalFrags, scratchParm)
+         Coalesce(psRtn, coalDist, coalFrags, scratchParm)
          
          # Loop through the final (split) ProtoSites
          mySplitSites = arcpy.da.SearchCursor(coalFrags, ["SHAPE@"])
@@ -216,11 +216,11 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
             # Select retained SBB fragments corresponding to selected PFs
             tmpSBB2 = scratchGDB + os.sep + 'tmpSBB2' 
             tmpPF2 = scratchGDB + os.sep + 'tmpPF2'
-            arcpy.SubsetSBBandPF_consiteTools(sbbRtn, "PF_lyr", "SBB", fld_SFID, tmpSBB2, tmpPF2)
+            SubsetSBBandPF(sbbRtn, "PF_lyr", "SBB", fld_SFID, tmpSBB2, tmpPF2)
             
             # ShrinkWrap retained SBB fragments
             csShrink = scratchGDB + os.sep + 'csShrink' + str(counter2)
-            arcpy.ShrinkWrap_consiteTools(tmpSBB2, dilDist, csShrink, scratchParm)
+            ShrinkWrap(tmpSBB2, dilDist, csShrink, scratchParm)
             
             # Intersect shrinkwrap with original split site
             ### WHY did I do this?? I think this step should be deleted...
@@ -241,7 +241,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
             # Process:  Coalesce (final smoothing of the site)  
             # WHY?? Probably should delete this step...
             csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-            arcpy.Coalesce_consiteTools(csRtn, (coalDist), csCoal, scratchParm)
+            Coalesce(csRtn, (coalDist), csCoal, scratchParm)
             
             # Process:  Clean Erase (final removal of exclusion features)
             printMsg('Excising manually delineated exclusion features...')
@@ -253,6 +253,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
             arcpy.Append_management(csBnd, out_ConSites, "NO_TEST", "", "")
             
             counter2 +=1
+            del mySS
          
       except:
          # Error handling code swiped from "A Python Primer for ArcGIS"
@@ -267,20 +268,21 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
       
       finally:
          counter +=1
+         del myPS
       
 # Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_SBB =  # Input Site Building Blocks
-   ysn_Expand =  # Expand SBB selection?
-   in_PF =  # Input Procedural Features
-   fld_SFID =  # Source Feature ID field
-   in_TranSurf =  # Input transportation surface features
-   in_Hydro =  # Input open water features
-   in_Exclude =  # Input delineated exclusion features
-   in_ConSites =  # Current Conservation Sites; for template
-   out_ConSites =  # Output new Conservation Sites
-   scratchGDB =  # Workspace for temporary data
+   in_SBB = r"C:\Testing\ConSiteTests20180111.gdb\sbb01" # Input Site Building Blocks
+   ysn_Expand =  "false" # Expand SBB selection?
+   in_PF = r"C:\Testing\ConSiteTests20180111.gdb\pf01" # Input Procedural Features
+   fld_SFID = "SFID" # Source Feature ID field
+   in_TranSurf = r"H:\Backups\DCR_Work_DellD\TransportatationProc\RCL_Proc_20171206.gdb\RCL_surfaces_20171206" # Input transportation surface features
+   in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
+   in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
+   in_ConSites = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\Biotics_20170605.gdb\ConSites_20170605_114532" # Current Conservation Sites; for template
+   out_ConSites = r"C:\Testing\ConSiteTests20180111.gdb\acs01_NoCoresNoRail" # Output new Conservation Sites
+   scratchGDB = r"C:\Testing\scratch20180111.gdb" # Workspace for temporary data
    # End of user input
 
    CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB)
