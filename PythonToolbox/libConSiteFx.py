@@ -317,14 +317,19 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Cleanup
    garbagePickup(trashList)
    
-def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_memory"):
+def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_memory", dissolveDist = "1 METERS"):
    ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
    # Process: Make Feature Layer (subset of selected features)
    arcpy.MakeFeatureLayer_management(inFeats, "Selected_lyr", selQry)
 
-   # Process: Dissolve
+   ## Replace Dissolve with Coalesce, 1/11/2018. Delete below after further testing.
+   # # Process: Dissolve
+   # DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
+   # arcpy.Dissolve_management("Selected_lyr", DissEraseFeats, "", "", "SINGLE_PART")
+   
+   # Process: Consolidate/dissolve features by coalescing
    DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
-   arcpy.Dissolve_management("Selected_lyr", DissEraseFeats, "", "", "SINGLE_PART")
+   Coalesce("Selected_lyr", dissolveDist, DissEraseFeats, scratchGDB)
 
    # If it's a string, parse elimination distance and get the negative
    if type(elimDist) == str:
@@ -336,7 +341,7 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_me
       negDist = -1*origDist
       negMeas = negDist
    
-   # Process: Coalesce
+   # Process: Eliminate narrow features (or portions thereof)
    CoalEraseFeats = scratchGDB + os.sep + 'CoalEraseFeats'
    Coalesce(DissEraseFeats, negDist, CoalEraseFeats, scratchGDB)
 

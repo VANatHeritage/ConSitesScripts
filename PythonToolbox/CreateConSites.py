@@ -9,6 +9,8 @@
 # Given a set of Site Building Blocks, corresponding Procedural Features, polygons delineating open water and road right-of-ways, and "Exclusion" features, creates a set of Conservation Sites.  Exclusion features are manually or otherwise delineated areas that are used to erase unsuitable areas from ProtoSites.  
 
 # TO DO: Test code as it is now, then delete proposed deletions and test again.
+# TO DO: Bring in rail features and merge with roads
+# TO DO: Eliminate remaining holes in site if < 1 ha.
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
@@ -223,9 +225,9 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
             ShrinkWrap(tmpSBB2, dilDist, csShrink, scratchParm)
             
             # Intersect shrinkwrap with original split site
-            ### WHY did I do this?? I think this step should be deleted...
+            # This is necessary to keep it from "spilling over" across features used to split.
             csInt = scratchGDB + os.sep + 'csInt' + str(counter2)
-            arcpy.Intersect_analysis ([tmpSS, csShrink], csInt, "ONLY_FID") 
+            arcpy.Intersect_analysis ([tmpSS, csShrink], csInt, "ONLY_FID")
          
             # Remove gaps within site
             csNoGap = scratchGDB + os. sep + 'csNoGap' + str(counter2)
@@ -233,20 +235,23 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
             csDiss = scratchGDB + os.sep + 'csDissolved' + str(counter2)
             arcpy.Dissolve_management (csNoGap, csDiss, "", "", "SINGLE_PART") 
             
+            ## I think the next two blocks of code can be deleted, but awaiting further testing to be sure. 1/11/2018
             # Remove any fragments too far from a PF
             ### WHY would there be any more fragments at this point??? Delete this step??
-            csRtn = scratchGDB + os.sep + 'csRtn'
-            CullFrags(csDiss, tmpPF2, searchDist, csRtn)
+            #csRtn = scratchGDB + os.sep + 'csRtn'
+            #CullFrags(csDiss, tmpPF2, searchDist, csRtn)
+            # Test output: d2
             
             # Process:  Coalesce (final smoothing of the site)  
             # WHY?? Probably should delete this step...
-            csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-            Coalesce(csRtn, (coalDist), csCoal, scratchParm)
+            #csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
+            #Coalesce(csDiss, coalDist, csCoal, scratchParm)
+            # Test output: d3
             
             # Process:  Clean Erase (final removal of exclusion features)
             printMsg('Excising manually delineated exclusion features...')
             csBnd = scratchGDB + os.sep + 'csBnd' + str(counter2)
-            CleanErase (csCoal, efClp, csBnd, scratchParm) 
+            CleanErase (csDiss, efClp, csBnd, scratchParm) 
 
             # Append the final geometry to the ConSites feature class.
             printMsg("Appending feature...")
@@ -281,7 +286,7 @@ def main():
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\Biotics_20170605.gdb\ConSites_20170605_114532" # Current Conservation Sites; for template
-   out_ConSites = r"C:\Testing\ConSiteTests20180111.gdb\acs01_NoCoresNoRailTrans5" # Output new Conservation Sites
+   out_ConSites = r"C:\Testing\ConSiteTests20180111.gdb\acs01_NoCoresNoRailTrans5_exCoal1_d3" # Output new Conservation Sites
    scratchGDB = r"C:\Testing\scratch20180111.gdb" # Workspace for temporary data
    # End of user input
 
