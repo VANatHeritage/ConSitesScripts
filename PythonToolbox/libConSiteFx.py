@@ -456,7 +456,7 @@ def ExpandSBBselection(inSBB, inPF, joinFld, inConSites, SearchDist, outSBB, out
    return featTuple
    
 def SubsetSBBandPF(inSBB, inPF, selOption, joinFld, outSBB, outPF):
-   '''Given selected input Site Building Blocks (SBB) features, selects the corresponding Procedural Features (PF). Or vice versa.  Outputs the selected SBBs and PFs to new feature classes.'''
+   '''Given input Site Building Blocks (SBB) features, selects the corresponding Procedural Features (PF). Or vice versa, depending on SelOption parameter.  Outputs the selected SBBs and PFs to new feature classes.'''
    if selOption == "PF":
       inSelector = inSBB
       inSelectee = inPF
@@ -475,7 +475,7 @@ def SubsetSBBandPF(inSBB, inPF, selOption, joinFld, outSBB, outPF):
    if typeSelectee == 'FeatureLayer':
       arcpy.SelectLayerByAttribute_management (inSelectee, "CLEAR_SELECTION")
       
-   # Copy the selected Selector features to the output feature class
+   # Copy the Selector features to the output feature class
    arcpy.CopyFeatures_management (inSelector, outSelector) 
 
    # Make Feature Layer from Selectee features

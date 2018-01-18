@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-17
+# Last Edit: 2018-01-18
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -16,7 +16,7 @@
 import libConSiteFx
 from libConSiteFx import *
 
-def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB):
+def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB):
    '''Creates Conservation Sites from the specified inputs:
    - in_SBB: feature class representing Site Building Blocks
    - ysn_Expand: ["true"/"false"] - determines whether to expand the selection of SBBs to include more in the vicinity
@@ -115,9 +115,33 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
       printMsg('Using the current SBB selection and making copies of the SBBs and PFs...')
       SubsetSBBandPF(in_SBB, "PF_lyr", "PF", fld_SFID, SBB_sub, PF_sub)
 
-   # Make Feature Layers from from subsets of PFs and SBBs
+   # Make Feature Layers
    arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
    arcpy.MakeFeatureLayer_management(SBB_sub, "SBB_lyr") 
+   arcpy.MakeFeatureLayer_management(in_Cores, "Cores_lyr") 
+   
+   ### Cores incorporation code starts here
+   # Process: Select Layer By Location (Get Cores intersecting PFs)
+   printMsg('Selecting cores that intersect procedural features')
+   arcpy.SelectLayerByLocation_management("Cores_lyr", "INTERSECT", "PF_lyr", "", "NEW_SELECTION", "NOT_INVERT")
+
+   # Process:  Copy the selected Cores features to scratch feature class
+   selCores = scratchGDB + os.sep + 'selCores'
+   arcpy.CopyFeatures_management ("Cores_lyr", selCores) 
+
+   # Process:  Repair Geometry and get feature count
+   arcpy.RepairGeometry_management (selCores, "DELETE_NULL")
+   numCores = countFeatures(selCores)
+   printMsg('There are %s cores to process.' %str(numCores))
+   
+   # Loop through the cores, adding extra buffers to SBBs of PFs contained therein
+   myCores = arcpy.da.SearchCursor(coreRtn, ["SHAPE@", "OBJECTID"])
+   counter = 1
+   
+   # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
+   #[add new function  to do this in createSBB.py]
+   
+   ### Cores incorporation code ends here
 
    # Process:  Create Feature Class (to store ConSites)
    printMsg("Creating ConSites features class to store output features...")
@@ -336,6 +360,7 @@ def main():
    ysn_Expand =  "false" # Expand SBB selection?
    in_PF = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308" # Input Procedural Features
    fld_SFID = "SFID" # Source Feature ID field
+   in_Cores = # Cores used to expand sites
    Roads = r"H:\Backups\DCR_Work_DellD\TransportatationProc\RCL_Proc_20171206.gdb\RCL_surfaces_20171206"
    Rail = r"H:\Backups\DCR_Work_DellD\TransportatationProc\Rail_Proc_20180108.gdb\Rail_surfaces_20180108"
    in_TranSurf = r"C:\Testing\scratch20180111.gdb\mergeTrans" # Input transportation surface features
@@ -346,7 +371,7 @@ def main():
    scratchGDB = r"C:\Testing\scratch20180111.gdb" # Workspace for temporary data
    # End of user input
 
-   CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB)
+   CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB)
 
 if __name__ == '__main__':
    main()

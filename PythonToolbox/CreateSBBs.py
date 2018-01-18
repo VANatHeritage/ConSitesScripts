@@ -2,7 +2,7 @@
 # CreateSBBs.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-01-29
-# Last Edit: 2017-12-06
+# Last Edit: 2018-01-18
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
@@ -359,20 +359,64 @@ def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, 
    
    return out_SBB
 
+def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000 METERS", scratchGDB = "in_memory"):
+   '''Adds core area to SBBs of PFs intersecting that core. This function should only be used with a single Core feature; i.e., either embed it within a loop, or use an input Cores layer that contains only a single core. Otherwise it will not behave as needed.
+   in_PF: layer or feature class representing Procedural Features
+   in_SBB: layer or feature class representing Site Building Blocks
+   joinFld: unique ID field relating PFs to SBBs
+   in_Core: layer or feature class representing habitat Cores
+   BuffDist: distance used to add buffer area to SBBs
+   scratchGDB: geodatabase to store intermediate products'''
+   
+   # Make Feature Layer from PFs
+   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")
+   
+   # Get PFs centered in the core
+   printMsg('Selecting PFs centered in the core...')
+   arcpy.SelectLayerByLocation_management("PF_lyr", "HAVE_THEIR_CENTER_IN", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
+   
+   # Get SBBs associated with selected PFs
+   printMsg('Copying selected PFs and their associated SBBs...')
+   sbbSub = scratchGDB + os.sep + 'sbb'
+   pfSub = scratchGDB + os.sep + 'pf'
+   SubsetSBBandPF(in_SBB, "PF_lyr", "SBB", joinFld, sbbSub, pfSub)
+   
+   # Buffer SBBs 
+   printMsg("Buffering SBBs...")
+   sbbBuff = scratchGDB + os.sep + "sbbBuff"
+   arcpy.Buffer_analysis(sbbSub, sbbBuff, BuffDist, "FULL", "ROUND", "NONE", "", "PLANAR")
+   
+   # Clip buffers to core
+   printMsg("Clipping buffered SBBs to core...")
+   clpBuff = scratchGDB + os.sep + "clpBuff"
+   CleanClip(sbbBuff, in_Core, clpBuff, scratchGDB)
+   
+   # Remove any SBB fragments not containing a PF
+   printMsg('Culling SBB fragments...')
+   sbbRtn = scratchGDB + os.sep + 'sbbRtn'
+   CullFrags(clpBuff, pfSub, "0 METERS", sbbRtn)
+   
+   # Merge, then dissolve old SBBs with buffered SBBs to get final shapes
+   printMsg('Finalizing...')
+   sbbMerge = scratchGDB + os.sep + "sbbMerge"
+   arcpy.Merge_management ([sbbSub, sbbRtn], sbbMerge)
+   arcpy.Dissolve_management (sbbMerge, out_SBB, joinFld, "")
+   
+   printMsg('Done.')
+
 def main():
    # Set up your variables here
-   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308'
-   fld_SFID = 'SFID' # probably can leave this as is
-   fld_Rule = 'RULE' # probably can leave this as is
-   fld_Buff = 'BUFFER' # probably can leave this as is
-   in_nwi5 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule5'
-   in_nwi67 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule67'
-   in_nwi9 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule9'
-   out_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206'
-   scratchGDB = "in_memory"
+   in_PF = r'C:\Testing\ConSiteTests20180118.gdb\pf03'
+   in_SBB = r'C:\Testing\ConSiteTests20180118.gdb\sbb03'
+   joinFld = 'SFID' # probably can leave this as is
+   in_Core = r'C:\Testing\ConSiteTests20180118.gdb\core03'
+   out_SBB = r'C:\Testing\ConSiteTests20180118.gdb\sbb03_out'
+   BuffDist = "1000 METERS"
+   scratchGDB = r'C:\Testing\scratch20180118.gdb'
+
    # End of user input
    
-   CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratchGDB = "in_memory")
+   AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist, scratchGDB)
 
 if __name__ == '__main__':
    main()
