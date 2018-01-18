@@ -29,7 +29,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    - out_ConSites: the output feature class representing updated Conservation Sites
    - scratchGDB: geodatabase to contain intermediate/scratch products
    '''
-   t0 = datetime.now()
+   tStart = datetime.now()
    # Specify a bunch of parameters
    selDist = "1000 METERS" # Distance used to expand the SBB selection, if this option is selected.
    dilDist = "250 METERS" # Distance used to coalesce SBBs into ProtoSites (precursors to final automated CS boundaries). Features within twice this distance of each other will be merged into one.
@@ -86,7 +86,10 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
       typeFC= (arcpy.Describe(fc)).dataType
       if typeFC == 'FeatureLayer':
          arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
-         
+   
+   ### Start data prep
+   tStartPrep = datetime.now()
+   
    # Merge the transportation layers, if necessary
    if len(Trans) == 1:
       Trans = Trans[0]
@@ -120,16 +123,24 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    printMsg("Creating ConSites features class to store output features...")
    arcpy.CreateFeatureclass_management (myWorkspace, Output_CS_fname, "POLYGON", in_ConSites, "", "", in_ConSites) 
 
+   ### End data prep
+   tEndPrep = datetime.now()
+   deltaString = GetElapsedTime (tStartPrep, tEndPrep)
+   printMsg("Data prep complete. Elapsed time: %s" %deltaString)
+   
    # Process:  ShrinkWrap
+   tProtoStart = datetime.now()
    printMsg("Creating ProtoSites by shrink-wrapping SBBs...")
    outPS = myWorkspace + os.sep + 'ProtoSites'
       # Saving ProtoSites to hard drive, just in case...
    printMsg('ProtoSites will be stored here: %s' % outPS)
    ShrinkWrap(SBB_sub, dilDist, outPS, scratchParm)
+   tProtoEnd = datetime.now()
+   deltaString = GetElapsedTimes(tProtoStart, tProtoEnd)
 
    # Process:  Get Count
    numPS = countFeatures(outPS)
-   printMsg('There are %s ProtoSites' %numPS)
+   printMsg('Finished ProtoSite creation. There are %s ProtoSites. Elapsed time: %s' %(numPS, deltaString)
 
    # Loop through the ProtoSites to create final ConSites
    printMsg("Modifying individual ProtoSites to create final Conservation Sites...")
@@ -139,6 +150,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
    for myPS in myProtoSites:
       try:
          printMsg('Working on ProtoSite %s' % str(counter))
+         tProtoStart = datetime.now()
          
          psSHP = myPS[0]
          tmpPS = scratchGDB + os.sep + "tmpPS"
@@ -306,11 +318,15 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_TranSurf, in_Hydro, i
          printMsg(arcpy.GetMessages(1))
       
       finally:
+         tProtoEnd = datetime.now()
+         deltaString = GetElapsedTimes(tProtoStart, tProtoEnd)
+         printMsg("Processing complete for ProtoSite %s. Elapsed time: %s" %(str(counter), deltaString)
          counter +=1
          del myPS
-   t1 = datetime.now()
-   deltaString = GetElapsedTime (t0, t1)
-   printMsg("Processing complete. Elapsed time: %s" %deltaString)
+         
+   tFinish = datetime.now()
+   deltaString = GetElapsedTime (tStart, tFinish)
+   printMsg("Processing complete. Total elapsed time: %s" %deltaString)
 
    
 # Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
