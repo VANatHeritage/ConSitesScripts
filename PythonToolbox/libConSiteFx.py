@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2017-09-06
+# Last Edit: 2018-01-17
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -12,7 +12,8 @@
 
 # Import modules
 import arcpy, os, sys, traceback
-from time import time as t
+#from time import time as t
+from datetime import datetime as datetime
 
 # Set overwrite option so that existing data may be overwritten
 arcpy.env.overwriteOutput = True
@@ -21,6 +22,14 @@ def countFeatures(features):
    '''Gets count of features'''
    count = int((arcpy.GetCount_management(features)).getOutput(0))
    return count
+   
+def GetElapsedTime (t1, t2):
+   """Gets the time elapsed between the start time (t1) and the finish time (t2)."""
+   delta = t2 - t1
+   (d, m, s) = (delta.days, delta.seconds/60, delta.seconds%60)
+   (h, m) = (m/60, m%60)
+   deltaString = '%s days, %s hours, %s minutes, %s seconds' % (str(d), str(h), str(m), str(s))
+   return deltaString
    
 def multiMeasure(meas, multi):
    '''Given a measurement string such as "100 METERS" and a multiplier, multiplies the number by the specified multiplier, and returns a new measurement string along with its individual components'''
