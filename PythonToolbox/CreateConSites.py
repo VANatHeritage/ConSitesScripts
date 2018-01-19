@@ -9,14 +9,14 @@
 # Given a set of Site Building Blocks, corresponding Procedural Features, polygons delineating open water and road right-of-ways, and "Exclusion" features, creates a set of Conservation Sites.  Exclusion features are manually or otherwise delineated areas that are used to erase unsuitable areas from ProtoSites.  
 
 # TO DO: Test code as it is now, then delete proposed deletions and test again.
-
+# TO DO: Try to optimize and avoid crashes when running large datasets
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
 import libConSiteFx
 from libConSiteFx import *
 
-def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB):
+def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB = "in_memory"):
    '''Creates Conservation Sites from the specified inputs:
    - in_SBB: feature class representing Site Building Blocks
    - ysn_Expand: ["true"/"false"] - determines whether to expand the selection of SBBs to include more in the vicinity
@@ -27,7 +27,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    - in_Exclude: feature class representing areas to definitely exclude from sites
    - in_ConSites: feature class representing current Conservation Sites (or, a template feature class)
    - out_ConSites: the output feature class representing updated Conservation Sites
-   - scratchGDB: geodatabase to contain intermediate/scratch products
+   - scratchGDB: geodatabase to contain intermediate/scratch products. Setting this to "in_memory" can result in HUGE savings in processing time, but there's a chance you might run out of memory and cause a crash.
    '''
    tStart = datetime.now()
    # Specify a bunch of parameters
@@ -63,7 +63,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
       scratchParm = scratchGDB
    else:
       printMsg("Scratch products are being stored in memory and will not persist. If processing fails inexplicably, or if you want to be able to inspect scratch products, try running this with a specified scratchGDB on disk.")
-      scratchParm = ""
+      scratchParm = "in_memory"
 
    # Set overwrite option so that existing data may be overwritten
    arcpy.env.overwriteOutput = True 
@@ -395,8 +395,8 @@ def main():
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\Biotics_20170605.gdb\ConSites_20170605_114532" # Current Conservation Sites; for template
-   out_ConSites = r'C:\Testing\ConSiteTests20180118.gdb\ConSites05a' # Output new Conservation Sites
-   scratchGDB = r"C:\Testing\scratch20180118.gdb" # Workspace for temporary data
+   out_ConSites = r'C:\Testing\ConSiteTests20180118.gdb\ConSites05_inMem' # Output new Conservation Sites
+   scratchGDB = "in_memory" # Workspace for temporary data
    # End of user input
 
    CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB)
