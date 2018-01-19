@@ -16,12 +16,12 @@
 import libConSiteFx
 from libConSiteFx import *
 
-def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB):
+def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB):
    '''Creates Conservation Sites from the specified inputs:
    - in_SBB: feature class representing Site Building Blocks
    - ysn_Expand: ["true"/"false"] - determines whether to expand the selection of SBBs to include more in the vicinity
    - in_PF: feature class representing Procedural Features
-   - fld_SFID: name of the field containing the unique ID linking SBBs to PFs. Field name is must be the same for both.
+   - joinFld: name of the field containing the unique ID linking SBBs to PFs. Field name is must be the same for both.
    - in_TranSurf: feature class(es) representing transportation surfaces (i.e., road and rail) [If multiple, this is a string with items separated by ';']
    - in_Hydro: feature class representing water bodies
    - in_Exclude: feature class representing areas to definitely exclude from sites
@@ -31,7 +31,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
    '''
    tStart = datetime.now()
    # Specify a bunch of parameters
-   selDist = "1000 METERS" # Distance used to expand the SBB selection, if this option is selected.
+   selDist = "1000 METERS" # Distance used to expand the SBB selection, if this option is selected. Also used to add extra buffer to SBBs.
    dilDist = "250 METERS" # Distance used to coalesce SBBs into ProtoSites (precursors to final automated CS boundaries). Features within twice this distance of each other will be merged into one.
    hydroPerCov = 25 # The minimum percent cover of any PF that must be within a given hydro feature, for that hydro feature to be eliminated from the set of features which are used to erase portions of the site.
    hydroQry = "Hydro = 1" # Expression used to select appropriate hydro features to create erase features
@@ -109,15 +109,14 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
    if ysn_Expand == "true":
       # Expand SBB selection
       printMsg('Expanding the current SBB selection and making copies of the SBBs and PFs...')
-      ExpandSBBselection(in_SBB, "PF_lyr", fld_SFID, in_ConSites, selDist, SBB_sub, PF_sub)
+      ExpandSBBselection(in_SBB, "PF_lyr", joinFld, in_ConSites, selDist, SBB_sub, PF_sub)
    else:
       # Subset PFs and SBBs
       printMsg('Using the current SBB selection and making copies of the SBBs and PFs...')
-      SubsetSBBandPF(in_SBB, "PF_lyr", "PF", fld_SFID, SBB_sub, PF_sub)
+      SubsetSBBandPF(in_SBB, "PF_lyr", "PF", joinFld, SBB_sub, PF_sub)
 
    # Make Feature Layers
    arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
-   arcpy.MakeFeatureLayer_management(SBB_sub, "SBB_lyr") 
    arcpy.MakeFeatureLayer_management(in_Cores, "Cores_lyr") 
    
    ### Cores incorporation code starts here
@@ -134,13 +133,33 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
    numCores = countFeatures(selCores)
    printMsg('There are %s cores to process.' %str(numCores))
    
-   # Loop through the cores, adding extra buffers to SBBs of PFs contained therein
-   myCores = arcpy.da.SearchCursor(coreRtn, ["SHAPE@", "OBJECTID"])
+   # Add extra buffers to SBBs of PFs centered in Cores
+   # Create Feature Class to store expanded SBBs
+   printMsg("Creating feature class to store buffered SBBs...")
+   arcpy.CreateFeatureclass_management (myWorkspace, 'sbbExpand', "POLYGON", SBB_sub, "", "", SBB_sub) 
+   sbbExpand = myWorkspace + os.sep + 'sbbExpand'
+   # Loop through Cores
+   myCores = arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"])
    counter = 1
+   for core in myCores:
+      # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
+      coreShp = core[0]
+      out_SBB = scratchGDB + os.sep + 'sbb'
+      AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchGDB = "in_memory")
+      
+      # Append expanded SBB features to output
+      arcpy.Append_management (out_SBB, sbbExpand, "NO_TEST")
+      
+      del core
    
-   # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
-   #[add new function  to do this in createSBB.py]
+   # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
+   printMsg('Finalizing...')
+   sbbAll = scratchGDB + os.sep + "sbbAll"
+   sbbFinal = scratchGDB + os.sep + "sbbFinal"
+   arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
+   arcpy.Dissolve_management (sbbAll, sbbFinal, joinFld, "")
    
+   arcpy.MakeFeatureLayer_management(sbbFinal, "SBB_lyr") 
    ### Cores incorporation code ends here
 
    # Process:  Create Feature Class (to store ConSites)
@@ -158,13 +177,13 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
    outPS = myWorkspace + os.sep + 'ProtoSites'
       # Saving ProtoSites to hard drive, just in case...
    printMsg('ProtoSites will be stored here: %s' % outPS)
-   ShrinkWrap(SBB_sub, dilDist, outPS, scratchParm)
+   ShrinkWrap(sbbFinal, dilDist, outPS, scratchParm)
    tProtoEnd = datetime.now()
-   deltaString = GetElapsedTimes(tProtoStart, tProtoEnd)
+   deltaString = GetElapsedTime(tProtoStart, tProtoEnd)
 
    # Process:  Get Count
    numPS = countFeatures(outPS)
-   printMsg('Finished ProtoSite creation. There are %s ProtoSites. Elapsed time: %s' %(numPS, deltaString)
+   printMsg('Finished ProtoSite creation. There are %s ProtoSites. Elapsed time: %s' %(numPS, deltaString))
 
    # Loop through the ProtoSites to create final ConSites
    printMsg("Modifying individual ProtoSites to create final Conservation Sites...")
@@ -218,7 +237,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
          # Cull Transportation Surface Features 
          printMsg('Culling transportation erase features...')
          transRtn = scratchGDB + os.sep + 'transRtn'
-         CullEraseFeats (tranClp, tmpBuff, tmpPF, fld_SFID, transPerCov, transRtn)
+         CullEraseFeats (tranClp, tmpBuff, tmpPF, joinFld, transPerCov, transRtn)
          
          # # Get Transportation Surface Erase Features
          # transErase = scratchGDB + os.sep + 'transErase'
@@ -227,7 +246,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
          # Cull Hydro Erase Features
          printMsg('Culling hydro erase features...')
          hydroRtn = scratchGDB + os.sep + 'hydroRtn'
-         CullEraseFeats (hydroClp, tmpBuff, tmpPF, fld_SFID, hydroPerCov, hydroRtn)
+         CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
          
          # # Get Hydro Erase Features
          # hydroErase = scratchGDB + os.sep + 'hydroErase'
@@ -282,7 +301,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
             # Select retained SBB fragments corresponding to selected PFs
             tmpSBB2 = scratchGDB + os.sep + 'tmpSBB2' 
             tmpPF2 = scratchGDB + os.sep + 'tmpPF2'
-            SubsetSBBandPF(sbbRtn, "PF_lyr", "SBB", fld_SFID, tmpSBB2, tmpPF2)
+            SubsetSBBandPF(sbbRtn, "PF_lyr", "SBB", joinFld, tmpSBB2, tmpPF2)
             
             # ShrinkWrap retained SBB fragments
             csShrink = scratchGDB + os.sep + 'csShrink' + str(counter2)
@@ -343,8 +362,8 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
       
       finally:
          tProtoEnd = datetime.now()
-         deltaString = GetElapsedTimes(tProtoStart, tProtoEnd)
-         printMsg("Processing complete for ProtoSite %s. Elapsed time: %s" %(str(counter), deltaString)
+         deltaString = GetElapsedTime(tProtoStart, tProtoEnd)
+         printMsg("Processing complete for ProtoSite %s. Elapsed time: %s" %(str(counter), deltaString))
          counter +=1
          del myPS
          
@@ -356,22 +375,22 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, i
 # Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_SBB = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206" # Input Site Building Blocks
+   in_SBB = r'C:\Testing\ConSiteTests20180118.gdb\sbb03' # Input Site Building Blocks
    ysn_Expand =  "false" # Expand SBB selection?
-   in_PF = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308" # Input Procedural Features
-   fld_SFID = "SFID" # Source Feature ID field
-   in_Cores = # Cores used to expand sites
+   in_PF = r'C:\Testing\ConSiteTests20180118.gdb\pf03' # Input Procedural Features
+   joinFld = "SFID" # Source Feature ID field
+   in_Cores = r'C:\Testing\ConSiteTests20180118.gdb\core03' # Cores used to expand sites
    Roads = r"H:\Backups\DCR_Work_DellD\TransportatationProc\RCL_Proc_20171206.gdb\RCL_surfaces_20171206"
    Rail = r"H:\Backups\DCR_Work_DellD\TransportatationProc\Rail_Proc_20180108.gdb\Rail_surfaces_20180108"
-   in_TranSurf = r"C:\Testing\scratch20180111.gdb\mergeTrans" # Input transportation surface features
+   in_TranSurf = Roads + ';' + Rail # Input transportation surface features
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\Biotics_20170605.gdb\ConSites_20170605_114532" # Current Conservation Sites; for template
-   out_ConSites = r"C:\Testing\ConSiteTests20180111.gdb\acs03_NoCores_NoGaps1" # Output new Conservation Sites
-   scratchGDB = r"C:\Testing\scratch20180111.gdb" # Workspace for temporary data
+   out_ConSites = r'C:\Testing\ConSiteTests20180118.gdb\ConSites03' # Output new Conservation Sites
+   scratchGDB = r"C:\Testing\scratch20180118.gdb" # Workspace for temporary data
    # End of user input
 
-   CreateConSites(in_SBB, ysn_Expand, in_PF, fld_SFID, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB)
+   CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB)
 
 if __name__ == '__main__':
    main()

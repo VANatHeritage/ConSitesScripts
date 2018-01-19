@@ -495,3 +495,48 @@ def SubsetSBBandPF(inSBB, inPF, selOption, joinFld, outSBB, outPF):
    
    featTuple = (outPF, outSBB)
    return featTuple
+   
+def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000 METERS", scratchGDB = "in_memory"):
+   '''Adds core area to SBBs of PFs intersecting that core. This function should only be used with a single Core feature; i.e., either embed it within a loop, or use an input Cores layer that contains only a single core. Otherwise it will not behave as needed.
+   in_PF: layer or feature class representing Procedural Features
+   in_SBB: layer or feature class representing Site Building Blocks
+   joinFld: unique ID field relating PFs to SBBs
+   in_Core: layer or feature class representing habitat Cores
+   BuffDist: distance used to add buffer area to SBBs
+   scratchGDB: geodatabase to store intermediate products'''
+   
+   # Make Feature Layer from PFs
+   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")
+   
+   # Get PFs centered in the core
+   printMsg('Selecting PFs centered in the core...')
+   arcpy.SelectLayerByLocation_management("PF_lyr", "HAVE_THEIR_CENTER_IN", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
+   
+   # Get SBBs associated with selected PFs
+   printMsg('Copying selected PFs and their associated SBBs...')
+   sbbSub = scratchGDB + os.sep + 'sbb'
+   pfSub = scratchGDB + os.sep + 'pf'
+   SubsetSBBandPF(in_SBB, "PF_lyr", "SBB", joinFld, sbbSub, pfSub)
+   
+   # Buffer SBBs 
+   printMsg("Buffering SBBs...")
+   sbbBuff = scratchGDB + os.sep + "sbbBuff"
+   arcpy.Buffer_analysis(sbbSub, sbbBuff, BuffDist, "FULL", "ROUND", "NONE", "", "PLANAR")
+   
+   # Clip buffers to core
+   printMsg("Clipping buffered SBBs to core...")
+   clpBuff = scratchGDB + os.sep + "clpBuff"
+   CleanClip(sbbBuff, in_Core, clpBuff, scratchGDB)
+   
+   # Remove any SBB fragments not containing a PF
+   printMsg('Culling SBB fragments...')
+   sbbRtn = scratchGDB + os.sep + 'sbbRtn'
+   CullFrags(clpBuff, pfSub, "0 METERS", sbbRtn)
+   
+   # Merge, then dissolve old SBBs with buffered SBBs to get final shapes
+   printMsg('Finalizing...')
+   sbbMerge = scratchGDB + os.sep + "sbbMerge"
+   arcpy.Merge_management ([sbbSub, sbbRtn], sbbMerge)
+   arcpy.Dissolve_management (sbbMerge, out_SBB, joinFld, "")
+   
+   printMsg('Done.')
