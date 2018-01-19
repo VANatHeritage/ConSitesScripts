@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-01-17
+# Last Edit: 2018-01-19
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -357,6 +357,10 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_me
    # Process: Clean Features
    CleanFeatures(CoalEraseFeats, outEraseFeats)
    
+   # Cleanup
+   trashlist = [DissEraseFeats, CoalEraseFeats]
+   garbagePickup(trashlist)
+   
    return outEraseFeats
    
 def CullEraseFeats (inEraseFeats, inBnd, in_PF, fld_SFID, PerCov, outEraseFeats, scratchGDB = "in_memory"):
@@ -388,6 +392,10 @@ Procedural Feature's area'''
    
    # Process:  Clean Erase (Use in_PF to chop out areas of remaining exclusion features)
    CleanErase(selEraseFeats, in_PF, outEraseFeats, scratchGDB)
+   
+   # Cleanup
+   trashlist = [TabIntersect, TabMax]
+   garbagePickup(trashlist)
    
    return outEraseFeats
    
