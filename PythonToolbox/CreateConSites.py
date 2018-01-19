@@ -9,7 +9,7 @@
 # Given a set of Site Building Blocks, corresponding Procedural Features, polygons delineating open water and road right-of-ways, and "Exclusion" features, creates a set of Conservation Sites.  Exclusion features are manually or otherwise delineated areas that are used to erase unsuitable areas from ProtoSites.  
 
 # TO DO: Test code as it is now, then delete proposed deletions and test again.
-# TO DO: Work cores into the code.
+
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
