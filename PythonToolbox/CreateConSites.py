@@ -144,18 +144,18 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    arcpy.CreateFeatureclass_management (myWorkspace, 'sbbExpand', "POLYGON", SBB_sub, "", "", SBB_sub) 
    sbbExpand = myWorkspace + os.sep + 'sbbExpand'
    # Loop through Cores
-   myCores = arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"])
    counter = 1
-   for core in myCores:
-      # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
-      coreShp = core[0]
-      out_SBB = scratchGDB + os.sep + 'sbb'
-      AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchGDB = "in_memory")
-      
-      # Append expanded SBB features to output
-      arcpy.Append_management (out_SBB, sbbExpand, "NO_TEST")
-      
-      del core
+   with  arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"]) as myCores:
+      for core in myCores:
+         # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
+         coreShp = core[0]
+         out_SBB = scratchGDB + os.sep + 'sbb'
+         AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchGDB = "in_memory")
+         
+         # Append expanded SBB features to output
+         arcpy.Append_management (out_SBB, sbbExpand, "NO_TEST")
+         
+         del core
    
    # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
    printMsg('Finalizing...')
@@ -196,186 +196,185 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
 
    # Loop through the ProtoSites to create final ConSites
    printMsg("Modifying individual ProtoSites to create final Conservation Sites...")
-   myProtoSites = arcpy.da.SearchCursor(outPS, ["SHAPE@"])
    counter = 1
+   with arcpy.da.SearchCursor(outPS, ["SHAPE@"]) as myProtoSites:
+      for myPS in myProtoSites:
+         try:
+            printMsg('Working on ProtoSite %s' % str(counter))
+            tProtoStart = datetime.now()
+            
+            psSHP = myPS[0]
+            tmpPS = scratchGDB + os.sep + "tmpPS"
+            arcpy.CopyFeatures_management (psSHP, tmpPS) 
+            
+            # Get SBBs within the ProtoSite
+            printMsg('Selecting SBBs within ProtoSite...')
+            arcpy.SelectLayerByLocation_management("SBB_lyr", "INTERSECT", tmpPS, "", "NEW_SELECTION", "NOT_INVERT")
+            
+            # Copy the selected SBB features to tmpSBB
+            tmpSBB = scratchGDB + os.sep + 'tmpSBB'
+            arcpy.CopyFeatures_management ("SBB_lyr", tmpSBB)
+            printMsg('Selected SBBs copied.')
+            
+            # Get PFs within the ProtoSite
+            printMsg('Selecting PFs within ProtoSite...')
+            arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", tmpPS, "", "NEW_SELECTION", "NOT_INVERT")
+            
+            # Copy the selected PF features to tmpPF
+            tmpPF = scratchGDB + os.sep + 'tmpPF'
+            arcpy.CopyFeatures_management ("PF_lyr", tmpPF)
+            printMsg('Selected PFs copied.')
+            
+            # Buffer around the ProtoSite
+            printMsg('Buffering ProtoSite...')
+            tmpBuff = scratchGDB + os.sep + 'tmpBuff'
+            arcpy.Buffer_analysis (tmpPS, tmpBuff, buffDist, "", "", "", "")  
+            
+            # Clip exclusion features to buffer
+            printMsg('Clipping transportation features to buffer...')
+            tranClp = scratchGDB + os.sep + 'tranClp'
+            CleanClip(Trans, tmpBuff, tranClp, scratchParm)
+            printMsg('Clipping hydro features to buffer...')
+            hydroClp = scratchGDB + os.sep + 'hydroClp'
+            CleanClip(in_Hydro, tmpBuff, hydroClp, scratchParm)
+            printMsg('Clipping exclusion features to buffer...')
+            efClp = scratchGDB + os.sep + 'efClp'
+            CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
+            
+            # Eliminated GetEraseFeats process (2018-01-17)
+            # Cull Transportation Surface Features 
+            printMsg('Culling transportation erase features...')
+            transRtn = scratchGDB + os.sep + 'transRtn'
+            CullEraseFeats (tranClp, tmpBuff, tmpPF, joinFld, transPerCov, transRtn)
+            
+            # # Get Transportation Surface Erase Features
+            # transErase = scratchGDB + os.sep + 'transErase'
+            # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
+            
+            # Cull Hydro Erase Features
+            printMsg('Culling hydro erase features...')
+            hydroRtn = scratchGDB + os.sep + 'hydroRtn'
+            CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
+            
+            # # Get Hydro Erase Features
+            # hydroErase = scratchGDB + os.sep + 'hydroErase'
+            # GetEraseFeats (hydroRtn, hydroQry, hydroElimDist, hydroErase)
+            
+            # Merge Erase Features (Exclusion features and retained Hydro and Transp features)
+            printMsg('Merging erase features...')
+            tmpErase = scratchGDB + os.sep + 'tmpErase'
+            arcpy.Merge_management ([efClp, transRtn, hydroRtn], tmpErase) 
+            
+            # Use erase features to chop out areas of SBBs
+            printMsg('Erasing portions of SBBs...')
+            sbbFrags = scratchGDB + os.sep + 'sbbFrags'
+            CleanErase (tmpSBB, tmpErase, sbbFrags, scratchParm) 
+            
+            # Remove any SBB fragments too far from a PF
+            printMsg('Culling SBB fragments...')
+            sbbRtn = scratchGDB + os.sep + 'sbbRtn'
+            CullFrags(sbbFrags, tmpPF, searchDist, sbbRtn)
+            arcpy.MakeFeatureLayer_management(sbbRtn, "sbbRtn_lyr")
+            
+            # Use erase features to chop out areas of ProtoSites
+            printMsg('Erasing portions of ProtoSites...')
+            psFrags = scratchGDB + os.sep + 'psFrags'
+            CleanErase (psSHP, tmpErase, psFrags, scratchParm) 
+            
+            # Remove any ProtoSite fragments too far from a PF
+            printMsg('Culling ProtoSite fragments...')
+            psRtn = scratchGDB + os.sep + 'psRtn'
+            CullFrags(psFrags, tmpPF, searchDist, psRtn)
+            
+            # Re-merge split sites, if applicable
+            coalFrags = scratchGDB + os.sep + 'coalFrags'
+            Coalesce(psRtn, coalDist, coalFrags, scratchParm)
+            
+            # Loop through the final (split) ProtoSites
+            counter2 = 1
+            with arcpy.da.SearchCursor(coalFrags, ["SHAPE@"]) as mySplitSites:
+               for mySS in mySplitSites:
+                  printMsg('Working on split site %s' % str(counter2))
+                  
+                  ssSHP = mySS[0]
+                  tmpSS = scratchGDB + os.sep + "tmpSS" + str(counter2)
+                  arcpy.CopyFeatures_management (ssSHP, tmpSS) 
+                  
+                  # Make Feature Layer from split site
+                  arcpy.MakeFeatureLayer_management (tmpSS, "splitSiteLyr", "", "", "")
+                           
+                  # Get PFs within split site
+                  arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", tmpSS, "", "NEW_SELECTION", "NOT_INVERT")
+                  
+                  # Select retained SBB fragments corresponding to selected PFs
+                  tmpSBB2 = scratchGDB + os.sep + 'tmpSBB2' 
+                  tmpPF2 = scratchGDB + os.sep + 'tmpPF2'
+                  SubsetSBBandPF(sbbRtn, "PF_lyr", "SBB", joinFld, tmpSBB2, tmpPF2)
+                  
+                  # ShrinkWrap retained SBB fragments
+                  csShrink = scratchGDB + os.sep + 'csShrink' + str(counter2)
+                  ShrinkWrap(tmpSBB2, dilDist, csShrink, scratchParm)
+                  
+                  # Intersect shrinkwrap with original split site
+                  # This is necessary to keep it from "spilling over" across features used to split.
+                  csInt = scratchGDB + os.sep + 'csInt' + str(counter2)
+                  arcpy.Intersect_analysis ([tmpSS, csShrink], csInt, "ONLY_FID")
+               
+                  # # Remove gaps within site
+                  # # Eliminate gaps at the end instead
+                  # csNoGap = scratchGDB + os. sep + 'csNoGap' + str(counter2)
+                  # arcpy.Union_analysis (csInt, csNoGap, "ONLY_FID", "", "NO_GAPS")
+                  # csDiss = scratchGDB + os.sep + 'csDissolved' + str(counter2)
+                  # arcpy.Dissolve_management (csNoGap, csDiss, "", "", "SINGLE_PART") 
+                  
+                  ## I think the next two blocks of code can be deleted, but awaiting further testing to be sure. 1/11/2018
+                  # Remove any fragments too far from a PF
+                  ### WHY would there be any more fragments at this point??? Delete this step??
+                  #csRtn = scratchGDB + os.sep + 'csRtn'
+                  #CullFrags(csDiss, tmpPF2, searchDist, csRtn)
+                  # Test output: d2
+                  
+                  # Process:  Coalesce (final smoothing of the site)  
+                  # WHY?? Probably should delete this step...
+                  # csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
+                  # Coalesce(csDiss, coalDist, csCoal, scratchParm)
+                  # Test output: d3
+                  
+                  # Process:  Clean Erase (final removal of exclusion features)
+                  printMsg('Excising manually delineated exclusion features...')
+                  csBnd = scratchGDB + os.sep + 'csBnd' + str(counter2)
+                  CleanErase (csInt, efClp, csBnd, scratchParm) 
+                  
+                  # Eliminate gaps
+                  printMsg('Eliminating insignificant gaps...')
+                  finBnd = scratchGDB + os.sep + 'finBnd'
+                  arcpy.EliminatePolygonPart_management (csBnd, finBnd, "AREA_OR_PERCENT", "1 HECTARES", "10", "CONTAINED_ONLY")
 
-   for myPS in myProtoSites:
-      try:
-         printMsg('Working on ProtoSite %s' % str(counter))
-         tProtoStart = datetime.now()
-         
-         psSHP = myPS[0]
-         tmpPS = scratchGDB + os.sep + "tmpPS"
-         arcpy.CopyFeatures_management (psSHP, tmpPS) 
-         
-         # Get SBBs within the ProtoSite
-         printMsg('Selecting SBBs within ProtoSite...')
-         arcpy.SelectLayerByLocation_management("SBB_lyr", "INTERSECT", tmpPS, "", "NEW_SELECTION", "NOT_INVERT")
-         
-         # Copy the selected SBB features to tmpSBB
-         tmpSBB = scratchGDB + os.sep + 'tmpSBB'
-         arcpy.CopyFeatures_management ("SBB_lyr", tmpSBB)
-         printMsg('Selected SBBs copied.')
-         
-         # Get PFs within the ProtoSite
-         printMsg('Selecting PFs within ProtoSite...')
-         arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", tmpPS, "", "NEW_SELECTION", "NOT_INVERT")
-         
-         # Copy the selected PF features to tmpPF
-         tmpPF = scratchGDB + os.sep + 'tmpPF'
-         arcpy.CopyFeatures_management ("PF_lyr", tmpPF)
-         printMsg('Selected PFs copied.')
-         
-         # Buffer around the ProtoSite
-         printMsg('Buffering ProtoSite...')
-         tmpBuff = scratchGDB + os.sep + 'tmpBuff'
-         arcpy.Buffer_analysis (tmpPS, tmpBuff, buffDist, "", "", "", "")  
-         
-         # Clip exclusion features to buffer
-         printMsg('Clipping transportation features to buffer...')
-         tranClp = scratchGDB + os.sep + 'tranClp'
-         CleanClip(Trans, tmpBuff, tranClp, scratchParm)
-         printMsg('Clipping hydro features to buffer...')
-         hydroClp = scratchGDB + os.sep + 'hydroClp'
-         CleanClip(in_Hydro, tmpBuff, hydroClp, scratchParm)
-         printMsg('Clipping exclusion features to buffer...')
-         efClp = scratchGDB + os.sep + 'efClp'
-         CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
-         
-         # Eliminated GetEraseFeats process (2018-01-17)
-         # Cull Transportation Surface Features 
-         printMsg('Culling transportation erase features...')
-         transRtn = scratchGDB + os.sep + 'transRtn'
-         CullEraseFeats (tranClp, tmpBuff, tmpPF, joinFld, transPerCov, transRtn)
-         
-         # # Get Transportation Surface Erase Features
-         # transErase = scratchGDB + os.sep + 'transErase'
-         # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
-         
-         # Cull Hydro Erase Features
-         printMsg('Culling hydro erase features...')
-         hydroRtn = scratchGDB + os.sep + 'hydroRtn'
-         CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
-         
-         # # Get Hydro Erase Features
-         # hydroErase = scratchGDB + os.sep + 'hydroErase'
-         # GetEraseFeats (hydroRtn, hydroQry, hydroElimDist, hydroErase)
-         
-         # Merge Erase Features (Exclusion features and retained Hydro and Transp features)
-         printMsg('Merging erase features...')
-         tmpErase = scratchGDB + os.sep + 'tmpErase'
-         arcpy.Merge_management ([efClp, transRtn, hydroRtn], tmpErase) 
-         
-         # Use erase features to chop out areas of SBBs
-         printMsg('Erasing portions of SBBs...')
-         sbbFrags = scratchGDB + os.sep + 'sbbFrags'
-         CleanErase (tmpSBB, tmpErase, sbbFrags, scratchParm) 
-         
-         # Remove any SBB fragments too far from a PF
-         printMsg('Culling SBB fragments...')
-         sbbRtn = scratchGDB + os.sep + 'sbbRtn'
-         CullFrags(sbbFrags, tmpPF, searchDist, sbbRtn)
-         arcpy.MakeFeatureLayer_management(sbbRtn, "sbbRtn_lyr")
-         
-         # Use erase features to chop out areas of ProtoSites
-         printMsg('Erasing portions of ProtoSites...')
-         psFrags = scratchGDB + os.sep + 'psFrags'
-         CleanErase (psSHP, tmpErase, psFrags, scratchParm) 
-         
-         # Remove any ProtoSite fragments too far from a PF
-         printMsg('Culling ProtoSite fragments...')
-         psRtn = scratchGDB + os.sep + 'psRtn'
-         CullFrags(psFrags, tmpPF, searchDist, psRtn)
-         
-         # Re-merge split sites, if applicable
-         coalFrags = scratchGDB + os.sep + 'coalFrags'
-         Coalesce(psRtn, coalDist, coalFrags, scratchParm)
-         
-         # Loop through the final (split) ProtoSites
-         mySplitSites = arcpy.da.SearchCursor(coalFrags, ["SHAPE@"])
-         counter2 = 1
-         for mySS in mySplitSites:
-            printMsg('Working on split site %s' % str(counter2))
-            
-            ssSHP = mySS[0]
-            tmpSS = scratchGDB + os.sep + "tmpSS" + str(counter2)
-            arcpy.CopyFeatures_management (ssSHP, tmpSS) 
-            
-            # Make Feature Layer from split site
-            arcpy.MakeFeatureLayer_management (tmpSS, "splitSiteLyr", "", "", "")
-                     
-            # Get PFs within split site
-            arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", tmpSS, "", "NEW_SELECTION", "NOT_INVERT")
-            
-            # Select retained SBB fragments corresponding to selected PFs
-            tmpSBB2 = scratchGDB + os.sep + 'tmpSBB2' 
-            tmpPF2 = scratchGDB + os.sep + 'tmpPF2'
-            SubsetSBBandPF(sbbRtn, "PF_lyr", "SBB", joinFld, tmpSBB2, tmpPF2)
-            
-            # ShrinkWrap retained SBB fragments
-            csShrink = scratchGDB + os.sep + 'csShrink' + str(counter2)
-            ShrinkWrap(tmpSBB2, dilDist, csShrink, scratchParm)
-            
-            # Intersect shrinkwrap with original split site
-            # This is necessary to keep it from "spilling over" across features used to split.
-            csInt = scratchGDB + os.sep + 'csInt' + str(counter2)
-            arcpy.Intersect_analysis ([tmpSS, csShrink], csInt, "ONLY_FID")
-         
-            # # Remove gaps within site
-            # # Eliminate gaps at the end instead
-            # csNoGap = scratchGDB + os. sep + 'csNoGap' + str(counter2)
-            # arcpy.Union_analysis (csInt, csNoGap, "ONLY_FID", "", "NO_GAPS")
-            # csDiss = scratchGDB + os.sep + 'csDissolved' + str(counter2)
-            # arcpy.Dissolve_management (csNoGap, csDiss, "", "", "SINGLE_PART") 
-            
-            ## I think the next two blocks of code can be deleted, but awaiting further testing to be sure. 1/11/2018
-            # Remove any fragments too far from a PF
-            ### WHY would there be any more fragments at this point??? Delete this step??
-            #csRtn = scratchGDB + os.sep + 'csRtn'
-            #CullFrags(csDiss, tmpPF2, searchDist, csRtn)
-            # Test output: d2
-            
-            # Process:  Coalesce (final smoothing of the site)  
-            # WHY?? Probably should delete this step...
-            # csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-            # Coalesce(csDiss, coalDist, csCoal, scratchParm)
-            # Test output: d3
-            
-            # Process:  Clean Erase (final removal of exclusion features)
-            printMsg('Excising manually delineated exclusion features...')
-            csBnd = scratchGDB + os.sep + 'csBnd' + str(counter2)
-            CleanErase (csInt, efClp, csBnd, scratchParm) 
-            
-            # Eliminate gaps
-            printMsg('Eliminating insignificant gaps...')
-            finBnd = scratchGDB + os.sep + 'finBnd'
-            arcpy.EliminatePolygonPart_management (csBnd, finBnd, "AREA_OR_PERCENT", "1 HECTARES", "10", "CONTAINED_ONLY")
+                  # Append the final geometry to the ConSites feature class.
+                  printMsg("Appending feature...")
+                  arcpy.Append_management(finBnd, out_ConSites, "NO_TEST", "", "")
+                  
+                  counter2 +=1
+                  del mySS
+               
+         except:
+            # Error handling code swiped from "A Python Primer for ArcGIS"
+            tb = sys.exc_info()[2]
+            tbinfo = traceback.format_tb(tb)[0]
+            pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
+            msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
 
-            # Append the final geometry to the ConSites feature class.
-            printMsg("Appending feature...")
-            arcpy.Append_management(finBnd, out_ConSites, "NO_TEST", "", "")
+            printWrng(msgs)
+            printWrng(pymsg)
+            printMsg(arcpy.GetMessages(1))
+         
+         finally:
+            tProtoEnd = datetime.now()
+            deltaString = GetElapsedTime(tProtoStart, tProtoEnd)
+            printMsg("Processing complete for ProtoSite %s. Elapsed time: %s" %(str(counter), deltaString))
+            counter +=1
+            del myPS
             
-            counter2 +=1
-            del mySS
-         
-      except:
-         # Error handling code swiped from "A Python Primer for ArcGIS"
-         tb = sys.exc_info()[2]
-         tbinfo = traceback.format_tb(tb)[0]
-         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
-         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
-
-         printWrng(msgs)
-         printWrng(pymsg)
-         printMsg(arcpy.GetMessages(1))
-      
-      finally:
-         tProtoEnd = datetime.now()
-         deltaString = GetElapsedTime(tProtoStart, tProtoEnd)
-         printMsg("Processing complete for ProtoSite %s. Elapsed time: %s" %(str(counter), deltaString))
-         counter +=1
-         del myPS
-         
    tFinish = datetime.now()
    deltaString = GetElapsedTime (tStart, tFinish)
    printMsg("Processing complete. Total elapsed time: %s" %deltaString)
@@ -395,7 +394,7 @@ def main():
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\Biotics_20170605.gdb\ConSites_20170605_114532" # Current Conservation Sites; for template
-   out_ConSites = r'C:\Testing\ConSiteTests20180118.gdb\ConSites05_inMem' # Output new Conservation Sites
+   out_ConSites = r'C:\Testing\ConSiteTests20180118.gdb\ConSites05_withLoops2' # Output new Conservation Sites
    scratchGDB = "in_memory" # Workspace for temporary data
    # End of user input
 

@@ -280,48 +280,48 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    arcpy.AddMessage('Shrinkwrapping: There are %s features after consolidation' %numWraps)
 
    # Loop through the exploded buffer features
-   myFeats = arcpy.da.SearchCursor(explFeats, ["SHAPE@"])
    counter = 1
-   for Feat in myFeats:
-      arcpy.AddMessage('Working on shrink feature %s' % str(counter))
-      featSHP = Feat[0]
-      tmpFeat = scratchGDB + os.sep + "tmpFeat"
-      arcpy.CopyFeatures_management (featSHP, tmpFeat)
-      trashList.append(tmpFeat)
-      
-      # Process:  Repair Geometry
-      arcpy.RepairGeometry_management (tmpFeat, "DELETE_NULL")
-      
-      # Process:  Make Feature Layer
-      arcpy.MakeFeatureLayer_management (dissFeats, "dissFeatsLyr", "", "", "")
-      trashList.append("dissFeatsLyr")
+   with arcpy.da.SearchCursor(explFeats, ["SHAPE@"]) as myFeats:
+      for Feat in myFeats:
+         arcpy.AddMessage('Working on shrink feature %s' % str(counter))
+         featSHP = Feat[0]
+         tmpFeat = scratchGDB + os.sep + "tmpFeat"
+         arcpy.CopyFeatures_management (featSHP, tmpFeat)
+         trashList.append(tmpFeat)
+         
+         # Process:  Repair Geometry
+         arcpy.RepairGeometry_management (tmpFeat, "DELETE_NULL")
+         
+         # Process:  Make Feature Layer
+         arcpy.MakeFeatureLayer_management (dissFeats, "dissFeatsLyr", "", "", "")
+         trashList.append("dissFeatsLyr")
 
-      # Process: Select Layer by Location (Get dissolved features within each exploded buffer feature)
-      arcpy.SelectLayerByLocation_management ("dissFeatsLyr", "INTERSECT", tmpFeat, "", "NEW_SELECTION")
-      
-      # Process:  Coalesce features (expand)
-      coalFeats = scratchGDB + os.sep + 'coalFeats'
-      Coalesce("dissFeatsLyr", smthMeas, coalFeats, scratchGDB)
-      # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
-      trashList.append(coalFeats)
-      
-      # Process:  Union coalesced features (to remove gaps)
-      # This is only necessary b/c we are now applying this tool to the Cores layer, which has gaps
-      unionFeats = scratchGDB + os.sep + "unionFeats"
-      arcpy.Union_analysis ([coalFeats], unionFeats, "ONLY_FID", "", "NO_GAPS") 
-      trashList.append(unionFeats)
-      
-      # Process:  Dissolve again 
-      dissunionFeats = scratchGDB + os.sep + "dissunionFeats"
-      arcpy.Dissolve_management (unionFeats, dissunionFeats, "", "", "SINGLE_PART", "")
-      trashList.append(dissunionFeats)
-      
-      # Process:  Append the final geometry to the ShrinkWrap feature class
-      arcpy.AddMessage("Appending feature...")
-      arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
-      
-      counter +=1
-      del Feat
+         # Process: Select Layer by Location (Get dissolved features within each exploded buffer feature)
+         arcpy.SelectLayerByLocation_management ("dissFeatsLyr", "INTERSECT", tmpFeat, "", "NEW_SELECTION")
+         
+         # Process:  Coalesce features (expand)
+         coalFeats = scratchGDB + os.sep + 'coalFeats'
+         Coalesce("dissFeatsLyr", smthMeas, coalFeats, scratchGDB)
+         # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
+         trashList.append(coalFeats)
+         
+         # Process:  Union coalesced features (to remove gaps)
+         # This is only necessary b/c we are now applying this tool to the Cores layer, which has gaps
+         unionFeats = scratchGDB + os.sep + "unionFeats"
+         arcpy.Union_analysis ([coalFeats], unionFeats, "ONLY_FID", "", "NO_GAPS") 
+         trashList.append(unionFeats)
+         
+         # Process:  Dissolve again 
+         dissunionFeats = scratchGDB + os.sep + "dissunionFeats"
+         arcpy.Dissolve_management (unionFeats, dissunionFeats, "", "", "SINGLE_PART", "")
+         trashList.append(dissunionFeats)
+         
+         # Process:  Append the final geometry to the ShrinkWrap feature class
+         arcpy.AddMessage("Appending feature...")
+         arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
+         
+         counter +=1
+         del Feat
 
    # Cleanup
    garbagePickup(trashList)
