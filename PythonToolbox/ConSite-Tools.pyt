@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2017-08-17
+# Last Edit: 2018-01-22
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -12,10 +12,10 @@
 #
 # ----------------------------------------------------------------------------------------
 
-import arcpy
-import libConSiteFx, CreateSBBs
+import libConSiteFx
 from libConSiteFx import *
 from CreateSBBs import *
+from CreateConSites import *
 
 # First define some handy functions
 def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction, defaultVal = None):
@@ -50,7 +50,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [shrinkwrap, sbb]
+      self.tools = [shrinkwrap, create_sbb, create_consite]
 
 # Define the tools
 class shrinkwrap(object):
@@ -100,7 +100,7 @@ class shrinkwrap(object):
 
       return out_Feats
 
-class sbb(object):
+class create_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
       self.label = "Create Site Building Blocks"
@@ -156,3 +156,61 @@ class sbb(object):
       arcpy.MakeFeatureLayer_management (out_SBB, "SBB_lyr")
 
       return out_SBB
+      
+class create_consite(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Create Conservation Sites"
+      self.description = ""
+      self.canRunInBackground = True
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("in_SBB", "Input Site Building Blocks", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("ysn_Expand", "Expand SBB Selection?", "GPBoolean", "Required", "Input", "false")
+      parm02 = defineParam("in_PF", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
+      parm03 = defineParam("joinFld", "Source Feature ID field", "String", "Required", "Input", "SFID")
+      parm04 = defineParam("in_Cores", "Input Cores", "GPFeatureLayer", "Required", "Input")
+      parm05 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPFeatureLayer", "Required", "Input")
+      parm05.multiValue = True
+      parm06 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input")
+      parm07 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Required", "Input")
+      parm08 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm09 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
+      parm10 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
+
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08, parm09, parm10]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      if parameters[0].altered:
+         fc = parameters[0].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[3].filter.list = field_names
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      if scratch_GDB != 'None':
+         scratchParm = scratch_GDB 
+      else:
+         scratchParm = "in_memory" 
+
+      CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchParm)
+
+      return out_ConSites
