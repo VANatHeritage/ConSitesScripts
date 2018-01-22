@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-19
+# Last Edit: 2018-01-22
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -254,19 +254,19 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             # transErase = scratchGDB + os.sep + 'transErase'
             # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
             
-            # Cull Hydro Erase Features
-            printMsg('Culling hydro erase features...')
-            hydroRtn = scratchGDB + os.sep + 'hydroRtn'
-            CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
+            # # Cull Hydro Erase Features
+            # printMsg('Culling hydro erase features...')
+            # hydroRtn = scratchGDB + os.sep + 'hydroRtn'
+            # CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
             
             # # Get Hydro Erase Features
             # hydroErase = scratchGDB + os.sep + 'hydroErase'
             # GetEraseFeats (hydroRtn, hydroQry, hydroElimDist, hydroErase)
             
-            # Merge Erase Features (Exclusion features and retained Hydro and Transp features)
+            # Merge Erase Features (Exclusion features, hydro features, and retained transportation features)
             printMsg('Merging erase features...')
             tmpErase = scratchGDB + os.sep + 'tmpErase'
-            arcpy.Merge_management ([efClp, transRtn, hydroRtn], tmpErase) 
+            arcpy.Merge_management ([efClp, transRtn, hydroClp], tmpErase) 
             
             # Use erase features to chop out areas of SBBs
             printMsg('Erasing portions of SBBs...')
