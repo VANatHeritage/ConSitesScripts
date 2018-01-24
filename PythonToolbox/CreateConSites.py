@@ -40,7 +40,8 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
-   coalDist = "10 METERS" # Distance for coalescing split sites back together. This value, multiplied by 4, is also used as a final site smoothing parameter.
+   coalDist = "10 METERS" # Distance for coalescing split sites back together. Sites with less than double this width between each other will merge.
+   # smthMulti = 2 # Multiplier applied to coalDist to obtain final smoothing parameter 
    
    # Give user some info on parameters
    printMsg('Selection distance = %s' %selDist)
@@ -52,6 +53,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    printMsg('Buffer distance = %s' %buffDist)
    printMsg('Search distance = %s' %searchDist)
    printMsg('Coalesce distance = %s' %coalDist)
+   # printMsg('Smoothing multiplier = %s' %str(smthMulti))
 
    if not scratchGDB:
       scratchGDB = "in_memory"
@@ -99,7 +101,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
       Trans = mergeTrans
    
    # Get relevant subset of transportation features
-   printMsg('Subsetting transporation features')
+   printMsg('Subsetting transportation features')
    subTrans = scratchGDB + os.sep + 'subTrans'
    arcpy.Select_analysis (Trans, subTrans, transQry)
    Trans = subTrans
@@ -345,10 +347,10 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
                   CullFrags(cleanFrags, tmpPF2, searchDist, csRtn)
                   
                   # Process:  Coalesce (final smoothing of the site)  
-                  # Verified this step is indeed necessary, 2018-01-23
-                  num, units, smthDist = multiMeasure(coalDist, 4)
+                  # Verified this step is indeed necessary, 2018-01-23. It gets rid of linear intrusions (e.g., road cuts)
+                  # num, units, smthDist = multiMeasure(coalDist, smthMulti)
                   csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-                  Coalesce(csRtn, smthDist, csCoal, scratchParm)
+                  Coalesce(csRtn, coalDist, csCoal, scratchParm)
                   
                   # Process:  Clean Erase (final removal of exclusion features)
                   printMsg('Excising manually delineated exclusion features...')
