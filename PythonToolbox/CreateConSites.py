@@ -386,21 +386,21 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
 # Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_SBB = r'C:\Testing\ConSiteTests20180123.gdb\sbb01'
-   #in_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206' # Input Site Building Blocks
+   #in_SBB = r'C:\Testing\ConSiteTests20180123.gdb\sbb01'
+   in_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206' # Input Site Building Blocks
    ysn_Expand =  "false" # Expand SBB selection?
-   in_PF = r'C:\Testing\ConSiteTests20180123.gdb\pf01'
-   #in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308' # Input Procedural Features
+   #in_PF = r'C:\Testing\ConSiteTests20180123.gdb\pf01'
+   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308' # Input Procedural Features
    joinFld = "SFID" # Source Feature ID field
-   in_Cores = r'C:\Testing\ConSiteTests20180123.gdb\Cores01'
-   #in_Cores = r'C:\Users\xch43889\Documents\Working\ConSites\VaNLA2017Cores4ConSites.gdb\VaNLACoresRanks123' # Cores used to expand sites
+   #in_Cores = r'C:\Testing\ConSiteTests20180123.gdb\Cores01'
+   in_Cores = r'C:\Users\xch43889\Documents\Working\ConSites\VaNLA2017Cores4ConSites.gdb\VaNLACoresRanks123' # Cores used to expand sites
    Roads = r"H:\Backups\DCR_Work_DellD\TransportatationProc\RCL_Proc_20171206.gdb\RCL_surfaces_20171206"
    Rail = r"H:\Backups\DCR_Work_DellD\TransportatationProc\Rail_Proc_20180108.gdb\Rail_surfaces_20180108"
    in_TranSurf = r'C:\Testing\scratch20180118.gdb\mergeTrans' # Input transportation surface features
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ConSites_20171206_183308" # Current Conservation Sites; for template
-   out_ConSites = r'C:\Testing\ConSiteTests20180123.gdb\test01f' # Output new Conservation Sites
+   out_ConSites = r'C:\Testing\ConSiteTests20180123.gdb\ConSites_fullTest' # Output new Conservation Sites
    scratchGDB = "in_memory" # Workspace for temporary data
    # End of user input
 
