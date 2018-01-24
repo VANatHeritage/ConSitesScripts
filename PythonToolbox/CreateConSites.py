@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-23
+# Last Edit: 2018-01-24
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -98,15 +98,16 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
       arcpy.Merge_management(Trans, mergeTrans)
       Trans = mergeTrans
    
-   # Eliminate transportation features designated to be ignored
+   # Get relevant subset of transportation features
+   printMsg('Subsetting transporation features')
    subTrans = scratchGDB + os.sep + 'subTrans'
    arcpy.Select_analysis (Trans, subTrans, transQry)
    Trans = subTrans
    
-   # Eliminate hydro features designated to be ignored
-   subHydro = scratchGDB + os.sep + 'subHydro'
-   arcpy.Select_analysis (in_Hydro, subHydro, hydroQry)
-   in_Hydro = subHydro
+   # # Get relevant subset of hydro features
+   # printMsg('Subsetting hydro features')
+   # subHydro = scratchGDB + os.sep + 'subHydro'
+   # arcpy.Select_analysis (in_Hydro, subHydro, hydroQry)
    
    # Make Feature Layer from PFs
    arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")   
@@ -248,12 +249,12 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             efClp = scratchGDB + os.sep + 'efClp'
             CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
             
-            # Eliminated GetEraseFeats process (2018-01-17)
             # Cull Transportation Surface Features 
-            printMsg('Culling transportation erase features...')
+            printMsg('Culling transportation erase features with significant PF coverage...')
             transRtn = scratchGDB + os.sep + 'transRtn'
             CullEraseFeats (tranClp, tmpBuff, tmpPF, joinFld, transPerCov, transRtn)
             
+            # Eliminated GetEraseFeats process (2018-01-17)
             # # Get Transportation Surface Erase Features
             # transErase = scratchGDB + os.sep + 'transErase'
             # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
@@ -263,15 +264,16 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             # hydroRtn = scratchGDB + os.sep + 'hydroRtn'
             # CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
             
-            # # Get Hydro Erase Features
-            # hydroErase = scratchGDB + os.sep + 'hydroErase'
-            # GetEraseFeats (hydroRtn, hydroQry, hydroElimDist, hydroErase)
+            # Get Hydro Erase Features
+            printMsg('Eliminating some hydro features from erase features...')
+            hydroErase = scratchGDB + os.sep + 'hydroErase'
+            GetEraseFeats (hydroClp, hydroQry, hydroElimDist, hydroErase, tmpPF)
             
             # Merge Erase Features (Exclusion features, hydro features, and retained transportation features)
             printMsg('Merging erase features...')
             tmpErase = scratchGDB + os.sep + 'tmpErase'
-            arcpy.Merge_management ([efClp, transRtn, hydroClp], tmpErase) 
-            
+            arcpy.Merge_management ([efClp, transRtn, hydroErase], tmpErase)
+
             # Use erase features to chop out areas of SBBs
             printMsg('Erasing portions of SBBs...')
             sbbFrags = scratchGDB + os.sep + 'sbbFrags'

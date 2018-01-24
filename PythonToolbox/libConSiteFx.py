@@ -326,7 +326,7 @@ def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Cleanup
    garbagePickup(trashList)
    
-def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_memory", dissolveDist = "1 METERS"):
+def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scratchGDB = "in_memory"):
    ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
    # Process: Make Feature Layer (subset of selected features)
    arcpy.MakeFeatureLayer_management(inFeats, "Selected_lyr", selQry)
@@ -336,9 +336,9 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_me
    # DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
    # arcpy.Dissolve_management("Selected_lyr", DissEraseFeats, "", "", "SINGLE_PART")
    
-   # Process: Consolidate/dissolve features by coalescing
-   DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
-   Coalesce("Selected_lyr", dissolveDist, DissEraseFeats, scratchGDB)
+   # # Process: Consolidate/dissolve features by coalescing
+   # DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
+   # Coalesce("Selected_lyr", dissolveDist, DissEraseFeats, scratchGDB)
 
    # If it's a string, parse elimination distance and get the negative
    if type(elimDist) == str:
@@ -352,13 +352,15 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, scratchGDB = "in_me
    
    # Process: Eliminate narrow features (or portions thereof)
    CoalEraseFeats = scratchGDB + os.sep + 'CoalEraseFeats'
-   Coalesce(DissEraseFeats, negDist, CoalEraseFeats, scratchGDB)
+   Coalesce("Selected_lyr", negDist, CoalEraseFeats, scratchGDB)
 
-   # Process: Clean Features
-   CleanFeatures(CoalEraseFeats, outEraseFeats)
+   if elimFeats == "":
+      CleanFeatures(CoalEraseFeats, outEraseFeats)
+   else:
+      CleanErase(CoalEraseFeats, elimFeats, outEraseFeats)
    
    # Cleanup
-   trashlist = [DissEraseFeats, CoalEraseFeats]
+   trashlist = [CoalEraseFeats]
    garbagePickup(trashlist)
    
    return outEraseFeats
