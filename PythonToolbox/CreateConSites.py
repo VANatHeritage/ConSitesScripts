@@ -103,6 +103,11 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    arcpy.Select_analysis (Trans, subTrans, transQry)
    Trans = subTrans
    
+   # Eliminate hydro features designated to be ignored
+   subHydro = scratchGDB + os.sep + 'subHydro'
+   arcpy.Select_analysis (in_Hydro, subHydro, hydroQry)
+   in_Hydro = subHydro
+   
    # Make Feature Layer from PFs
    arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")   
 
