@@ -2,14 +2,13 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-22
+# Last Edit: 2018-01-23
 # Creator:  Kirsten R. Hazler
 
 # Summary:
 # Given a set of Site Building Blocks, corresponding Procedural Features, polygons delineating open water and road right-of-ways, and "Exclusion" features, creates a set of Conservation Sites.  Exclusion features are manually or otherwise delineated areas that are used to erase unsuitable areas from ProtoSites.  
 
 # TO DO: Test code as it is now, then delete proposed deletions and test again.
-# TO DO: Try to optimize and avoid crashes when running large datasets
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
@@ -41,7 +40,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
-   coalDist = "25 METERS" # Distance for coalescing split sites back together. This value, multiplied by 4, is also used as a final site smoothing parameter.
+   coalDist = "10 METERS" # Distance for coalescing split sites back together. This value, multiplied by 4, is also used as a final site smoothing parameter.
    
    # Give user some info on parameters
    printMsg('Selection distance = %s' %selDist)
@@ -330,23 +329,24 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
                   # csDiss = scratchGDB + os.sep + 'csDissolved' + str(counter2)
                   # arcpy.Dissolve_management (csNoGap, csDiss, "", "", "SINGLE_PART") 
                   
-                  ## I think the next two blocks of code can be deleted, but awaiting further testing to be sure. 1/11/2018
                   # Remove any fragments too far from a PF
-                  ### WHY would there be any more fragments at this point??? Delete this step??
-                  #csRtn = scratchGDB + os.sep + 'csRtn'
-                  #CullFrags(csDiss, tmpPF2, searchDist, csRtn)
-                  # Test output: d2
+                  # Verified this step is indeed necessary, 2018-01-23
+                  printMsg('Culling site fragments...')
+                  cleanFrags = scratchGDB + os.sep + 'clnFrags'
+                  CleanFeatures(csInt, cleanFrags)
+                  csRtn = scratchGDB + os.sep + 'csRtn'
+                  CullFrags(cleanFrags, tmpPF2, searchDist, csRtn)
                   
                   # Process:  Coalesce (final smoothing of the site)  
-                  # WHY?? Probably should delete this step...
-                  # csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-                  # Coalesce(csDiss, coalDist, csCoal, scratchParm)
-                  # Test output: d3
+                  # Verified this step is indeed necessary, 2018-01-23
+                  num, units, smthDist = multiMeasure(coalDist, 4)
+                  csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
+                  Coalesce(csRtn, smthDist, csCoal, scratchParm)
                   
                   # Process:  Clean Erase (final removal of exclusion features)
                   printMsg('Excising manually delineated exclusion features...')
                   csBnd = scratchGDB + os.sep + 'csBnd' + str(counter2)
-                  CleanErase (csInt, efClp, csBnd, scratchParm) 
+                  CleanErase (csCoal, efClp, csBnd, scratchParm) 
                   
                   # Eliminate gaps
                   printMsg('Eliminating insignificant gaps...')
@@ -386,18 +386,21 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
 # Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206' # Input Site Building Blocks
+   in_SBB = r'C:\Testing\ConSiteTests20180123.gdb\sbb01'
+   #in_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\SBB_20171206' # Input Site Building Blocks
    ysn_Expand =  "false" # Expand SBB selection?
-   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308' # Input Procedural Features
+   in_PF = r'C:\Testing\ConSiteTests20180123.gdb\pf01'
+   #in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ProcFeats_20171206_183308' # Input Procedural Features
    joinFld = "SFID" # Source Feature ID field
-   in_Cores = r'C:\Users\xch43889\Documents\Working\ConSites\VaNLA2017Cores4ConSites.gdb\VaNLACoresRanks123' # Cores used to expand sites
+   in_Cores = r'C:\Testing\ConSiteTests20180123.gdb\Cores01'
+   #in_Cores = r'C:\Users\xch43889\Documents\Working\ConSites\VaNLA2017Cores4ConSites.gdb\VaNLACoresRanks123' # Cores used to expand sites
    Roads = r"H:\Backups\DCR_Work_DellD\TransportatationProc\RCL_Proc_20171206.gdb\RCL_surfaces_20171206"
    Rail = r"H:\Backups\DCR_Work_DellD\TransportatationProc\Rail_Proc_20180108.gdb\Rail_surfaces_20180108"
    in_TranSurf = r'C:\Testing\scratch20180118.gdb\mergeTrans' # Input transportation surface features
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ConSites_20171206_183308" # Current Conservation Sites; for template
-   out_ConSites = r'C:\Testing\ConSiteTests20180119.gdb\ConSites_fullTest' # Output new Conservation Sites
+   out_ConSites = r'C:\Testing\ConSiteTests20180123.gdb\test01f' # Output new Conservation Sites
    scratchGDB = "in_memory" # Workspace for temporary data
    # End of user input
 
