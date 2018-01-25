@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-01-24
+# Last Edit: 2018-01-25
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -212,10 +212,10 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Cleanup
    garbagePickup([Buff1, Clean_Buff1, Buff2])
    
-def ShrinkWrap(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
+def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memory"):
    # Parse dilation distance, and increase it to get smoothing distance
    origDist, units, meas = multiMeasure(dilDist, 1)
-   smthDist, units, smthMeas = multiMeasure(dilDist, 8)
+   smthDist, units, smthMeas = multiMeasure(dilDist, smthMulti)
 
    # Parameter check
    if origDist <= 0:
@@ -524,7 +524,7 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    arcpy.MakeFeatureLayer_management(in_PF, "PF_CoreSub", where_clause)
    
    # Get PFs centered in the core
-   printMsg('Selecting PFs centered in the core...')
+   printMsg('Selecting PFs intersecting the core...')
    arcpy.SelectLayerByLocation_management("PF_CoreSub", "INTERSECT", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
    
    # Get SBBs associated with selected PFs

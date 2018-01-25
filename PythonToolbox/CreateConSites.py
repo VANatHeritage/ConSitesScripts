@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-24
+# Last Edit: 2018-01-25
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -32,12 +32,12 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    # Specify a bunch of parameters
    selDist = "1000 METERS" # Distance used to expand the SBB selection, if this option is selected. Also used to add extra buffer to SBBs.
    dilDist = "250 METERS" # Distance used to coalesce SBBs into ProtoSites (precursors to final automated CS boundaries). Features within twice this distance of each other will be merged into one.
-   hydroPerCov = 100 # The minimum percent cover of any PF that must be within a given hydro feature, for that hydro feature to be eliminated from the set of features which are used to erase portions of the site.
+   hydroPerCov = 80 # The minimum percent cover of any PF that must be within a given hydro feature, for that hydro feature to be eliminated from the set of features which are used to erase portions of the site.
    hydroQry = "Hydro = 1" # Expression used to select appropriate hydro features to create erase features
    hydroElimDist = "10 METERS" # Distance used to eliminate insignificant water features from the set of erasing features. Portions of water bodies less than double this width will not be used to split or erase portions of sites.
    transPerCov = 50 #The minimum percent cover of any PF that must be within a given transportation surface feature, for that feature to be eliminated from the set of features which are used to erase portions of the site.
    transQry = "nhIgnore = 0 OR nhIgnore IS NULL" ### Substituted old query with new query, allowing user to specify segments to ignore. Old query was: "DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
-   transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
+   #transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
    coalDist = "50 METERS" # Distance for coalescing split sites back together. Sites with less than double this width between each other will merge.
@@ -49,8 +49,8 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    printMsg('Hydro percent cover = %s' %hydroPerCov)
    printMsg('Hydro elimination distance = %s' %hydroElimDist)
    printMsg('Transportation surface percent cover = %s' %transPerCov)
-   printMsg('Transportation surface elimination distance = %s' %transElimDist)
-   printMsg('Buffer distance = %s' %buffDist)
+   #printMsg('Transportation surface elimination distance = %s' %transElimDist)
+   printMsg('Processing buffer distance = %s' %buffDist)
    printMsg('Search distance = %s' %searchDist)
    printMsg('Coalesce distance = %s' %coalDist)
    # printMsg('Smoothing multiplier = %s' %str(smthMulti))
@@ -177,7 +177,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    
    ### Cores incorporation code ends here
 
-   # Process:  Create Feature Class (to store ConSites)
+   # Process:  Create Feature Classes (to store ConSites)
    printMsg("Creating ConSites features class to store output features...")
    arcpy.CreateFeatureclass_management (myWorkspace, Output_CS_fname, "POLYGON", in_ConSites, "", "", in_ConSites) 
 
@@ -192,7 +192,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    outPS = myWorkspace + os.sep + 'ProtoSites'
       # Saving ProtoSites to hard drive, just in case...
    printMsg('ProtoSites will be stored here: %s' % outPS)
-   ShrinkWrap(sbbFinal, dilDist, outPS, scratchParm)
+   ShrinkWrap(sbbFinal, dilDist, outPS)
 
    # Generalize Features in hopes of speeding processing and preventing random processing failures 
    arcpy.AddMessage("Simplifying features...")
@@ -217,6 +217,8 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             psSHP = myPS[0]
             tmpPS = scratchGDB + os.sep + "tmpPS"
             arcpy.CopyFeatures_management (psSHP, tmpPS) 
+            tmpSS_grp = scratchGDB + os.sep + "tmpSS_grp"
+            arcpy.CreateFeatureclass_management (scratchGDB, "tmpSS_grp", "POLYGON", in_ConSites, "", "", in_ConSites) 
             
             # Get SBBs within the ProtoSite
             printMsg('Selecting SBBs within ProtoSite...')
@@ -298,13 +300,14 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             psRtn = scratchGDB + os.sep + 'psRtn'
             CullFrags(psFrags, tmpPF, searchDist, psRtn)
             
-            # Re-merge split sites, if applicable
-            coalFrags = scratchGDB + os.sep + 'coalFrags'
-            Coalesce(psRtn, coalDist, coalFrags, scratchParm)
+            # # Re-merge split sites, if applicable
+            # # Move this to later
+            # coalFrags = scratchGDB + os.sep + 'coalFrags'
+            # Coalesce(psRtn, coalDist, coalFrags, scratchParm)
             
             # Loop through the final (split) ProtoSites
             counter2 = 1
-            with arcpy.da.SearchCursor(coalFrags, ["SHAPE@"]) as mySplitSites:
+            with arcpy.da.SearchCursor(psRtn, ["SHAPE@"]) as mySplitSites:
                for mySS in mySplitSites:
                   printMsg('Working on split site %s' % str(counter2))
                   
@@ -325,7 +328,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
                   
                   # ShrinkWrap retained SBB fragments
                   csShrink = scratchGDB + os.sep + 'csShrink' + str(counter2)
-                  ShrinkWrap(tmpSBB2, dilDist, csShrink, scratchParm)
+                  ShrinkWrap(tmpSBB2, dilDist, csShrink)
                   
                   # Intersect shrinkwrap with original split site
                   # This is necessary to keep it from "spilling over" across features used to split.
@@ -339,37 +342,60 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
                   # csDiss = scratchGDB + os.sep + 'csDissolved' + str(counter2)
                   # arcpy.Dissolve_management (csNoGap, csDiss, "", "", "SINGLE_PART") 
                   
-                  # Remove any fragments too far from a PF
-                  # Verified this step is indeed necessary, 2018-01-23
-                  printMsg('Culling site fragments...')
-                  cleanFrags = scratchGDB + os.sep + 'clnFrags'
-                  CleanFeatures(csInt, cleanFrags)
-                  csRtn = scratchGDB + os.sep + 'csRtn'
-                  CullFrags(cleanFrags, tmpPF2, searchDist, csRtn)
-                  
-                  # Process:  Coalesce (final smoothing of the site)  
-                  # Verified this step is indeed necessary, 2018-01-23. It gets rid of linear intrusions (e.g., road cuts) and smooths things out.
-                  # num, units, smthDist = multiMeasure(coalDist, smthMulti)
-                  csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-                  Coalesce(csRtn, smthDist, csCoal, scratchParm)
+                  # # Process:  Coalesce (final smoothing of the site)  
+                  # # Verified this step is indeed necessary, 2018-01-23. It gets rid of linear intrusions (e.g., road cuts) and smooths things out.
+                  # # num, units, smthDist = multiMeasure(coalDist, smthMulti)
+                  # csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
+                  # Coalesce(csRtn, smthDist, csCoal, scratchParm)
                   
                   # Process:  Clean Erase (final removal of exclusion features)
                   printMsg('Excising manually delineated exclusion features...')
-                  csBnd = scratchGDB + os.sep + 'csBnd' + str(counter2)
-                  CleanErase (csCoal, efClp, csBnd, scratchParm) 
+                  ssErased = scratchGDB + os.sep + 'ssBnd' + str(counter2)
+                  CleanErase (csInt, efClp, ssErased, scratchParm) 
                   
-                  # Eliminate gaps
-                  printMsg('Eliminating insignificant gaps...')
-                  finBnd = scratchGDB + os.sep + 'finBnd'
-                  arcpy.EliminatePolygonPart_management (csBnd, finBnd, "AREA_OR_PERCENT", "1 HECTARES", "10", "CONTAINED_ONLY")
+                  # Remove any fragments too far from a PF
+                  # Verified this step is indeed necessary, 2018-01-23
+                  printMsg('Culling site fragments...')
+                  ssBnd = scratchGDB + os.sep + 'ssBnd'
+                  CullFrags(ssErased, tmpPF2, searchDist, ssBnd)
+                  
+                  # # Eliminate gaps
+                  # printMsg('Eliminating insignificant gaps...')
+                  # finBnd = scratchGDB + os.sep + 'finBnd'
+                  # arcpy.EliminatePolygonPart_management (csBnd, finBnd, "AREA_OR_PERCENT", "1 HECTARES", "10", "CONTAINED_ONLY")
 
-                  # Append the final geometry to the ConSites feature class.
+                  # Append the final geometry to the split sites group feature class.
                   printMsg("Appending feature...")
-                  arcpy.Append_management(finBnd, out_ConSites, "NO_TEST", "", "")
+                  arcpy.Append_management(ssBnd, tmpSS_grp, "NO_TEST", "", "")
                   
                   counter2 +=1
                   del mySS
-               
+
+            # Re-merge split sites, if applicable
+            printMsg("Reconnecting split sites, where warranted...")
+            shrinkFrags = scratchGDB + os.sep + 'shrinkFrags'
+            ShrinkWrap(tmpSS_grp, coalDist, shrinkFrags, 2)
+            
+            # Process:  Clean Erase (final removal of exclusion features)
+            printMsg('Excising manually delineated exclusion features...')
+            csErased = scratchGDB + os.sep + 'csErased'
+            CleanErase (shrinkFrags, efClp, csErased, scratchParm) 
+            
+            # Remove any fragments too far from a PF
+            # Verified this step is indeed necessary, 2018-01-23
+            printMsg('Culling site fragments...')
+            csCull = scratchGDB + os.sep + 'csCull'
+            CullFrags(csErased, tmpPF, searchDist, csCull)
+            
+            # Eliminate gaps
+            printMsg('Eliminating insignificant gaps...')
+            finBnd = scratchGDB + os.sep + 'finBnd'
+            arcpy.EliminatePolygonPart_management (csCull, finBnd, "AREA_OR_PERCENT", "1 HECTARES", "10", "CONTAINED_ONLY")
+
+            # Append the final geometry to the ConSites feature class.
+            printMsg("Appending feature...")
+            arcpy.Append_management(finBnd, out_ConSites, "NO_TEST", "", "")
+            
          except:
             # Error handling code swiped from "A Python Primer for ArcGIS"
             tb = sys.exc_info()[2]
