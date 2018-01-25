@@ -521,17 +521,17 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    
    # Make Feature Layer from PFs
    where_clause = "RULE <> '1'"
-   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr", where_clause)
+   arcpy.MakeFeatureLayer_management(in_PF, "PF_CoreSub", where_clause)
    
    # Get PFs centered in the core
    printMsg('Selecting PFs centered in the core...')
-   arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
+   arcpy.SelectLayerByLocation_management("PF_CoreSub", "INTERSECT", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
    
    # Get SBBs associated with selected PFs
    printMsg('Copying selected PFs and their associated SBBs...')
    sbbSub = scratchGDB + os.sep + 'sbb'
    pfSub = scratchGDB + os.sep + 'pf'
-   SubsetSBBandPF(in_SBB, "PF_lyr", "SBB", joinFld, sbbSub, pfSub)
+   SubsetSBBandPF(in_SBB, "PF_CoreSub", "SBB", joinFld, sbbSub, pfSub)
    
    # Buffer SBBs 
    printMsg("Buffering SBBs...")

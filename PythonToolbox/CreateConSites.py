@@ -170,7 +170,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
    printMsg('Finalizing...')
    sbbAll = scratchGDB + os.sep + "sbbAll"
-   sbbFinal = scratchGDB + os.sep + "sbbFinal"
+   sbbFinal = myWorkspace + os.sep + "sbbFinal"
    arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
    arcpy.Dissolve_management (sbbAll, sbbFinal, joinFld, "")
    arcpy.MakeFeatureLayer_management(sbbFinal, "SBB_lyr") 
