@@ -146,7 +146,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    numCores = countFeatures(selCores)
    printMsg('There are %s cores to process.' %str(numCores))
    
-   # Add extra buffers to SBBs of PFs centered in Cores
+   # Add extra buffers to SBBs of PFs intersecting Cores
    # Create Feature Class to store expanded SBBs
    printMsg("Creating feature class to store buffered SBBs...")
    arcpy.CreateFeatureclass_management (myWorkspace, 'sbbExpand', "POLYGON", SBB_sub, "", "", SBB_sub) 

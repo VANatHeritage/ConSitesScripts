@@ -520,11 +520,12 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    scratchGDB: geodatabase to store intermediate products'''
    
    # Make Feature Layer from PFs
-   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")
+   where_clause = "RULE <> '1'"
+   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr", where_clause)
    
    # Get PFs centered in the core
    printMsg('Selecting PFs centered in the core...')
-   arcpy.SelectLayerByLocation_management("PF_lyr", "HAVE_THEIR_CENTER_IN", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
+   arcpy.SelectLayerByLocation_management("PF_lyr", "INTERSECT", in_Core, "", "NEW_SELECTION", "NOT_INVERT")
    
    # Get SBBs associated with selected PFs
    printMsg('Copying selected PFs and their associated SBBs...')
