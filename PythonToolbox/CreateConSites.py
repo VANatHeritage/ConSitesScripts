@@ -32,16 +32,16 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    # Specify a bunch of parameters
    selDist = "1000 METERS" # Distance used to expand the SBB selection, if this option is selected. Also used to add extra buffer to SBBs.
    dilDist = "250 METERS" # Distance used to coalesce SBBs into ProtoSites (precursors to final automated CS boundaries). Features within twice this distance of each other will be merged into one.
-   hydroPerCov = 25 # The minimum percent cover of any PF that must be within a given hydro feature, for that hydro feature to be eliminated from the set of features which are used to erase portions of the site.
+   hydroPerCov = 100 # The minimum percent cover of any PF that must be within a given hydro feature, for that hydro feature to be eliminated from the set of features which are used to erase portions of the site.
    hydroQry = "Hydro = 1" # Expression used to select appropriate hydro features to create erase features
    hydroElimDist = "10 METERS" # Distance used to eliminate insignificant water features from the set of erasing features. Portions of water bodies less than double this width will not be used to split or erase portions of sites.
    transPerCov = 50 #The minimum percent cover of any PF that must be within a given transportation surface feature, for that feature to be eliminated from the set of features which are used to erase portions of the site.
-   transQry = "nhIgnore =0 OR nhIgnore IS NULL" ### Substituted old query with new query, allowing user to specify segments to ignore. Old query was: "DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
+   transQry = "nhIgnore = 0 OR nhIgnore IS NULL" ### Substituted old query with new query, allowing user to specify segments to ignore. Old query was: "DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
    transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
-   coalDist = "10 METERS" # Distance for coalescing split sites back together. Sites with less than double this width between each other will merge.
-   # smthMulti = 2 # Multiplier applied to coalDist to obtain final smoothing parameter 
+   coalDist = "50 METERS" # Distance for coalescing split sites back together. Sites with less than double this width between each other will merge.
+   smthDist = "100 METERS" # Final smoothing parameter - should be more than coalDist to avoid possible spindly connections
    
    # Give user some info on parameters
    printMsg('Selection distance = %s' %selDist)
@@ -96,7 +96,8 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
       Trans = Trans[0]
    else:
       printMsg('Merging transportation surfaces')
-      mergeTrans = scratchGDB + os.sep + 'mergeTrans'
+      # Must absolutely write this to disk (myWorkspace) not to memory (scratchGDB), or for some reason there is no OBJECTID field and as a result, code for CullEraseFeats will fail.
+      mergeTrans = myWorkspace + os.sep + 'mergeTrans'
       arcpy.Merge_management(Trans, mergeTrans)
       Trans = mergeTrans
    
@@ -261,20 +262,20 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             # transErase = scratchGDB + os.sep + 'transErase'
             # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
             
-            # # Cull Hydro Erase Features
-            # printMsg('Culling hydro erase features...')
-            # hydroRtn = scratchGDB + os.sep + 'hydroRtn'
-            # CullEraseFeats (hydroClp, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
-            
             # Get Hydro Erase Features
-            printMsg('Eliminating some hydro features from erase features...')
+            printMsg('Eliminating insignificant hydro features from erase features...')
             hydroErase = scratchGDB + os.sep + 'hydroErase'
-            GetEraseFeats (hydroClp, hydroQry, hydroElimDist, hydroErase, tmpPF)
+            GetEraseFeats (hydroClp, hydroQry, hydroElimDist, hydroErase)
+            
+            # Cull Hydro Erase Features
+            printMsg('Culling hydro erase features...')
+            hydroRtn = scratchGDB + os.sep + 'hydroRtn'
+            CullEraseFeats (hydroErase, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
             
             # Merge Erase Features (Exclusion features, hydro features, and retained transportation features)
             printMsg('Merging erase features...')
             tmpErase = scratchGDB + os.sep + 'tmpErase'
-            arcpy.Merge_management ([efClp, transRtn, hydroErase], tmpErase)
+            arcpy.Merge_management ([efClp, transRtn, hydroRtn], tmpErase)
 
             # Use erase features to chop out areas of SBBs
             printMsg('Erasing portions of SBBs...')
@@ -347,10 +348,10 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
                   CullFrags(cleanFrags, tmpPF2, searchDist, csRtn)
                   
                   # Process:  Coalesce (final smoothing of the site)  
-                  # Verified this step is indeed necessary, 2018-01-23. It gets rid of linear intrusions (e.g., road cuts)
+                  # Verified this step is indeed necessary, 2018-01-23. It gets rid of linear intrusions (e.g., road cuts) and smooths things out.
                   # num, units, smthDist = multiMeasure(coalDist, smthMulti)
                   csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
-                  Coalesce(csRtn, coalDist, csCoal, scratchParm)
+                  Coalesce(csRtn, smthDist, csCoal, scratchParm)
                   
                   # Process:  Clean Erase (final removal of exclusion features)
                   printMsg('Excising manually delineated exclusion features...')

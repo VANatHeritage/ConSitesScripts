@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-01-19
+# Last Edit: 2018-01-24
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -353,11 +353,15 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scr
    # Process: Eliminate narrow features (or portions thereof)
    CoalEraseFeats = scratchGDB + os.sep + 'CoalEraseFeats'
    Coalesce("Selected_lyr", negDist, CoalEraseFeats, scratchGDB)
+   
+   # Process: Bump features back out to avoid weird pinched shapes
+   BumpEraseFeats = scratchGDB + os.sep + 'BumpEraseFeats'
+   Coalesce(CoalEraseFeats, elimDist, BumpEraseFeats, scratchGDB)
 
    if elimFeats == "":
-      CleanFeatures(CoalEraseFeats, outEraseFeats)
+      CleanFeatures(BumpEraseFeats, outEraseFeats)
    else:
-      CleanErase(CoalEraseFeats, elimFeats, outEraseFeats)
+      CleanErase(BumpEraseFeats, elimFeats, outEraseFeats)
    
    # Cleanup
    trashlist = [CoalEraseFeats]
