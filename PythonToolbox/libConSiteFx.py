@@ -555,3 +555,35 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    arcpy.Dissolve_management (sbbMerge, out_SBB, joinFld, "")
    
    printMsg('Done.')
+   return out_SBB
+   
+def ChopSBBs(in_PF, in_SBB, in_EraseFeats, out_Clusters, out_subErase, dilDist = "5 METERS", scratchGDB = "in_memory"):
+   '''Uses Erase Features to chop out sections of SBBs. Stitches SBB fragments back together only if within twice the dilDist of each other. Subsequently uses output to erase EraseFeats.'''
+
+   # Use in_EraseFeats to chop out sections of SBB
+   # Use regular Erase, not Clean Erase; multipart is good output at this point
+   printMsg('Chopping SBBs...')
+   firstChop = scratchGDB + os.sep + 'firstChop'
+   arcpy.Erase_analysis (in_SBB, in_EraseFeats, firstChop)
+
+   # Eliminate parts comprising less than 5% of total SBB size
+   printMsg('Eliminating insignificant parts of SBBs...')
+   rtnParts = scratchGDB + os.sep + 'rtnParts'
+   arcpy.EliminatePolygonPart_management (firstChop, rtnParts, 'PERCENT', '', 5, 'ANY')
+   
+   # Shrink-wrap to fill in gaps
+   printMsg('Clustering SBB fragments...')
+   initClusters = scratchGDB + os.sep + 'initClusters'
+   ShrinkWrap(rtnParts, dilDist, initClusters, smthMulti = 2)
+   
+   # Remove any fragments without procedural features
+   printMsg('Culling SBB fragments...')
+   CullFrags(initClusters, in_PF, 0, out_Clusters)
+   
+   # Use SBB clusters to chop out sections of Erase Features
+   printMsg('Eliminating irrelevant Erase Features')
+   CleanErase(in_EraseFeats, out_Clusters, out_subErase)
+   
+   outTuple = (out_Clusters, out_subErase)
+   return outTuple
+

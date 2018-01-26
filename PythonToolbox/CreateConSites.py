@@ -265,9 +265,9 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
             
             # Get Hydro Erase Features
-            printMsg('Eliminating insignificant hydro features from erase features...')
+            printMsg('Getting relevant hydro features...')
             hydroErase = scratchGDB + os.sep + 'hydroErase'
-            GetEraseFeats (hydroClp, hydroQry, hydroElimDist, hydroErase)
+            arcpy.Select_analysis (hydroClp, hydroErase, hydroQry)
             
             # Cull Hydro Erase Features
             printMsg('Culling hydro erase features...')
@@ -279,10 +279,16 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             tmpErase = scratchGDB + os.sep + 'tmpErase'
             arcpy.Merge_management ([efClp, transRtn, hydroRtn], tmpErase)
 
+            # Modify SBBs and Erase Features
+            printMsg('Clustering SBBs...')
+            sbbClusters = scratchGDB + os.sep + 'sbbClusters'
+            sbbErase = scratchGDB + os.sep + 'sbbErase'
+            ChopSBBs(tmpPF, tmpSBB, tmpErase, sbbClusters, sbbErase, "5 METERS", scratchParm)
+            
             # Use erase features to chop out areas of SBBs
             printMsg('Erasing portions of SBBs...')
             sbbFrags = scratchGDB + os.sep + 'sbbFrags'
-            CleanErase (tmpSBB, tmpErase, sbbFrags, scratchParm) 
+            CleanErase (tmpSBB, sbbErase, sbbFrags, scratchParm) 
             
             # Remove any SBB fragments too far from a PF
             printMsg('Culling SBB fragments...')
@@ -293,7 +299,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             # Use erase features to chop out areas of ProtoSites
             printMsg('Erasing portions of ProtoSites...')
             psFrags = scratchGDB + os.sep + 'psFrags'
-            CleanErase (psSHP, tmpErase, psFrags, scratchParm) 
+            CleanErase (psSHP, sbbErase, psFrags, scratchParm) 
             
             # Remove any ProtoSite fragments too far from a PF
             printMsg('Culling ProtoSite fragments...')
