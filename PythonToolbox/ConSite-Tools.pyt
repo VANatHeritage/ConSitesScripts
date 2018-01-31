@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-01-22
+# Last Edit: 2018-01-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -50,13 +50,13 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [shrinkwrap, create_sbb, create_consite]
+      self.tools = [coalesce, shrinkwrap, create_sbb, create_consite]
 
 # Define the tools
-class shrinkwrap(object):
+class coalesce(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "Shrinkwrap"
+      self.label = "Coalesce"
       self.description = ""
       self.canRunInBackground = True
 
@@ -96,7 +96,60 @@ class shrinkwrap(object):
       else:
          scratchParm = "in_memory" 
       
-      ShrinkWrap(in_Feats, dil_Dist, out_Feats, scratchParm)
+      Coalesce(in_Feats, dil_Dist, out_Feats, scratchParm)
+
+      return out_Feats
+
+class shrinkwrap(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Shrinkwrap"
+      self.description = ""
+      self.canRunInBackground = True
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_Feats", "Input features", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("dil_Dist", "Dilation distance", "GPLinearUnit", "Required", "Input")
+      parm2 = defineParam("out_Feats", "Output features", "DEFeatureClass", "Required", "Output")
+      parm3 = defineParam("smthMulti", "Smoothing multiplier", "GPDouble", "Optional", "Input", 8)
+      parm4 = defineParam("scratch_GDB", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
+      
+      parm4.filter.list = ["Local Database"]
+      parms = [parm0, parm1, parm2, parm3, parm4]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      if scratch_GDB != 'None':
+         scratchParm = scratch_GDB 
+      else:
+         scratchParm = "in_memory" 
+         
+      if smthMulti != 'None':
+         multiParm = smthMulti
+      else:
+         multiParm = 8
+      
+      ShrinkWrap(in_Feats, dil_Dist, out_Feats, multiParm, scratchParm)
 
       return out_Feats
 

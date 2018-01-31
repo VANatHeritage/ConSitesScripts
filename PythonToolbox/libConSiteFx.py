@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-01-25
+# Last Edit: 2018-01-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -130,9 +130,9 @@ def CleanFeatures(inFeats, outFeats):
    
 def CleanClip(inFeats, clipFeats, outFeats, scratchGDB = "in_memory"):
    '''Clips the Input Features with the Clip Features.  The resulting features are then subjected to geometry repair and exploded (eliminating multipart polygons)'''
-   # Determine where temporary data are written
-   msg = getScratchMsg(scratchGDB)
-   arcpy.AddMessage(msg)
+   # # Determine where temporary data are written
+   # msg = getScratchMsg(scratchGDB)
+   # arcpy.AddMessage(msg)
    
    # Process: Clip
    tmpClip = scratchGDB + os.sep + "tmpClip"
@@ -142,15 +142,16 @@ def CleanClip(inFeats, clipFeats, outFeats, scratchGDB = "in_memory"):
    CleanFeatures(tmpClip, outFeats)
    
    # Cleanup
-   garbagePickup([tmpClip])
+   if scratchGDB == "in_memory":
+      garbagePickup([tmpClip])
    
    return outFeats
    
 def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
    '''Uses Eraser Features to erase portions of the Input Features, then repairs geometry and explodes any multipart polygons.'''
-   # Determine where temporary data are written
-   msg = getScratchMsg(scratchGDB)
-   arcpy.AddMessage(msg)
+   # # Determine where temporary data are written
+   # msg = getScratchMsg(scratchGDB)
+   # arcpy.AddMessage(msg)
    
    # Process: Erase
    tmpErased = scratchGDB + os.sep + "tmpErased"
@@ -160,7 +161,8 @@ def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
    CleanFeatures(tmpErased, outFeats)
    
    # Cleanup
-   garbagePickup([tmpErased])
+   if scratchGDB == "in_memory":
+      garbagePickup([tmpErased])
    
    return outFeats
    
@@ -201,19 +203,27 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Process:  Generalize Features
    # This should prevent random processing failures on features with many vertices, and also speed processing in general
    arcpy.Generalize_edit(Clean_Buff1, "0.1 Meters")
+   
+   # Eliminate gaps
+   # Added step due to weird behavior on some buffers
+   printMsg("Eliminating sliver gaps...")
+   Clean_Buff1_ng = scratchGDB + os.sep + "Clean_Buff1_ng"
+   arcpy.EliminatePolygonPart_management (Clean_Buff1, Clean_Buff1_ng, "AREA", "900 SQUAREMETERS", "", "CONTAINED_ONLY")
 
    # Process: Buffer
    Buff2 = scratchGDB + os.sep + "NegativeBuffer"
-   arcpy.Buffer_analysis(Clean_Buff1, Buff2, negMeas, "FULL", "ROUND", dissolve2, "", "PLANAR")
+   arcpy.Buffer_analysis(Clean_Buff1_ng, Buff2, negMeas, "FULL", "ROUND", dissolve2, "", "PLANAR")
 
    # Process: Clean Features to get final dilated features
    CleanFeatures(Buff2, outFeats)
       
    # Cleanup
-   garbagePickup([Buff1, Clean_Buff1, Buff2])
+   if scratchGDB == "in_memory":
+      garbagePickup([Buff1, Clean_Buff1, Buff2])
    
 def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memory"):
    # Parse dilation distance, and increase it to get smoothing distance
+   smthMulti = float(smthMulti)
    origDist, units, meas = multiMeasure(dilDist, 1)
    smthDist, units, smthMeas = multiMeasure(dilDist, smthMulti)
 
@@ -305,26 +315,31 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
          # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
          trashList.append(coalFeats)
          
-         # Process:  Union coalesced features (to remove gaps)
-         # This is only necessary b/c we are now applying this tool to the Cores layer, which has gaps
-         unionFeats = scratchGDB + os.sep + "unionFeats"
-         arcpy.Union_analysis ([coalFeats], unionFeats, "ONLY_FID", "", "NO_GAPS") 
-         trashList.append(unionFeats)
+         # # Process:  Union coalesced features (to remove gaps)
+         # # This is only necessary b/c we are now applying this tool to the Cores layer, which has gaps
+         # unionFeats = scratchGDB + os.sep + "unionFeats"
+         # arcpy.Union_analysis ([coalFeats], unionFeats, "ONLY_FID", "", "NO_GAPS") 
+         # trashList.append(unionFeats)
          
-         # Process:  Dissolve again 
-         dissunionFeats = scratchGDB + os.sep + "dissunionFeats"
-         arcpy.Dissolve_management (unionFeats, dissunionFeats, "", "", "SINGLE_PART", "")
-         trashList.append(dissunionFeats)
+         # # Process:  Dissolve again 
+         # dissunionFeats = scratchGDB + os.sep + "dissunionFeats"
+         # arcpy.Dissolve_management (unionFeats, dissunionFeats, "", "", "SINGLE_PART", "")
+         # trashList.append(dissunionFeats)
+         
+         # Eliminate gaps
+         noGapFeats = scratchGDB + os.sep + "noGapFeats"
+         arcpy. EliminatePolygonPart_management (coalFeats, noGapFeats, "PERCENT", "", 99, "CONTAINED_ONLY")
          
          # Process:  Append the final geometry to the ShrinkWrap feature class
          arcpy.AddMessage("Appending feature...")
-         arcpy.Append_management(dissunionFeats, outFeats, "NO_TEST", "", "")
+         arcpy.Append_management(noGapFeats, outFeats, "NO_TEST", "", "")
          
          counter +=1
          del Feat
 
    # Cleanup
-   garbagePickup(trashList)
+   if scratchGDB == "in_memory":
+      garbagePickup(trashList)
    
 def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scratchGDB = "in_memory"):
    ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
@@ -369,39 +384,43 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scr
    
    return outEraseFeats
    
-def CullEraseFeats (inEraseFeats, inBnd, in_PF, fld_SFID, PerCov, outEraseFeats, scratchGDB = "in_memory"):
+def CullEraseFeats (inEraseFeats, in_Feats, fld_SFID, PerCov, outEraseFeats, scratchGDB = "in_memory"):
    '''For ConSite creation: Culls exclusion features containing a significant percentage of any 
-Procedural Feature's area'''
+input feature's (PF or SBB) area'''
    # Process:  Add Field (Erase ID) and Calculate
    arcpy.AddField_management (inEraseFeats, "eFID", "LONG")
    arcpy.CalculateField_management (inEraseFeats, "eFID", "!OBJECTID!", "PYTHON")
    
    # Process: Tabulate Intersection
-   # This tabulates the percentage of each PF that is contained within each erase feature
-   TabIntersect = scratchGDB + os.sep + "TabInter"
-   arcpy.TabulateIntersection_analysis(in_PF, fld_SFID, inEraseFeats, TabIntersect, "eFID", "", "", "HECTARES")
+   # This tabulates the percentage of each input feature that is contained within each erase feature
+   TabIntersect = scratchGDB + os.sep + os.path.basename(inEraseFeats) + "_TabInter"
+   arcpy.TabulateIntersection_analysis(in_Feats, fld_SFID, inEraseFeats, TabIntersect, "eFID", "", "", "HECTARES")
    
    # Process: Summary Statistics
-   # This tabulates the maximum percentage of ANY PF within each erase feature
-   TabMax = scratchGDB + os.sep + "TabMax"
-   arcpy.Statistics_analysis(TabIntersect, TabMax, "PERCENTAGE MAX", "eFID")
+   # This tabulates the maximum percentage of ANY input feature within each erase feature
+   TabSum = scratchGDB + os.sep + os.path.basename(inEraseFeats) + "_TabSum"
+   arcpy.Statistics_analysis(TabIntersect, TabSum, "PERCENTAGE SUM", fld_SFID)
    
    # Process: Join Field
-   # This joins the max percentage value back to the original erase features
-   arcpy.JoinField_management(inEraseFeats, "eFID", TabMax, "eFID", "MAX_PERCENTAGE")
+   # This joins the summed percentage value back to the original input features
+   try:
+      arcpy.DeleteField_management (in_Feats, "SUM_PERCENTAGE")
+   except:
+      pass
+   arcpy.JoinField_management(in_Feats, fld_SFID, TabSum, fld_SFID, "SUM_PERCENTAGE")
    
-   # Process: Select
-   # Any erase features containing a large enough percentage of a PF are discarded
-   WhereClause = "MAX_PERCENTAGE < %s OR MAX_PERCENTAGE IS null" % PerCov
-   selEraseFeats = scratchGDB + os.sep + 'selEraseFeats'
-   arcpy.Select_analysis(inEraseFeats, selEraseFeats, WhereClause)
+   # Process: Select features containing a large enough percentage of erase features
+   WhereClause = "SUM_PERCENTAGE >= %s" % PerCov
+   selInFeats = scratchGDB + os.sep + 'selInFeats'
+   arcpy.Select_analysis(in_Feats, selInFeats, WhereClause)
    
-   # Process:  Clean Erase (Use in_PF to chop out areas of remaining exclusion features)
-   CleanErase(selEraseFeats, in_PF, outEraseFeats, scratchGDB)
+   # Process:  Clean Erase (Use selected input features to chop out areas of exclusion features)
+   CleanErase(inEraseFeats, selInFeats, outEraseFeats, scratchGDB)
    
-   # Cleanup
-   trashlist = [TabIntersect, TabMax]
-   garbagePickup(trashlist)
+   if scratchGDB == "in_memory":
+      # Cleanup
+      trashlist = [TabIntersect, TabSum]
+      garbagePickup(trashlist)
    
    return outEraseFeats
    
@@ -548,8 +567,8 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    sbbRtn = scratchGDB + os.sep + 'sbbRtn'
    CullFrags(clpBuff, pfSub, "0 METERS", sbbRtn)
    
-   # Merge, then dissolve old SBBs with buffered SBBs to get final shapes
-   printMsg('Finalizing...')
+   # Merge, then dissolve to get final shapes
+   printMsg('Dissolving original SBBs with buffered SBBs to get final shapes...')
    sbbMerge = scratchGDB + os.sep + "sbbMerge"
    arcpy.Merge_management ([sbbSub, sbbRtn], sbbMerge)
    arcpy.Dissolve_management (sbbMerge, out_SBB, joinFld, "")
@@ -571,7 +590,7 @@ def ChopSBBs(in_PF, in_SBB, in_EraseFeats, out_Clusters, out_subErase, dilDist =
    rtnParts = scratchGDB + os.sep + 'rtnParts'
    arcpy.EliminatePolygonPart_management (firstChop, rtnParts, 'PERCENT', '', 5, 'ANY')
    
-   # Shrink-wrap to fill in gaps
+   # Shrinkwrap to fill in gaps
    printMsg('Clustering SBB fragments...')
    initClusters = scratchGDB + os.sep + 'initClusters'
    ShrinkWrap(rtnParts, dilDist, initClusters, smthMulti = 2)
@@ -587,3 +606,15 @@ def ChopSBBs(in_PF, in_SBB, in_EraseFeats, out_Clusters, out_subErase, dilDist =
    outTuple = (out_Clusters, out_subErase)
    return outTuple
 
+def  main():
+   # Set up variables
+   inFeats = r'C:\Users\xch43889\Documents\ArcGIS\Default.gdb\dissFeats_Elim'
+   dilDist = '2000 METERS'
+   outFeats = r'C:\Testing\scratch20180127.gdb\dissFeats_Elim_coalesce2k_ng'
+   scratchGDB = r'C:\Testing\scratch20180127.gdb'
+   
+   # Call function
+   Coalesce(inFeats, dilDist, outFeats, scratchGDB)
+
+if __name__ == '__main__':
+   main()

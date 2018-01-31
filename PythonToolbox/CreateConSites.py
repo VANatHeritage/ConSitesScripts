@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-25
+# Last Edit: 2018-01-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -32,10 +32,10 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    # Specify a bunch of parameters
    selDist = "1000 METERS" # Distance used to expand the SBB selection, if this option is selected. Also used to add extra buffer to SBBs.
    dilDist = "250 METERS" # Distance used to coalesce SBBs into ProtoSites (precursors to final automated CS boundaries). Features within twice this distance of each other will be merged into one.
-   hydroPerCov = 80 # The minimum percent cover of any PF that must be within a given hydro feature, for that hydro feature to be eliminated from the set of features which are used to erase portions of the site.
+   hydroPerCov = 100 # The minimum percent of any SBB feature that must be covered by water, for those features to be eliminated from the set of features which are used to erase portions of the site. Set to 101 if you don't want features to ever be purged.
    hydroQry = "Hydro = 1" # Expression used to select appropriate hydro features to create erase features
    hydroElimDist = "10 METERS" # Distance used to eliminate insignificant water features from the set of erasing features. Portions of water bodies less than double this width will not be used to split or erase portions of sites.
-   transPerCov = 50 #The minimum percent cover of any PF that must be within a given transportation surface feature, for that feature to be eliminated from the set of features which are used to erase portions of the site.
+   transPerCov = 15 #The minimum percent any SBB that must be covered by transportation surfaces, for those surfaces to be eliminated from the set of features which are used to erase portions of the site. Set to 101 if you don't want features to ever be purged.
    transQry = "nhIgnore = 0 OR nhIgnore IS NULL" ### Substituted old query with new query, allowing user to specify segments to ignore. Old query was: "DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
    #transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
@@ -57,7 +57,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
 
    if not scratchGDB:
       scratchGDB = "in_memory"
-      # Use "in_memory" as default, but if script is failing, use scratchGDB on disk.
+      # Use "in_memory" as default, but if script is failing, use scratchGDB on disk. Also use scratchGDB on disk if you are trying to run this in two or more instances of Arc or Python, otherwise you can run into catastrophic memory conflicts.
       
    if scratchGDB != "in_memory":
       printMsg("Scratch outputs will be stored here: %s" % scratchGDB)
@@ -101,11 +101,11 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
       arcpy.Merge_management(Trans, mergeTrans)
       Trans = mergeTrans
    
-   # Get relevant subset of transportation features
-   printMsg('Subsetting transportation features')
-   subTrans = scratchGDB + os.sep + 'subTrans'
-   arcpy.Select_analysis (Trans, subTrans, transQry)
-   Trans = subTrans
+   # # Get relevant subset of transportation features
+   # printMsg('Subsetting transportation features')
+   # subTrans = scratchGDB + os.sep + 'subTrans'
+   # arcpy.Select_analysis (Trans, subTrans, transQry)
+   # Trans = subTrans
    
    # # Get relevant subset of hydro features
    # printMsg('Subsetting hydro features')
@@ -131,6 +131,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    # Make Feature Layers
    arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
    arcpy.MakeFeatureLayer_management(in_Cores, "Cores_lyr") 
+   arcpy.MakeFeatureLayer_management (in_Hydro, "Hydro_lyr", hydroQry)
    
    ### Cores incorporation code starts here
    # Process: Select Layer By Location (Get Cores intersecting PFs)
@@ -160,7 +161,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
          coreID = core[1]
          printMsg('Working on Core ID %s' % str(coreID))
          out_SBB = scratchGDB + os.sep + 'sbb'
-         AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchGDB = "in_memory")
+         AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchParm)
          
          # Append expanded SBB features to output
          arcpy.Append_management (out_SBB, sbbExpand, "NO_TEST")
@@ -168,7 +169,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
          del core
    
    # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
-   printMsg('Finalizing...')
+   printMsg('Merging all SBBs...')
    sbbAll = scratchGDB + os.sep + "sbbAll"
    sbbFinal = myWorkspace + os.sep + "sbbFinal"
    arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
@@ -239,7 +240,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             printMsg('Selected PFs copied.')
             
             # Buffer around the ProtoSite
-            printMsg('Buffering ProtoSite...')
+            printMsg('Buffering ProtoSite to get processing area...')
             tmpBuff = scratchGDB + os.sep + 'tmpBuff'
             arcpy.Buffer_analysis (tmpPS, tmpBuff, buffDist, "", "", "", "")  
             
@@ -249,41 +250,48 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             CleanClip(Trans, tmpBuff, tranClp, scratchParm)
             printMsg('Clipping hydro features to buffer...')
             hydroClp = scratchGDB + os.sep + 'hydroClp'
-            CleanClip(in_Hydro, tmpBuff, hydroClp, scratchParm)
+            CleanClip("Hydro_lyr", tmpBuff, hydroClp, scratchParm)
             printMsg('Clipping exclusion features to buffer...')
             efClp = scratchGDB + os.sep + 'efClp'
             CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
             
             # Cull Transportation Surface Features 
-            printMsg('Culling transportation erase features with significant PF coverage...')
+            printMsg('Culling transportation erase features based on prevalence in SBBs...')
             transRtn = scratchGDB + os.sep + 'transRtn'
-            CullEraseFeats (tranClp, tmpBuff, tmpPF, joinFld, transPerCov, transRtn)
+            CullEraseFeats (tranClp, tmpSBB, joinFld, transPerCov, transRtn, scratchParm)
             
-            # Eliminated GetEraseFeats process (2018-01-17)
+            # Eliminated GetEraseFeats process for roads/rail(2018-01-17)
             # # Get Transportation Surface Erase Features
-            # transErase = scratchGDB + os.sep + 'transErase'
+            printMsg('Subsetting transportation features')
+            transErase = scratchGDB + os.sep + 'transErase'
+            arcpy.Select_analysis (transRtn, transErase, transQry)
             # GetEraseFeats (transRtn, transQry, transElimDist, transErase)
             
-            # Get Hydro Erase Features
-            printMsg('Getting relevant hydro features...')
-            hydroErase = scratchGDB + os.sep + 'hydroErase'
-            arcpy.Select_analysis (hydroClp, hydroErase, hydroQry)
-            
             # Cull Hydro Erase Features
-            printMsg('Culling hydro erase features...')
+            printMsg('Culling hydro erase features based on prevalence in SBBs...')
             hydroRtn = scratchGDB + os.sep + 'hydroRtn'
-            CullEraseFeats (hydroErase, tmpBuff, tmpPF, joinFld, hydroPerCov, hydroRtn)
+            CullEraseFeats (hydroClp, tmpSBB, joinFld, hydroPerCov, hydroRtn, scratchParm)
+            
+            # Get Hydro Erase Features
+            printMsg('Eliminating narrow hydro features from erase features...')
+            hydroErase = scratchGDB + os.sep + 'hydroErase'
+            GetEraseFeats (hydroRtn, hydroQry, hydroElimDist, hydroErase, tmpPF, scratchParm)
             
             # Merge Erase Features (Exclusion features, hydro features, and retained transportation features)
             printMsg('Merging erase features...')
             tmpErase = scratchGDB + os.sep + 'tmpErase'
-            arcpy.Merge_management ([efClp, transRtn, hydroRtn], tmpErase)
+            arcpy.Merge_management ([efClp, transErase, hydroErase], tmpErase)
+            
+            # Coalesce erase features to remove weird gaps and slivers
+            printMsg('Coalescing erase features...')
+            coalErase = scratchGDB + os.sep + 'coalErase'
+            Coalesce(tmpErase, "0.5 METERS", coalErase, scratchParm)
 
             # Modify SBBs and Erase Features
             printMsg('Clustering SBBs...')
             sbbClusters = scratchGDB + os.sep + 'sbbClusters'
             sbbErase = scratchGDB + os.sep + 'sbbErase'
-            ChopSBBs(tmpPF, tmpSBB, tmpErase, sbbClusters, sbbErase, "5 METERS", scratchParm)
+            ChopSBBs(tmpPF, tmpSBB, coalErase, sbbClusters, sbbErase, "5 METERS", scratchParm)
             
             # Use erase features to chop out areas of SBBs
             printMsg('Erasing portions of SBBs...')
@@ -350,6 +358,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
                   
                   # # Process:  Coalesce (final smoothing of the site)  
                   # # Verified this step is indeed necessary, 2018-01-23. It gets rid of linear intrusions (e.g., road cuts) and smooths things out.
+                  # Code later modified so this step is no longer needed here.
                   # # num, units, smthDist = multiMeasure(coalDist, smthMulti)
                   # csCoal = scratchGDB + os.sep + 'csCoal' + str(counter2)
                   # Coalesce(csRtn, smthDist, csCoal, scratchParm)
@@ -396,7 +405,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
             # Eliminate gaps
             printMsg('Eliminating insignificant gaps...')
             finBnd = scratchGDB + os.sep + 'finBnd'
-            arcpy.EliminatePolygonPart_management (csCull, finBnd, "AREA_OR_PERCENT", "1 HECTARES", "10", "CONTAINED_ONLY")
+            arcpy.EliminatePolygonPart_management (csCull, finBnd, "AREA_AND_PERCENT", "1 HECTARES", 10, "CONTAINED_ONLY")
 
             # Append the final geometry to the ConSites feature class.
             printMsg("Appending feature...")
@@ -438,11 +447,11 @@ def main():
    in_Cores = r'C:\Users\xch43889\Documents\Working\ConSites\VaNLA2017Cores4ConSites.gdb\VaNLACoresRanks123' # Cores used to expand sites
    Roads = r"H:\Backups\DCR_Work_DellD\TransportatationProc\RCL_Proc_20171206.gdb\RCL_surfaces_20171206"
    Rail = r"H:\Backups\DCR_Work_DellD\TransportatationProc\Rail_Proc_20180108.gdb\Rail_surfaces_20180108"
-   in_TranSurf = r'C:\Testing\scratch20180118.gdb\mergeTrans' # Input transportation surface features
+   in_TranSurf = r'C:\Testing\csTroubleShoot.gdb\mergeTrans' # Input transportation surface features
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ConSites_20171206_183308" # Current Conservation Sites; for template
-   out_ConSites = r'C:\Testing\ConSiteTests20180123.gdb\ConSites_fullTest' # Output new Conservation Sites
+   out_ConSites = r'C:\Testing\cs20180129.gdb\ConSites_fullTest3' # Output new Conservation Sites
    scratchGDB = "in_memory" # Workspace for temporary data
    # End of user input
 
