@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-01-30
+# Last Edit: 2018-02-01
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -15,7 +15,7 @@
 import libConSiteFx
 from libConSiteFx import *
 
-def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB = "in_memory"):
+def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB = "in_memory"):
    '''Creates Conservation Sites from the specified inputs:
    - in_SBB: feature class representing Site Building Blocks
    - ysn_Expand: ["true"/"false"] - determines whether to expand the selection of SBBs to include more in the vicinity
@@ -113,70 +113,72 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    # arcpy.Select_analysis (in_Hydro, subHydro, hydroQry)
    
    # Make Feature Layer from PFs
-   arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")   
+   #arcpy.MakeFeatureLayer_management(in_PF, "PF_lyr")   
 
    # Set up output locations for subsets of SBBs and PFs to process
-   SBB_sub = myWorkspace + os.sep + 'SBB_sub'
-   PF_sub = myWorkspace + os.sep + 'PF_sub'
+   SBB_sub = scratchGDB + os.sep + 'SBB_sub'
+   PF_sub = scratchGDB + os.sep + 'PF_sub'
 
    if ysn_Expand == "true":
       # Expand SBB selection
       printMsg('Expanding the current SBB selection and making copies of the SBBs and PFs...')
-      ExpandSBBselection(in_SBB, "PF_lyr", joinFld, in_ConSites, selDist, SBB_sub, PF_sub)
+      ExpandSBBselection(in_SBB, in_PF, joinFld, in_ConSites, selDist, SBB_sub, PF_sub)
    else:
       # Subset PFs and SBBs
       printMsg('Using the current SBB selection and making copies of the SBBs and PFs...')
-      SubsetSBBandPF(in_SBB, "PF_lyr", "PF", joinFld, SBB_sub, PF_sub)
+      SubsetSBBandPF(in_SBB, in_PF, "PF", joinFld, SBB_sub, PF_sub)
 
    # Make Feature Layers
    arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
-   arcpy.MakeFeatureLayer_management(in_Cores, "Cores_lyr") 
+   arcpy.MakeFeatureLayer_management(SBB_sub, "SBB_lyr") 
+   # arcpy.MakeFeatureLayer_management(in_Cores, "Cores_lyr") 
    arcpy.MakeFeatureLayer_management (in_Hydro, "Hydro_lyr", hydroQry)
    
-   ### Cores incorporation code starts here
-   # Process: Select Layer By Location (Get Cores intersecting PFs)
-   printMsg('Selecting cores that intersect procedural features')
-   arcpy.SelectLayerByLocation_management("Cores_lyr", "INTERSECT", "PF_lyr", "", "NEW_SELECTION", "NOT_INVERT")
+   # ### Cores incorporation code starts here
+   # This section has been moved over to CreateSBBs.py
+   # # Process: Select Layer By Location (Get Cores intersecting PFs)
+   # printMsg('Selecting cores that intersect procedural features')
+   # arcpy.SelectLayerByLocation_management("Cores_lyr", "INTERSECT", "PF_lyr", "", "NEW_SELECTION", "NOT_INVERT")
 
-   # Process:  Copy the selected Cores features to scratch feature class
-   selCores = scratchGDB + os.sep + 'selCores'
-   arcpy.CopyFeatures_management ("Cores_lyr", selCores) 
+   # # Process:  Copy the selected Cores features to scratch feature class
+   # selCores = scratchGDB + os.sep + 'selCores'
+   # arcpy.CopyFeatures_management ("Cores_lyr", selCores) 
 
-   # Process:  Repair Geometry and get feature count
-   arcpy.RepairGeometry_management (selCores, "DELETE_NULL")
-   numCores = countFeatures(selCores)
-   printMsg('There are %s cores to process.' %str(numCores))
+   # # Process:  Repair Geometry and get feature count
+   # arcpy.RepairGeometry_management (selCores, "DELETE_NULL")
+   # numCores = countFeatures(selCores)
+   # printMsg('There are %s cores to process.' %str(numCores))
    
-   # Add extra buffers to SBBs of PFs intersecting Cores
-   # Create Feature Class to store expanded SBBs
-   printMsg("Creating feature class to store buffered SBBs...")
-   arcpy.CreateFeatureclass_management (myWorkspace, 'sbbExpand', "POLYGON", SBB_sub, "", "", SBB_sub) 
-   sbbExpand = myWorkspace + os.sep + 'sbbExpand'
-   # Loop through Cores
-   counter = 1
-   with  arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"]) as myCores:
-      for core in myCores:
-         # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
-         coreShp = core[0]
-         coreID = core[1]
-         printMsg('Working on Core ID %s' % str(coreID))
-         out_SBB = scratchGDB + os.sep + 'sbb'
-         AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchParm)
+   # # Add extra buffers to SBBs of PFs intersecting Cores
+   # # Create Feature Class to store expanded SBBs
+   # printMsg("Creating feature class to store buffered SBBs...")
+   # arcpy.CreateFeatureclass_management (myWorkspace, 'sbbExpand', "POLYGON", SBB_sub, "", "", SBB_sub) 
+   # sbbExpand = myWorkspace + os.sep + 'sbbExpand'
+   # # Loop through Cores
+   # counter = 1
+   # with  arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"]) as myCores:
+      # for core in myCores:
+         # # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
+         # coreShp = core[0]
+         # coreID = core[1]
+         # printMsg('Working on Core ID %s' % str(coreID))
+         # out_SBB = scratchGDB + os.sep + 'sbb'
+         # AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, out_SBB, selDist, scratchParm)
          
-         # Append expanded SBB features to output
-         arcpy.Append_management (out_SBB, sbbExpand, "NO_TEST")
+         # # Append expanded SBB features to output
+         # arcpy.Append_management (out_SBB, sbbExpand, "NO_TEST")
          
-         del core
+         # del core
    
-   # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
-   printMsg('Merging all SBBs...')
-   sbbAll = scratchGDB + os.sep + "sbbAll"
-   sbbFinal = myWorkspace + os.sep + "sbbFinal"
-   arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
-   arcpy.Dissolve_management (sbbAll, sbbFinal, joinFld, "")
-   arcpy.MakeFeatureLayer_management(sbbFinal, "SBB_lyr") 
+   # # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
+   # printMsg('Merging all SBBs...')
+   # sbbAll = scratchGDB + os.sep + "sbbAll"
+   # sbbFinal = myWorkspace + os.sep + "sbbFinal"
+   # arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
+   # arcpy.Dissolve_management (sbbAll, sbbFinal, joinFld, "")
+   # arcpy.MakeFeatureLayer_management(sbbFinal, "SBB_lyr") 
    
-   ### Cores incorporation code ends here
+   # ### Cores incorporation code ends here
 
    # Process:  Create Feature Classes (to store ConSites)
    printMsg("Creating ConSites features class to store output features...")
@@ -193,7 +195,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    outPS = myWorkspace + os.sep + 'ProtoSites'
       # Saving ProtoSites to hard drive, just in case...
    printMsg('ProtoSites will be stored here: %s' % outPS)
-   ShrinkWrap(sbbFinal, dilDist, outPS)
+   ShrinkWrap("SBB_lyr", dilDist, outPS)
 
    # Generalize Features in hopes of speeding processing and preventing random processing failures 
    arcpy.AddMessage("Simplifying features...")

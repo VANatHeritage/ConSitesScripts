@@ -363,6 +363,79 @@ def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, 
    
    return out_SBB
 
+def ExpandSBBs(in_Cores, in_SBB, in_PF, joinFld, out_SBB, scratchGDB = "in_memory"):
+   '''Expands SBBs by adding core area.'''
+   
+   tStart = datetime.now()
+   
+   # Declare path/name of output data and workspace
+   drive, path = os.path.splitdrive(out_SBB) 
+   path, filename = os.path.split(path)
+   myWorkspace = drive + path
+   
+   # Print helpful message to geoprocessing window
+   getScratchMsg(scratchGDB)
+   
+   # Set up output locations for subsets of SBBs and PFs to process
+   SBB_sub = scratchGDB + os.sep + 'SBB_sub'
+   PF_sub = scratchGDB + os.sep + 'PF_sub'
+   
+   # Subset PFs and SBBs
+   printMsg('Using the current SBB selection and making copies of the SBBs and PFs...')
+   SubsetSBBandPF(in_SBB, in_PF, "PF", joinFld, SBB_sub, PF_sub)
+   
+   # Process: Select Layer By Location (Get Cores intersecting PFs)
+   printMsg('Selecting cores that intersect procedural features')
+   arcpy.MakeFeatureLayer_management(in_Cores, "Cores_lyr")
+   arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
+   arcpy.SelectLayerByLocation_management("Cores_lyr", "INTERSECT", "PF_lyr", "", "NEW_SELECTION", "NOT_INVERT")
+
+   # Process:  Copy the selected Cores features to scratch feature class
+   selCores = scratchGDB + os.sep + 'selCores'
+   arcpy.CopyFeatures_management ("Cores_lyr", selCores) 
+
+   # Process:  Repair Geometry and get feature count
+   arcpy.RepairGeometry_management (selCores, "DELETE_NULL")
+   numCores = countFeatures(selCores)
+   printMsg('There are %s cores to process.' %str(numCores))
+   
+   # Create Feature Class to store expanded SBBs
+   printMsg("Creating feature class to store buffered SBBs...")
+   arcpy.CreateFeatureclass_management (scratchGDB, 'sbbExpand', "POLYGON", SBB_sub, "", "", SBB_sub) 
+   sbbExpand = scratchGDB + os.sep + 'sbbExpand'
+   
+   # Loop through Cores and add core buffers to SBBs
+   counter = 1
+   with  arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"]) as myCores:
+      for core in myCores:
+         # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
+         coreShp = core[0]
+         coreID = core[1]
+         printMsg('Working on Core ID %s' % str(coreID))
+         tmpSBB = scratchGDB + os.sep + 'sbb'
+         AddCoreAreaToSBBs(PF_sub, SBB_sub, joinFld, coreShp, tmpSBB, "1000 METERS", scratchGDB)
+         
+         # Append expanded SBB features to output
+         arcpy.Append_management (tmpSBB, sbbExpand, "NO_TEST")
+         
+         del core
+   
+   # Merge, then dissolve original SBBs with buffered SBBs to get final shapes
+   printMsg('Merging all SBBs...')
+   sbbAll = scratchGDB + os.sep + "sbbAll"
+   #sbbFinal = myWorkspace + os.sep + "sbbFinal"
+   arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
+   arcpy.Dissolve_management (sbbAll, out_SBB, joinFld, "")
+   #arcpy.MakeFeatureLayer_management(sbbFinal, "SBB_lyr") 
+   
+   printMsg('SBB processing complete')
+   
+   tFinish = datetime.now()
+   deltaString = GetElapsedTime (tStart, tFinish)
+   printMsg("Processing complete. Total elapsed time: %s" %deltaString)
+   
+   return out_SBB
+
 def main():
    # Set up your variables here
    in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics.gdb\ProcFeats_20180131_173111'

@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-01-31
+# Last Edit: 2018-02-01
 # Creator:  Kirsten R. Hazler
 
 # Summary:
