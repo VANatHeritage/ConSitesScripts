@@ -206,7 +206,6 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    
    # Eliminate gaps
    # Added step due to weird behavior on some buffers
-   # printMsg("Eliminating sliver gaps...")
    Clean_Buff1_ng = scratchGDB + os.sep + "Clean_Buff1_ng"
    arcpy.EliminatePolygonPart_management (Clean_Buff1, Clean_Buff1_ng, "AREA", "900 SQUAREMETERS", "", "CONTAINED_ONLY")
 
@@ -220,6 +219,8 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    # Cleanup
    if scratchGDB == "in_memory":
       garbagePickup([Buff1, Clean_Buff1, Buff2])
+      
+   return outFeats
    
 def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memory"):
    # Parse dilation distance, and increase it to get smoothing distance
@@ -232,11 +233,7 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
       arcpy.AddError("You need to enter a positive, non-zero value for the dilation distance")
       raise arcpy.ExecuteError   
 
-   # # Determine where temporary data are written
-   # msg = getScratchMsg(scratchGDB)
-   # arcpy.AddMessage(msg)
-
-   tmpWorkspace = arcpy.env.scratchGDB
+   #tmpWorkspace = arcpy.env.scratchGDB
    #arcpy.AddMessage("Additional critical temporary products will be stored here: %s" % tmpWorkspace)
    
    # Set up empty trashList for later garbage collection
@@ -249,39 +246,38 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
    Output_fname = filename
 
    # Process:  Create Feature Class (to store output)
-   #arcpy.AddMessage("Creating feature class to store output features...")
    arcpy.CreateFeatureclass_management (myWorkspace, Output_fname, "POLYGON", "", "", "", inFeats) 
 
    # Process:  Clean Features
-   #arcpy.AddMessage("Cleaning input features...")
-   cleanFeats = tmpWorkspace + os.sep + "cleanFeats"
+   #cleanFeats = tmpWorkspace + os.sep + "cleanFeats"
+   cleanFeats = scratchGDB + os.sep + "cleanFeats"
    CleanFeatures(inFeats, cleanFeats)
    trashList.append(cleanFeats)
 
    # Process:  Dissolve Features
-   #arcpy.AddMessage("Dissolving adjacent features...")
-   dissFeats = tmpWorkspace + os.sep + "dissFeats"
+   #dissFeats = tmpWorkspace + os.sep + "dissFeats"
    # Writing to disk in hopes of stopping geoprocessing failure
    #arcpy.AddMessage("This feature class is stored here: %s" % dissFeats)
+   dissFeats = scratchGDB + os.sep + "dissFeats"
    arcpy.Dissolve_management (cleanFeats, dissFeats, "", "", "SINGLE_PART", "")
    trashList.append(dissFeats)
 
    # Process:  Generalize Features
    # This should prevent random processing failures on features with many vertices, and also speed processing in general
-   #arcpy.AddMessage("Simplifying features...")
    arcpy.Generalize_edit(dissFeats, "0.1 Meters")
 
    # Process:  Buffer Features
    #arcpy.AddMessage("Buffering features...")
-   buffFeats = tmpWorkspace + os.sep + "buffFeats"
+   #buffFeats = tmpWorkspace + os.sep + "buffFeats"
+   buffFeats = scratchGDB + os.sep + "buffFeats"
    arcpy.Buffer_analysis (dissFeats, buffFeats, meas, "", "", "ALL")
    trashList.append(buffFeats)
 
    # Process:  Explode Multiparts
-   #arcpy.AddMessage("Exploding multipart features...")
-   explFeats = tmpWorkspace + os.sep + "explFeats"
+   #explFeats = tmpWorkspace + os.sep + "explFeats"
    # Writing to disk in hopes of stopping geoprocessing failure
    #arcpy.AddMessage("This feature class is stored here: %s" % explFeats)
+   explFeats = scratchGDB + os.sep + "explFeats"
    arcpy.MultipartToSinglepart_management (buffFeats, explFeats)
    trashList.append(explFeats)
 
@@ -315,17 +311,6 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
          # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
          trashList.append(coalFeats)
          
-         # # Process:  Union coalesced features (to remove gaps)
-         # # This is only necessary b/c we are now applying this tool to the Cores layer, which has gaps
-         # unionFeats = scratchGDB + os.sep + "unionFeats"
-         # arcpy.Union_analysis ([coalFeats], unionFeats, "ONLY_FID", "", "NO_GAPS") 
-         # trashList.append(unionFeats)
-         
-         # # Process:  Dissolve again 
-         # dissunionFeats = scratchGDB + os.sep + "dissunionFeats"
-         # arcpy.Dissolve_management (unionFeats, dissunionFeats, "", "", "SINGLE_PART", "")
-         # trashList.append(dissunionFeats)
-         
          # Eliminate gaps
          noGapFeats = scratchGDB + os.sep + "noGapFeats"
          arcpy. EliminatePolygonPart_management (coalFeats, noGapFeats, "PERCENT", "", 99, "CONTAINED_ONLY")
@@ -340,20 +325,13 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
    # Cleanup
    if scratchGDB == "in_memory":
       garbagePickup(trashList)
+      
+   return outFeats
    
 def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scratchGDB = "in_memory"):
    ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
    # Process: Make Feature Layer (subset of selected features)
    arcpy.MakeFeatureLayer_management(inFeats, "Selected_lyr", selQry)
-
-   ## Replace Dissolve with Coalesce, 1/11/2018. Delete below after further testing.
-   # # Process: Dissolve
-   # DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
-   # arcpy.Dissolve_management("Selected_lyr", DissEraseFeats, "", "", "SINGLE_PART")
-   
-   # # Process: Consolidate/dissolve features by coalescing
-   # DissEraseFeats = scratchGDB + os.sep + 'DissEraseFeats'
-   # Coalesce("Selected_lyr", dissolveDist, DissEraseFeats, scratchGDB)
 
    # If it's a string, parse elimination distance and get the negative
    if type(elimDist) == str:
@@ -379,8 +357,9 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scr
       CleanErase(BumpEraseFeats, elimFeats, outEraseFeats)
    
    # Cleanup
-   trashlist = [CoalEraseFeats]
-   garbagePickup(trashlist)
+   if scratchGDB == "in_memory":
+      trashlist = [CoalEraseFeats]
+      garbagePickup(trashlist)
    
    return outEraseFeats
    

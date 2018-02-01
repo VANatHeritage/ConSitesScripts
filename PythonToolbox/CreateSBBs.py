@@ -6,16 +6,7 @@
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
-# Creates rule-specific Site Building Blocks (SBBs) from Procedural Features (PFs).
-#
-# Usage Notes:
-# The primary function here is "CreateSBBs". All the others are helper functions called by the primary. If you want to create SBBs outside of ArcMap, go down to the bottom of the script and edit the "main" function to use the desired values for the input variables. Then you can simply run the script from an IDE such as PyScripter.
-
-#-  This function does not test to determine if all of the input Procedural Features should be subject to a particular rule. The user must ensure that this is so.
-#-  It is recommended that the NWI feature class be stored on your local drive rather than a network drive, to optimize processing speed.
-#-  For the CreateWetlandSBBs function to work properly, the input NWI data must contain a subset of only those features applicable to the particular rule.  Adjacent NWI features should have boundaries dissolved.
-#-  This tool is designed to send all output to a feature class within a geodatabase. It has not been tested for output to shapefiles.
-#-  For best results, it is recommended that you close all other programs before running this tool, since it relies on having ample memory for processing.
+# Collection of functions to create rule-specific Site Building Blocks (SBBs) from Procedural Features (PFs), and to expand SBBs by adding core habitat area.
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
@@ -271,7 +262,12 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
       printMsg('There are no PFs with this rule; passing...')
       
 def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratchGDB = "in_memory"):
-   '''Creates SBBs for all input PFs, subsetting and applying rules as needed'''
+   '''Creates SBBs for all input PFs, subsetting and applying rules as needed.
+   Usage Notes:  
+   - This function does not test to determine if all of the input Procedural Features should be subject to a particular rule. The user must ensure that this is so.
+   - It is recommended that the NWI feature class be stored on your local drive rather than a network drive, to optimize processing speed.
+   - For the CreateWetlandSBBs function to work properly, the input NWI data must contain a subset of only those features applicable to the particular rule.  Adjacent NWI features should have boundaries dissolved.
+   - For best results, it is recommended that you close all other programs before running this tool, since it relies on having ample memory for processing.'''
 
    tStart = datetime.now()
    
@@ -406,7 +402,7 @@ def ExpandSBBs(in_Cores, in_SBB, in_PF, joinFld, out_SBB, scratchGDB = "in_memor
    
    # Loop through Cores and add core buffers to SBBs
    counter = 1
-   with  arcpy.da.SearchCursor(selCores, ["SHAPE@", "OBJECTID"]) as myCores:
+   with  arcpy.da.SearchCursor(selCores, ["SHAPE@", "CoreID"]) as myCores:
       for core in myCores:
          # Add extra buffer for SBBs of PFs located in cores. Extra buffer needs to be snipped to core in question.
          coreShp = core[0]
@@ -436,6 +432,7 @@ def ExpandSBBs(in_Cores, in_SBB, in_PF, joinFld, out_SBB, scratchGDB = "in_memor
    
    return out_SBB
 
+# Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up your variables here
    in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics.gdb\ProcFeats_20180131_173111'
