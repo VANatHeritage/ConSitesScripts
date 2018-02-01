@@ -57,8 +57,9 @@ class coalesce(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
       self.label = "Coalesce"
-      self.description = ""
+      self.description = 'If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'
       self.canRunInBackground = True
+      self.category = "Subroutines"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -106,6 +107,7 @@ class shrinkwrap(object):
       self.label = "Shrinkwrap"
       self.description = ""
       self.canRunInBackground = True
+      self.category = "Subroutines"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -156,9 +158,10 @@ class shrinkwrap(object):
 class create_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "Create Site Building Blocks"
+      self.label = "1: Create Site Building Blocks"
       self.description = ""
       self.canRunInBackground = True
+      self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -213,9 +216,10 @@ class create_sbb(object):
 class expand_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "Expand Site Building Blocks with Core Area"
+      self.label = "2: Expand Site Building Blocks with Core Area"
       self.description = "Expands SBBs by adding core area."
       self.canRunInBackground = True
+      self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -266,9 +270,11 @@ class expand_sbb(object):
 class create_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "Create Conservation Sites"
+      self.label = "3: Create Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
+      self.category = "Site Automation Tools"
+      self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
