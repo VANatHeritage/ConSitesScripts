@@ -2,7 +2,7 @@
 # CreateSBBs.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-01-29
-# Last Edit: 2018-01-24
+# Last Edit: 2018-02-01
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
@@ -185,7 +185,7 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
                printMsg("Clipping NWI features to maximum buffer and shrinkwrapping...")
                arcpy.Clip_analysis(in_NWI, "myMaxBuffer", "tmpClipNWI")
                shrinkNWI = scratchGDB + os.sep + "shrinkNWI"
-               ShrinkWrap("tmpClipNWI", newMeas, shrinkNWI, "in_memory")
+               ShrinkWrap("tmpClipNWI", newMeas, shrinkNWI)
 
                # Step 4: Select shrinkwrapped NWI features within range
                printMsg("Selecting nearby NWI features")
@@ -273,6 +273,8 @@ def CreateWetlandSBB(in_PF, fld_SFID, selQry, in_NWI, out_SBB, tmpWorkspace = "i
 def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, out_SBB, scratchGDB = "in_memory"):
    '''Creates SBBs for all input PFs, subsetting and applying rules as needed'''
 
+   tStart = datetime.now()
+   
    # Print helpful message to geoprocessing window
    getScratchMsg(scratchGDB)
 
@@ -355,21 +357,29 @@ def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, 
 
    printMsg('SBB processing complete')
    
+   tFinish = datetime.now()
+   deltaString = GetElapsedTime (tStart, tFinish)
+   printMsg("Processing complete. Total elapsed time: %s" %deltaString)
+   
    return out_SBB
 
 def main():
    # Set up your variables here
-   in_PF = r'C:\Testing\ConSiteTests20180118.gdb\pf03'
-   in_SBB = r'C:\Testing\ConSiteTests20180118.gdb\sbb03'
+   in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics.gdb\ProcFeats_20180131_173111'
+   out_SBB = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics.gdb\SBB_20180131'
    joinFld = 'SFID' # probably can leave this as is
    in_Core = r'C:\Testing\ConSiteTests20180118.gdb\core03'
-   out_SBB = r'C:\Testing\ConSiteTests20180118.gdb\sbb03_out'
+   # out_SBB = r'C:\Testing\ConSiteTests20180118.gdb\sbb03_out'
    BuffDist = "1000 METERS"
-   scratchGDB = r'C:\Testing\scratch20180118.gdb'
+   #scratchGDB = r'C:\Testing\scratch20180118.gdb'
+   in_nwi5 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule5'
+   in_nwi67 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule67'
+   in_nwi9 = r'H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\AutomationData_Working\ConSite_Tools_Inputs.gdb\VA_Wetlands_Rule9'
 
    # End of user input
    
-   AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist, scratchGDB)
+   CreateSBBs(in_PF, "SFID", "RULE", "BUFFER", in_nwi5, in_nwi67, in_nwi9, out_SBB)
+   #AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist, scratchGDB)
 
 if __name__ == '__main__':
    main()

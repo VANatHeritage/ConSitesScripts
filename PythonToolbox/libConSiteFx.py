@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-01-30
+# Last Edit: 2018-01-31
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -44,7 +44,7 @@ def multiMeasure(meas, multi):
 def createTmpWorkspace():
    '''Creates a new temporary geodatabase with a timestamp tag, within the current scratchFolder'''
    # Get time stamp
-   ts = int(t())
+   ts = datetime.now().strftime("%Y%m%d_%H%M%S") # timestamp
    
    # Create new file geodatabase
    gdbPath = arcpy.env.scratchFolder
@@ -206,7 +206,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    
    # Eliminate gaps
    # Added step due to weird behavior on some buffers
-   printMsg("Eliminating sliver gaps...")
+   # printMsg("Eliminating sliver gaps...")
    Clean_Buff1_ng = scratchGDB + os.sep + "Clean_Buff1_ng"
    arcpy.EliminatePolygonPart_management (Clean_Buff1, Clean_Buff1_ng, "AREA", "900 SQUAREMETERS", "", "CONTAINED_ONLY")
 

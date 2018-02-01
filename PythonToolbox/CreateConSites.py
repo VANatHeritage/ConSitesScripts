@@ -40,7 +40,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_Cores, in_TranSurf, in
    #transElimDist = "5 METERS" # Distance used to eliminate insignificant transportation surface features from the set of erasing features. Portions of features less than double this width will not be used to split or erase portions of sites.
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
-   coalDist = "50 METERS" # Distance for coalescing split sites back together. Sites with less than double this width between each other will merge.
+   coalDist = "25 METERS" # Distance for coalescing split sites back together. Sites with less than double this width between each other will merge.
    smthDist = "100 METERS" # Final smoothing parameter - should be more than coalDist to avoid possible spindly connections
    
    # Give user some info on parameters
@@ -451,7 +451,7 @@ def main():
    in_Hydro = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\Automation\ConSitesReview_July2017\AutomationInputs_20170605.gdb\NHD_VA_2014" # Input open water features
    in_Exclude = r"H:\Backups\DCR_Work_DellD\SBBs_ConSites\ExclFeats_20171208.gdb\ExclFeats" # Input delineated exclusion features
    in_ConSites = r"C:\Users\xch43889\Documents\Working\ConSites\Biotics_20171206.gdb\ConSites_20171206_183308" # Current Conservation Sites; for template
-   out_ConSites = r'C:\Testing\cs20180129.gdb\ConSites_fullTest3' # Output new Conservation Sites
+   out_ConSites = r'C:\Testing\cs20180129.gdb\ConSites_fullTest4' # Output new Conservation Sites
    scratchGDB = "in_memory" # Workspace for temporary data
    # End of user input
 
