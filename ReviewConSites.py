@@ -57,11 +57,6 @@ User inputs:
 - fld_SiteID: the unique site ID field in the old CS feature class
 - scratchGDB: scratch geodatabase for intermediate products'''
 
-   # # Set environmental variables
-   # arcpy.env.workspace = "in_memory" # Set the workspace for geoprocessing
-   # arcpy.env.scratchWorkspace = "in_memory" # Set the scratch workspace for geoprocessing
-   # arcpy.env.overwriteOutput = True # Set overwrite option so that existing data may be overwritten
-
    # Determine how many old sites are overlapped by each automated site.  Automated sites provide the output geometry
    printMsg("Performing first spatial join...")
    Join1 = scratchGDB + os.sep + "Join1"
