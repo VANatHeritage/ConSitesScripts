@@ -6,30 +6,14 @@
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
-# Submits new (typically automated) Conservation Site features to a Quality Control procedure, comparing new to existing (old) shapes  from the previous production cycle. It determines which of the following applies to the new site:
-#     - N:  Site is new, not corresponding to any old site.
-#     - M:  Site is a merger of two or more old sites.  (Note: some may ALSO involve a split)
-#     - S:  Site is one of several that split off from an old site.
-#     - I:  Site is identical to an old site.
-#     - B:  Boundary change only.  Site corresponds directly to an old site, but the boundary has changed to some extent.
-# 
-# For the last group of sites (B), determines how much the boundary has changed.  A "PercDiff" field contains the percentage difference in area between old and new shapes.  The area that differs is determined by ArcGIS's Symmetrical Difference tool.  The user specifies a threshold beyond which the difference is deemed "significant".  (I recommend 10% change as the cutoff).
-#
-# Finally, adds additional fields for QC purposes, and flags records that should be examined by a human (all N, M, and S sites, plus and B sites with change greater than the threshold).
-#
-# In the output feature class, the output geometry is identical to the input new Conservation Sites features, but attributes have been added for QC purposes.  The addeded attributes are as follows:
-#     - ModType:  Text field indicating how the site has been modified, relative to existing old sites.  Values are "N". "M", "S", "I", or "B" as described above.
-#     - PercDiff:  Numeric field indicating the percent difference between old and new boundaries, as described above.  Applies only to sites where ModType = "B".
-#     - AssignID:  Long integer field containing the old SITEID associated with the new site.  This field is automatically populated only for sites where ModType is "B" or "I".  For other sites, the ID should be manually assigned during site review.  Attributes associated with this ID may be transferred, in whole or in part, from the old site to the new site.  
-#     - Flag:  Short integer field indicating whether the new site needs to be examined by a human (1) or not (0).  All sites where ModType is "N", "M", or "S" are flagged automatically.  Sites where ModType = "B" are flagged if the value in the PercDiff field is greater than the user-specified threshold.
-#     - Comment:  Text field to be used by site reviewers to enter comments.  Nothing is entered automatically.
+# Submits new (typically automated) Conservation Site features to a Quality Control procedure, comparing new to existing (old) shapes from the previous production cycle. 
 # ---------------------------------------------------------------------------------------
 
 # Import function libraries and settings
 import libConSiteFx
 from libConSiteFx import *
 
-def ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID = "SITEID", scratchGDB = "in_memory"):
+def ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID = "SITEID", scratchGDB = arcpy.env.scratchWorkspace):
    '''# Submits new (typically automated) Conservation Site features to a Quality Control procedure, comparing new to existing (old) shapes  from the previous production cycle. It determines which of the following applies to the new site:
 - N:  Site is new, not corresponding to any old site.
 - I:  Site is identical to an old site.

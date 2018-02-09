@@ -16,6 +16,7 @@ import libConSiteFx
 from libConSiteFx import *
 from CreateSBBs import *
 from CreateConSites import *
+from ReviewConSites import *
 
 # First define some handy functions
 def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction, defaultVal = None):
@@ -50,7 +51,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesce, shrinkwrap, create_sbb, expand_sbb, create_consite]
+      self.tools = [coalesce, shrinkwrap, create_sbb, expand_sbb, create_consite, review_consite]
 
 # Define the tools
 class coalesce(object):
@@ -274,7 +275,6 @@ class create_consite(object):
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
-      self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -325,3 +325,56 @@ class create_consite(object):
       CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchParm)
 
       return out_ConSites
+      
+class review_consite(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "4: Review Conservation Sites"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Site Automation Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("auto_CS", "Input new (typically automated) Conservation Site feature class", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("orig_CS", "Input original Conservation Site feature class for comparison (the one currently in Biotics)", "GPFeatureLayer", "Required", "Input")
+      parm02 = defineParam("cutVal", "Cutoff value (percent)", "GPDouble", "Required", "Input")
+      parm03 = defineParam("out_Sites", "Output new Conservation Sites feature class with QC fields", "GPFeatureLayer", "Required", "Output")
+      parm04 = defineParam("fld_SiteID", "The field in the original ConSites feature class containing unique site ID", "String", "Required", "Input", "SITEID")
+      parm05 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      if parameters[1].altered:
+         fc = parameters[1].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[4].filter.list = field_names
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      if scratch_GDB != 'None':
+         scratchParm = scratch_GDB
+      else:
+         scratchParm = arcpy.env.scratchWorkspace 
+
+      ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID, scratchParm)
+
+      return out_Sites
