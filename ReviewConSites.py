@@ -230,6 +230,8 @@ User inputs:
    fcList = [NewSites, MergeSites, ComboSites, SplitSites, IdentSites, BndChgSites]
    arcpy.Merge_management (fcList, out_Sites) 
    
+   return out_Sites
+   
 # Use the main function below to run ReviewConSites function directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
