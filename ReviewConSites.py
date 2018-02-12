@@ -14,7 +14,7 @@ import libConSiteFx
 from libConSiteFx import *
 
 def ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID = "SITEID", scratchGDB = arcpy.env.scratchWorkspace):
-   '''# Submits new (typically automated) Conservation Site features to a Quality Control procedure, comparing new to existing (old) shapes  from the previous production cycle. It determines which of the following applies to the new site:
+   '''Submits new (typically automated) Conservation Site features to a Quality Control procedure, comparing new to existing (old) shapes  from the previous production cycle. It determines which of the following applies to the new site:
 - N:  Site is new, not corresponding to any old site.
 - I:  Site is identical to an old site.
 - M:  Site is a merger of two or more old sites.

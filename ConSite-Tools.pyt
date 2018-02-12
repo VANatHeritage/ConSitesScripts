@@ -166,14 +166,14 @@ class create_sbb(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('in_PF', "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
+      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       parm1 = defineParam('fld_SFID', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm2 = defineParam('fld_Rule', "SBB Rule field", "String", "Required", "Input", 'RULE')
       parm3 = defineParam('fld_Buff', "SBB Buffer field", "String", "Required", "Input", 'BUFFER')
       parm4 = defineParam('in_nwi5', "Input Rule 5 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule5")
       parm5 = defineParam('in_nwi67', "Input Rule 67 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule67")
       parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule9")
-      parm7 = defineParam('out_SBB', "Output Site Building Blocks", "DEFeatureClass", "Required", "Output")
+      parm7 = defineParam('out_SBB', "Output Site Building Blocks (SBBs)", "DEFeatureClass", "Required", "Output")
       parm8 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8]
@@ -225,8 +225,8 @@ class expand_sbb(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input")
-      parm1 = defineParam('in_SBB', "Input Site Building Blocks", "GPFeatureLayer", "Required", "Input")
-      parm2 = defineParam('in_PF', "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam('in_SBB', "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
+      parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       parm3 = defineParam('joinFld', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm4 = defineParam('out_SBB', "Output Expanded Site Building Blocks", "DEFeatureClass", "Required", "Output")
       parm5 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
@@ -278,9 +278,9 @@ class create_consite(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm00 = defineParam("in_SBB", "Input Site Building Blocks", "GPFeatureLayer", "Required", "Input")
+      parm00 = defineParam("in_SBB", "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
       parm01 = defineParam("ysn_Expand", "Expand SBB Selection?", "GPBoolean", "Required", "Input", "false")
-      parm02 = defineParam("in_PF", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
+      parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       parm03 = defineParam("joinFld", "Source Feature ID field", "String", "Required", "Input", "SFID")
       parm04 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPFeatureLayer", "Required", "Input")
       parm04.multiValue = True
@@ -336,11 +336,11 @@ class review_consite(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm00 = defineParam("auto_CS", "Input new (typically automated) Conservation Site feature class", "GPFeatureLayer", "Required", "Input")
-      parm01 = defineParam("orig_CS", "Input original Conservation Site feature class for comparison (the one currently in Biotics)", "GPFeatureLayer", "Required", "Input")
+      parm00 = defineParam("auto_CS", "Input NEW Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("orig_CS", "Input OLD Conservation Sites", "GPFeatureLayer", "Required", "Input")
       parm02 = defineParam("cutVal", "Cutoff value (percent)", "GPDouble", "Required", "Input")
       parm03 = defineParam("out_Sites", "Output new Conservation Sites feature class with QC fields", "GPFeatureLayer", "Required", "Output")
-      parm04 = defineParam("fld_SiteID", "The field in the original ConSites feature class containing unique site ID", "String", "Required", "Input", "SITEID")
+      parm04 = defineParam("fld_SiteID", "Conservation Site ID field", "String", "Required", "Input", "SITEID")
       parm05 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm00, parm01, parm02, parm03, parm04, parm05]
