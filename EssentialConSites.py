@@ -2,8 +2,8 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.1 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2018-02-23
-# Creator:  Roy Gilb and Kirsten Hazler
+# Last Edit: 2018-03-09
+# Creator:  Roy Gilb and Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
 # Import arcpy module
@@ -14,6 +14,10 @@ import arcpy, os
 arcpy.env.overwriteOutput = True
 scratchGDB = arcpy.env.scratchGDB
 
+# STILL TO DO:
+# - Prioritize ConSites based on EO priorities, using Marxan or Zonation or something like that - KRH
+
+# Junk below can ultimately be deleted but keeping for notes for now - KRH
 # in_dodExcl: Input table designating EOs to be excluded from the process based on proximity to DOD lands, e.g., DOD_EOs.dbf
 # Need to generate this with function code
 
@@ -22,20 +26,22 @@ scratchGDB = arcpy.env.scratchGDB
 
 # eoSumTab: Input table giving total count per ELCODE, e.g., SUM_ALL_EOs.dbf
 # Need to generate this with code rather than taking as input
+# End of junk that can eventually be deleted. - KRH
 
 def printMsg(msg):
    arcpy.AddMessage(msg)
    print msg
 
-# AddRanks function modified from here: https://arcpy.wordpress.com/2013/08/02/TIER-field-values/
+# AddRanks function obtained: https://arcpy.wordpress.com/2013/08/02/ranking-field-values/
+# Slight modifications to original function code added by KRH
 def addRanks(table, sort_fields, category_field, rank_field='RANK'):
-   """Use sort_fields and category_field to apply a TIER to the table.
+   """Use sort_fields and category_field to apply a ranking to the table.
 
    Parameters:
      table: string
      sort_fields: list | tuple of strings
          The field(s) on which the table will be sorted.
-         Add DESC after field name if you want it descending
+         KRH edit: Add DESC after field name if you want it sorted descending
      category_field: string
          All records with a common value in the category_field
          will be ranked independently.
@@ -48,9 +54,14 @@ def addRanks(table, sort_fields, category_field, rank_field='RANK'):
       arcpy.AddField_management(table, rank_field, "SHORT")
 
    sort_sql = ', '.join(['ORDER BY ' + category_field] + sort_fields)
+   
+   # Addition to original function code next few lines
+   # Allows user to supply "DESC" string after field name when descending sort is needed - KRH
    clean_sortfields = []
    for string in sort_fields:
       clean_sortfields.append(string.replace(' DESC', ''))
+   # End of addition to original function code - KRH
+   
    query_fields = [category_field, rank_field] + clean_sortfields
 
    with arcpy.da.UpdateCursor(table, query_fields, sql_clause=(None, sort_sql)) as cur:
@@ -290,7 +301,7 @@ def ScoreEOs(in_procEOs, out_sortedEOs):
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
    
-# Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
+# Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
    in_ProcFeats = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\Biotics.gdb\ProcFeats_20180222_191353'
