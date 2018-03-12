@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-02-01
+# Last Edit: 2018-03-09
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -91,7 +91,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
    # Set up output locations for subsets of SBBs and PFs to process
    SBB_sub = scratchGDB + os.sep + 'SBB_sub'
    PF_sub = scratchGDB + os.sep + 'PF_sub'
-
+   
    if ysn_Expand == "true":
       # Expand SBB selection
       printMsg('Expanding the current SBB selection and making copies of the SBBs and PFs...')
@@ -198,12 +198,17 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
             hydroRtn = scratchGDB + os.sep + 'hydroRtn'
             CullEraseFeats (hydroClp, tmpSBB, joinFld, hydroPerCov, hydroRtn, scratchParm)
             
+            # Dissolve Hydro Erase Features
+            printMsg('Dissolving hydro erase features...')
+            hydroDiss = scratchGDB + os.sep + 'hydroDiss'
+            arcpy.Dissolve_management(hydroRtn, hydroDiss, "Hydro", "", "SINGLE_PART", "")
+            
             # Get Hydro Erase Features
             printMsg('Eliminating narrow hydro features from erase features...')
             hydroErase = scratchGDB + os.sep + 'hydroErase'
-            GetEraseFeats (hydroRtn, hydroQry, hydroElimDist, hydroErase, tmpPF, scratchParm)
+            GetEraseFeats (hydroDiss, hydroQry, hydroElimDist, hydroErase, tmpPF, scratchParm)
             
-            # Merge Erase Features (Exclusion features, hydro features, and retained transportation features)
+            # Merge Erase Features (Exclusions, hydro, and transportation)
             printMsg('Merging erase features...')
             tmpErase = scratchGDB + os.sep + 'tmpErase'
             arcpy.Merge_management ([efClp, transErase, hydroErase], tmpErase)
@@ -305,9 +310,13 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
             CullFrags(csErased, tmpPF, searchDist, csCull)
             
             # Eliminate gaps
-            printMsg('Eliminating insignificant gaps...')
+            printMsg('Eliminating gaps...')
             finBnd = scratchGDB + os.sep + 'finBnd'
-            arcpy.EliminatePolygonPart_management (csCull, finBnd, "AREA_AND_PERCENT", "1 HECTARES", 10, "CONTAINED_ONLY")
+            arcpy.EliminatePolygonPart_management (csCull, finBnd, "PERCENT", "", 99.99, "CONTAINED_ONLY")
+            
+            # Generalize
+            printMsg('Generalizing boundary...')
+            arcpy.Generalize_edit(finBnd, "0.5 METERS")
 
             # Append the final geometry to the ConSites feature class.
             printMsg("Appending feature...")

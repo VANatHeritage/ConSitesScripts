@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-02-01
+# Last Edit: 2018-03-12
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -51,7 +51,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesce, shrinkwrap, create_sbb, expand_sbb, create_consite, review_consite]
+      self.tools = [coalesce, shrinkwrap, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite]
 
 # Define the tools
 class coalesce(object):
@@ -268,6 +268,49 @@ class expand_sbb(object):
       
       return out_SBB
       
+class parse_sbb(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Optional: Parse Site Building Blocks"
+      self.description = "Splits SBB feature class into AHZ and non-AHZ features."
+      self.canRunInBackground = True
+      self.category = "Site Automation Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm0 = defineParam('in_SBB', "Input Site Building Blocks", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam('out_terrSBB', "Output Standard Terrestrial Site Building Blocks", "DEFeatureClass", "Required", "Output")
+      parm2 = defineParam('out_ahzSBB', "Output Anthropogenic Habitat Zone Site Building Blocks", "DEFeatureClass", "Required", "Output")
+
+      parms = [parm0, parm1, parm2]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      ParseSBBs(in_SBB, out_terrSBB, out_ahzSBB)
+      arcpy.MakeFeatureLayer_management (out_terrSBB, "terrSBB_lyr")
+      arcpy.MakeFeatureLayer_management (out_ahzSBB, "ahzSBB_lyr")
+      
+      return (out_terrSBB, out_ahzSBB)
+            
 class create_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""

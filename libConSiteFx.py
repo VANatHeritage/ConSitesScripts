@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-02-01
+# Last Edit: 2018-03-12
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -433,9 +433,9 @@ def ExpandSBBselection(inSBB, inPF, joinFld, inConSites, SearchDist, outSBB, out
    arcpy.MakeFeatureLayer_management(inPF, "PF_lyr")   
    arcpy.MakeFeatureLayer_management(inConSites, "Sites_lyr")
       
-   # Process: Select subset of terrestrial ConSites
-   # WhereClause = "TYPE = 'Conservation Site'" 
-   arcpy.SelectLayerByAttribute_management ("Sites_lyr", "NEW_SELECTION", '')
+   # # Process: Select subset of terrestrial ConSites
+   # # WhereClause = "TYPE = 'Conservation Site'" 
+   # arcpy.SelectLayerByAttribute_management ("Sites_lyr", "NEW_SELECTION", '')
 
    # Initialize row count variables
    initRowCnt = 0
@@ -518,7 +518,7 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    scratchGDB: geodatabase to store intermediate products'''
    
    # Make Feature Layer from PFs
-   where_clause = "RULE <> '1'"
+   where_clause = "RULE NOT IN ('AHZ', '1')"
    arcpy.MakeFeatureLayer_management(in_PF, "PF_CoreSub", where_clause)
    
    # Get PFs centered in the core
@@ -550,7 +550,7 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    printMsg('Dissolving original SBBs with buffered SBBs to get final shapes...')
    sbbMerge = scratchGDB + os.sep + "sbbMerge"
    arcpy.Merge_management ([sbbSub, sbbRtn], sbbMerge)
-   arcpy.Dissolve_management (sbbMerge, out_SBB, joinFld, "")
+   arcpy.Dissolve_management (sbbMerge, out_SBB, [joinFld, "intRule"], "")
    
    printMsg('Done.')
    return out_SBB
