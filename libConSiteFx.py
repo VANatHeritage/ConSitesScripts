@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-03-12
+# Last Edit: 2018-03-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -98,6 +98,11 @@ def garbagePickup(trashList):
          pass
    return
 
+def clearSelection(fc):
+   typeFC= (arcpy.Describe(fc)).dataType
+   if typeFC == 'FeatureLayer':
+      arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
+   
 def CleanFeatures(inFeats, outFeats):
    '''Repairs geometry, then explodes multipart polygons to prepare features for geoprocessing.'''
    

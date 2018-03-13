@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-03-12
+# Last Edit: 2018-03-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -325,15 +325,19 @@ class create_consite(object):
       parm01 = defineParam("ysn_Expand", "Expand SBB Selection?", "GPBoolean", "Required", "Input", "false")
       parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       parm03 = defineParam("joinFld", "Source Feature ID field", "String", "Required", "Input", "SFID")
-      parm04 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPFeatureLayer", "Required", "Input")
-      parm04.multiValue = True
-      parm05 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input")
-      parm06 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Required", "Input")
-      parm07 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input")
-      parm08 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
-      parm09 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
-
-      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08, parm09]
+      parm04 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm05 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
+      parm06 = defineParam("site_Type", "Site Type", "String", "Required", "Input")
+      parm06.filter.list = ["TERRESTRIAL", "AHZ"]
+      parm07 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input")
+      parm08 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPFeatureLayer", "Optional", "Input")
+      parm08.multiValue = True
+      parm08.enabled = False
+      parm09 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Optional", "Input")
+      parm09.enabled = False
+      parm10 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+      
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08, parm09, parm10]
       return parms
 
    def isLicensed(self):
@@ -348,11 +352,30 @@ class create_consite(object):
          fc = parameters[0].valueAsText
          field_names = [f.name for f in arcpy.ListFields(fc)]
          parameters[3].filter.list = field_names
+      
+      if parameters[6].altered:
+         type = parameters[6].value 
+         if type == "TERRESTRIAL":
+            parameters[8].enabled = 1
+            parameters[8].parameterType = "Required"
+            parameters[9].enabled = 1
+            parameters[9].parameterType = "Required"
+         else:
+            parameters[8].enabled = 0
+            parameters[8].parameterType = "Optional"
+            parameters[9].enabled = 0
+            parameters[9].parameterType = "Optional"
+            
       return
 
    def updateMessages(self, parameters):
       """Modify the messages created by internal validation for each tool
       parameter.  This method is called after internal validation."""
+      if parameters[6].value == "TERRESTRIAL":
+         if parameters[8].value == None:
+            parameters[8].SetErrorMessage("Input Transportation Surfaces: Value is required for TERRESTRIAL sites")
+         if parameters[9].value == None:
+            parameters[9].SetErrorMessage("Input Exclusion Features: Value is required for TERRESTRIAL sites")
       return
 
    def execute(self, parameters, messages):
@@ -364,8 +387,7 @@ class create_consite(object):
          scratchParm = scratch_GDB 
       else:
          scratchParm = "in_memory" 
-
-      CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchParm)
+      CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites, site_Type, in_Hydro, in_TranSurf, in_Exclude, scratchParm)
 
       return out_ConSites
       

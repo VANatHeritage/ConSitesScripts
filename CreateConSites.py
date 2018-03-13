@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-03-09
+# Last Edit: 2018-03-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -13,17 +13,18 @@
 import libConSiteFx
 from libConSiteFx import *
 
-def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchGDB = "in_memory"):
+def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites, site_Type, in_Hydro, in_TranSurf = None, in_Exclude = None, scratchGDB = "in_memory"):
    '''Creates Conservation Sites from the specified inputs:
    - in_SBB: feature class representing Site Building Blocks
    - ysn_Expand: ["true"/"false"] - determines whether to expand the selection of SBBs to include more in the vicinity
    - in_PF: feature class representing Procedural Features
    - joinFld: name of the field containing the unique ID linking SBBs to PFs. Field name is must be the same for both.
-   - in_TranSurf: feature class(es) representing transportation surfaces (i.e., road and rail) [If multiple, this is a string with items separated by ';']
-   - in_Hydro: feature class representing water bodies
-   - in_Exclude: feature class representing areas to definitely exclude from sites
    - in_ConSites: feature class representing current Conservation Sites (or, a template feature class)
    - out_ConSites: the output feature class representing updated Conservation Sites
+   - site_Type: type of conservation site (TERRESTRIAL|AHZ)
+   - in_Hydro: feature class representing water bodies
+   - in_TranSurf: feature class(es) representing transportation surfaces (i.e., road and rail) [If multiple, this is a string with items separated by ';']
+   - in_Exclude: feature class representing areas to definitely exclude from sites
    - scratchGDB: geodatabase to contain intermediate/scratch products. Setting this to "in_memory" can result in HUGE savings in processing time, but there's a chance you might run out of memory and cause a crash.
    '''
    
@@ -63,30 +64,33 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
    Output_CS_fname = filename
    
    # Parse out transportation datasets
-   Trans = in_TranSurf.split(';')
+   if site_Type == 'TERRESTRIAL':
+      Trans = in_TranSurf.split(';')
    
    # If applicable, clear any selections on non-SBB inputs
-   for fc in [in_PF, in_Hydro, in_Exclude]:
-      typeFC= (arcpy.Describe(fc)).dataType
-      if typeFC == 'FeatureLayer':
-         arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
-   for fc in Trans:
-      typeFC= (arcpy.Describe(fc)).dataType
-      if typeFC == 'FeatureLayer':
-         arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
+   for fc in [in_PF, in_Hydro]:
+      clearSelection(fc)
+
+   if site_Type == 'TERRESTRIAL':
+      printMsg("This should not happen for AHZ sites")
+      printMsge("Site type is %s" % site_Type)
+      clearSelection(in_Exclude)
+      for fc in Trans:
+         clearSelection(fc)
    
    ### Start data prep
    tStartPrep = datetime.now()
    
    # Merge the transportation layers, if necessary
-   if len(Trans) == 1:
-      Trans = Trans[0]
-   else:
-      printMsg('Merging transportation surfaces')
-      # Must absolutely write this to disk (myWorkspace) not to memory (scratchGDB), or for some reason there is no OBJECTID field and as a result, code for CullEraseFeats will fail.
-      mergeTrans = myWorkspace + os.sep + 'mergeTrans'
-      arcpy.Merge_management(Trans, mergeTrans)
-      Trans = mergeTrans
+   if site_Type == 'TERRESTRIAL':
+      if len(Trans) == 1:
+         Trans = Trans[0]
+      else:
+         printMsg('Merging transportation surfaces')
+         # Must absolutely write this to disk (myWorkspace) not to memory (scratchGDB), or for some reason there is no OBJECTID field and as a result, code for CullEraseFeats will fail.
+         mergeTrans = myWorkspace + os.sep + 'mergeTrans'
+         arcpy.Merge_management(Trans, mergeTrans)
+         Trans = mergeTrans
    
    # Set up output locations for subsets of SBBs and PFs to process
    SBB_sub = scratchGDB + os.sep + 'SBB_sub'
@@ -173,25 +177,27 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
             arcpy.Buffer_analysis (tmpPS, tmpBuff, buffDist, "", "", "", "")  
             
             # Clip exclusion features to buffer
-            printMsg('Clipping transportation features to buffer...')
-            tranClp = scratchGDB + os.sep + 'tranClp'
-            CleanClip(Trans, tmpBuff, tranClp, scratchParm)
+            if site_Type == 'TERRESTRIAL':
+               printMsg('Clipping transportation features to buffer...')
+               tranClp = scratchGDB + os.sep + 'tranClp'
+               CleanClip(Trans, tmpBuff, tranClp, scratchParm)
+               printMsg('Clipping exclusion features to buffer...')
+               efClp = scratchGDB + os.sep + 'efClp'
+               CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
             printMsg('Clipping hydro features to buffer...')
             hydroClp = scratchGDB + os.sep + 'hydroClp'
             CleanClip("Hydro_lyr", tmpBuff, hydroClp, scratchParm)
-            printMsg('Clipping exclusion features to buffer...')
-            efClp = scratchGDB + os.sep + 'efClp'
-            CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
-            
+                        
             # Cull Transportation Surface Features 
-            printMsg('Culling transportation erase features based on prevalence in SBBs...')
-            transRtn = scratchGDB + os.sep + 'transRtn'
-            CullEraseFeats (tranClp, tmpSBB, joinFld, transPerCov, transRtn, scratchParm)
+            if site_Type == 'TERRESTRIAL':
+               printMsg('Culling transportation erase features based on prevalence in SBBs...')
+               transRtn = scratchGDB + os.sep + 'transRtn'
+               CullEraseFeats (tranClp, tmpSBB, joinFld, transPerCov, transRtn, scratchParm)
             
-            # Get Transportation Surface Erase Features
-            printMsg('Subsetting transportation features')
-            transErase = scratchGDB + os.sep + 'transErase'
-            arcpy.Select_analysis (transRtn, transErase, transQry)
+               # Get Transportation Surface Erase Features
+               printMsg('Subsetting transportation features')
+               transErase = scratchGDB + os.sep + 'transErase'
+               arcpy.Select_analysis (transRtn, transErase, transQry)
             
             # Cull Hydro Erase Features
             printMsg('Culling hydro erase features based on prevalence in SBBs...')
@@ -209,9 +215,12 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
             GetEraseFeats (hydroDiss, hydroQry, hydroElimDist, hydroErase, tmpPF, scratchParm)
             
             # Merge Erase Features (Exclusions, hydro, and transportation)
-            printMsg('Merging erase features...')
-            tmpErase = scratchGDB + os.sep + 'tmpErase'
-            arcpy.Merge_management ([efClp, transErase, hydroErase], tmpErase)
+            if site_Type == 'TERRESTRIAL':
+               printMsg('Merging erase features...')
+               tmpErase = scratchGDB + os.sep + 'tmpErase'
+               arcpy.Merge_management ([efClp, transErase, hydroErase], tmpErase)
+            else:
+               tmpErase = hydroErase
             
             # Coalesce erase features to remove weird gaps and slivers
             printMsg('Coalescing erase features...')
@@ -276,9 +285,12 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
                   arcpy.Intersect_analysis ([tmpSS, csShrink], csInt, "ONLY_FID")
                   
                   # Process:  Clean Erase (final removal of exclusion features)
-                  printMsg('Excising manually delineated exclusion features...')
-                  ssErased = scratchGDB + os.sep + 'ssBnd' + str(counter2)
-                  CleanErase (csInt, efClp, ssErased, scratchParm) 
+                  if site_Type == 'TERRESTRIAL':
+                     printMsg('Excising manually delineated exclusion features...')
+                     ssErased = scratchGDB + os.sep + 'ssBnd' + str(counter2)
+                     CleanErase (csInt, efClp, ssErased, scratchParm) 
+                  else:
+                     ssErased = csInt
                   
                   # Remove any fragments too far from a PF
                   # Verified this step is indeed necessary, 2018-01-23
@@ -299,9 +311,12 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in
             ShrinkWrap(tmpSS_grp, coalDist, shrinkFrags, 2)
             
             # Process:  Clean Erase (final removal of exclusion features)
-            printMsg('Excising manually delineated exclusion features...')
-            csErased = scratchGDB + os.sep + 'csErased'
-            CleanErase (shrinkFrags, efClp, csErased, scratchParm) 
+            if site_Type == 'TERRESTRIAL':
+               printMsg('Excising manually delineated exclusion features...')
+               csErased = scratchGDB + os.sep + 'csErased'
+               CleanErase (shrinkFrags, efClp, csErased, scratchParm) 
+            else:
+               csErased = shrinkFrags
             
             # Remove any fragments too far from a PF
             # Verified this step is indeed necessary, 2018-01-23
