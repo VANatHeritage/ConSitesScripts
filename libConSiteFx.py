@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-03-13
+# Last Edit: 2018-03-15
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -11,7 +11,14 @@
 # ----------------------------------------------------------------------------------------
 
 # Import modules
-import arcpy, os, sys, traceback
+import os, sys, traceback
+try:
+   arcpy
+   print "arcpy is already loaded"
+except:
+   import arcpy   
+   print "initiating arcpy..."
+   
 #from time import time as t
 from datetime import datetime as datetime
 
