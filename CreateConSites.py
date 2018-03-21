@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-03-16
+# Last Edit: 2018-03-19
 # Creator:  Kirsten R. Hazler
 
 # Summary:

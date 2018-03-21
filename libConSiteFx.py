@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-03-15
+# Last Edit: 2018-03-19
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -28,6 +28,12 @@ arcpy.env.overwriteOutput = True
 def countFeatures(features):
    '''Gets count of features'''
    count = int((arcpy.GetCount_management(features)).getOutput(0))
+   return count
+   
+def countSelectedFeatures(featureLyr):
+   '''Gets count of selected features in a feature layer'''
+   desc = arcpy.Describe(featureLyr)
+   count = len(desc.FIDSet)
    return count
    
 def GetElapsedTime (t1, t2):
@@ -109,7 +115,7 @@ def clearSelection(fc):
    typeFC= (arcpy.Describe(fc)).dataType
    if typeFC == 'FeatureLayer':
       arcpy.SelectLayerByAttribute_management (fc, "CLEAR_SELECTION")
-   
+
 def CleanFeatures(inFeats, outFeats):
    '''Repairs geometry, then explodes multipart polygons to prepare features for geoprocessing.'''
    
@@ -597,6 +603,91 @@ def ChopSBBs(in_PF, in_SBB, in_EraseFeats, out_Clusters, out_subErase, dilDist =
    outTuple = (out_Clusters, out_subErase)
    return outTuple
 
+def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
+   '''Extracts data from Biotics5 query layers for Procedural Features and Conservation Sites and saves to a file geodatabase.
+   Note: this tool must be run from within a map document containing the relevant query layers.'''
+   # Local variables:
+   ts = datetime.now().strftime("%Y%m%d_%H%M%S") # timestamp
+
+   # Process: Copy Features (ConSites)
+   printMsg('Copying ConSites')
+   outCS = outGDB + os.sep + 'ConSites_' + ts
+   arcpy.CopyFeatures_management(BioticsCS, outCS, "", "0", "0", "0")
+
+   # Process: Copy Features (ProcFeats)
+   printMsg('Copying Procedural Features')
+   unprjPF = r'in_memory\unprjProcFeats'
+   arcpy.CopyFeatures_management(BioticsPF, unprjPF, "", "0", "0", "0")
+
+   # Process: Project
+   printMsg('Projecting ProcFeats features')
+   outPF = outGDB + os.sep + 'ProcFeats_' + ts
+   outCoordSyst = "PROJCS['NAD_1983_Virginia_Lambert',GEOGCS['GCS_North_American_1983',DATUM['D_North_American_1983',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',-79.5],PARAMETER['Standard_Parallel_1',37.0],PARAMETER['Standard_Parallel_2',39.5],PARAMETER['Latitude_Of_Origin',36.0],UNIT['Meter',1.0]]"
+   transformMethod = "WGS_1984_(ITRF00)_To_NAD_1983"
+   inCoordSyst = "PROJCS['WGS_1984_Web_Mercator_Auxiliary_Sphere',GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Mercator_Auxiliary_Sphere'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',0.0],PARAMETER['Standard_Parallel_1',0.0],PARAMETER['Auxiliary_Sphere_Type',0.0],UNIT['Meter',1.0]]"
+   arcpy.Project_management(unprjPF, outPF, outCoordSyst, transformMethod, inCoordSyst, "PRESERVE_SHAPE", "")
+
+   # Add layers to map after removing existing layers, if present
+   printMsg('Adding layers to map document')
+   mxd = arcpy.mapping.MapDocument("CURRENT")
+   dataFrame = arcpy.mapping.ListDataFrames(mxd, "*")[0] 
+   for lyr in ["Biotics_TerrSites", "Biotics_AHZSites", "Biotics_ProcFeats"]: 
+      try:
+         arcpy.mapping.RemoveLayer(dataFrame, lyr)
+      except: pass
+      
+   addTerrSites = arcpy.mapping.Layer(outCS)
+   addTerrSites.name = "Biotics_TerrSites"
+   addTerrSites.definitionQuery = "SITE_TYPE = 'Conservation Site'"
+   arcpy.mapping.AddLayer(dataFrame, addTerrSites)
+
+   addAHZSites = arcpy.mapping.Layer(outCS)
+   addAHZSites.name = "Biotics_AHZSites"
+   addAHZSites.definitionQuery = "SITE_TYPE = 'Anthropogenic Habitat Zone'"
+   arcpy.mapping.AddLayer(dataFrame, addAHZSites)
+
+   addProcFeats = arcpy.mapping.Layer(outPF)
+   addProcFeats.name = "Biotics_ProcFeats"
+   addProcFeats.definitionQuery = "RULE NOT IN ( 'CAVE' , 'SCU' )"
+   arcpy.mapping.AddLayer(dataFrame, addProcFeats)
+   
+def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
+   '''Selects features within specified distance of selection features, and copies to output.
+   Input features to be selected must be a layer, not a feature class.
+   NOTE: This does not seem to work with feature services. ESRI FAIL.'''
+   # Select input features within distance of selection features
+   arcpy.SelectLayerByLocation_management (in_FeatLyr, "WITHIN_A_DISTANCE", selFeats, selDist, "NEW_SELECTION", "NOT_INVERT")
+   
+   # Get the number of SELECTED features
+   numSelected = countSelectedFeatures(in_FeatLyr)
+   
+   # Copy selected features to output
+   if numSelected == 0:
+      # Create an empty dataset
+      fc = os.path.basename(out_Feats)
+      gdb = os.path.dirname(out_Feats)
+      geom = arcpy.Describe(in_Feats).shapeType
+      CreateFeatureclass_management (gdb, fc, geom, in_Feats)
+   else:
+      arcpy.CopyFeatures_management (in_FeatLyr, out_Feats)
+      
+   return out_Feats
+   
+def subsetDataInputs(selFeats, out_GDB, selDist = "3000 METERS", nwi5 = None, nwi67 = None, nwi9 = None, hydro = None, cores = None, roads = None, rail = None, exclusions = None):
+   '''Selects the subset of data inputs within specified distance of selection features, and copies them to the output geodatabase. Inputs must be feature layers, not feature classes.
+   NOTE: This does not work with feature services. ESRI FAIL.'''
+   outNames = {nwi5:"Wetlands_Rule5", nwi67:"Wetlands_Rule67", nwi9:"Wetlands_Rule9", hydro:"Hydro", cores:"Cores", roads:"Roads", rail:"Rail", exclusions:"Exclusions"}
+   outLayers = []
+   for fc in [nwi5, nwi67, nwi9, hydro, cores, roads, rail, exclusions]:
+      if fc != None:
+         out_Name = outNames[fc]
+         out_Feats = out_GDB + os.sep + out_Name
+         SelectCopy(fc, selFeats, selDist, out_Feats)
+         arcpy.MakeFeatureLayer_management (out_Feats, out_Name)
+         outLayers.append(out_Name)
+         
+   return outLayers
+   
 def  main():
    # Set up variables
    inFeats = r'C:\Users\xch43889\Documents\ArcGIS\Default.gdb\dissFeats_Elim'
