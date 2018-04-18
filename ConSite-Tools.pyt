@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-03-19
+# Last Edit: 2018-03-26
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -199,7 +199,7 @@ class extract_biotics(object):
 class create_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "1: Create Site Building Blocks"
+      self.label = "1: Create Site Building Blocks (SBBs)"
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
@@ -257,14 +257,14 @@ class create_sbb(object):
 class expand_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "2: Expand Site Building Blocks with Core Area"
+      self.label = "2: Expand SBBs with Core Area"
       self.description = "Expands SBBs by adding core area."
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input", "Cores123")
+      parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input", "Cores123\Cores123")
       parm1 = defineParam('in_SBB', "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
       parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
       parm3 = defineParam('joinFld', "Source Feature ID field", "String", "Required", "Input", 'SFID')
@@ -311,7 +311,7 @@ class expand_sbb(object):
 class parse_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "Optional: Parse Site Building Blocks"
+      self.label = "3: Parse SBBs by Type"
       self.description = "Splits SBB feature class into AHZ and non-AHZ features."
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
@@ -354,7 +354,7 @@ class parse_sbb(object):
 class create_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "3: Create Conservation Sites"
+      self.label = "4: Create Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
@@ -365,13 +365,14 @@ class create_consite(object):
       parm01 = defineParam("ysn_Expand", "Expand SBB Selection?", "GPBoolean", "Required", "Input", "false")
       parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
       parm03 = defineParam("joinFld", "Source Feature ID field", "String", "Required", "Input", "SFID")
-      parm04 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm04 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input", "Biotics_ConSites")
       parm05 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
       parm06 = defineParam("site_Type", "Site Type", "String", "Required", "Input")
       parm06.filter.list = ["TERRESTRIAL", "AHZ"]
       parm07 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input", "HydrographicFeatures")
-      parm08 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPFeatureLayer", "Optional", "Input")
-      parm08.multiValue = True
+      parm08 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPValueTable", "Optional", "Input")
+      parm08.columns = [["GPFeatureLayer","Transportation Layers"]]
+      parm08.values = [["VirginiaRailSurfaces"], ["VirginiaRoadSurfaces"]]
       parm08.enabled = False
       parm09 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Optional", "Input", "ExclusionFeatures")
       parm09.enabled = False
@@ -434,7 +435,7 @@ class create_consite(object):
 class review_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "4: Review Conservation Sites"
+      self.label = "5: Review Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"

@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-03-19
+# Last Edit: 2018-03-29
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -37,7 +37,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites
    hydroPerCov = 100 # The minimum percent of any SBB feature that must be covered by water, for those features to be eliminated from the set of features which are used to erase portions of the site. Set to 101 if you don't want features to ever be purged.
    hydroQry = "Hydro = 1" # Expression used to select appropriate hydro features to create erase features
    hydroElimDist = "10 METERS" # Distance used to eliminate insignificant water features from the set of erasing features. Portions of water bodies less than double this width will not be used to split or erase portions of sites.
-   transPerCov = 15 #The minimum percent any SBB that must be covered by transportation surfaces, for those surfaces to be eliminated from the set of features which are used to erase portions of the site. Set to 101 if you don't want features to ever be purged.
+   transPerCov = 101 #The minimum percent any SBB that must be covered by transportation surfaces, for those surfaces to be eliminated from the set of features which are used to erase portions of the site. Set to 101 if you don't want features to ever be purged.
    transQry = "NH_IGNORE = 0 OR NH_IGNORE IS NULL" ### Substituted old query with new query, allowing user to specify segments to ignore. Old query was: "DCR_ROW_TYPE = 'IS' OR DCR_ROW_TYPE = 'PR'" # Expression used to select appropriate transportation surface features to create erase features
    buffDist = "200 METERS" # Distance used to buffer ProtoSites to establish the area for further processing.
    searchDist = "0 METERS" # Distance from PFs used to determine whether to cull SBB and ConSite fragments after ProtoSites have been split.
@@ -90,7 +90,11 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites
          mergeTrans = myWorkspace + os.sep + 'mergeTrans'
          arcpy.Merge_management(Trans, mergeTrans)
          Trans = mergeTrans
-   
+
+   # Get relevant hydro features
+   openWater = scratchGDB + os.sep + 'openWater'
+   arcpy.Select_analysis (in_Hydro, openWater, hydroQry)
+
    # Set up output locations for subsets of SBBs and PFs to process
    SBB_sub = scratchGDB + os.sep + 'SBB_sub'
    PF_sub = scratchGDB + os.sep + 'PF_sub'
@@ -107,8 +111,9 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites
    # Make Feature Layers
    arcpy.MakeFeatureLayer_management(PF_sub, "PF_lyr") 
    arcpy.MakeFeatureLayer_management(SBB_sub, "SBB_lyr") 
-   arcpy.MakeFeatureLayer_management (in_Hydro, "Hydro_lyr", hydroQry)
-
+   arcpy.MakeFeatureLayer_management(openWater, "Hydro_lyr")
+   sub_Hydro = "Hydro_lyr"
+   
    # Process:  Create Feature Classes (to store ConSites)
    printMsg("Creating ConSites features class to store output features...")
    arcpy.CreateFeatureclass_management (myWorkspace, Output_CS_fname, "POLYGON", in_ConSites, "", "", in_ConSites) 
@@ -185,18 +190,18 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites
                CleanClip(in_Exclude, tmpBuff, efClp, scratchParm)
             printMsg('Clipping hydro features to buffer...')
             hydroClp = scratchGDB + os.sep + 'hydroClp'
-            CleanClip("Hydro_lyr", tmpBuff, hydroClp, scratchParm)
+            CleanClip(sub_Hydro, tmpBuff, hydroClp, scratchParm)
                         
             # Cull Transportation Surface Features 
             if site_Type == 'TERRESTRIAL':
-               printMsg('Culling transportation erase features based on prevalence in SBBs...')
-               transRtn = scratchGDB + os.sep + 'transRtn'
-               CullEraseFeats (tranClp, tmpSBB, joinFld, transPerCov, transRtn, scratchParm)
+               # printMsg('Culling transportation erase features based on prevalence in SBBs...')
+               # transRtn = scratchGDB + os.sep + 'transRtn'
+               # CullEraseFeats (tranClp, tmpSBB, joinFld, transPerCov, transRtn, scratchParm)
             
                # Get Transportation Surface Erase Features
                printMsg('Subsetting transportation features')
                transErase = scratchGDB + os.sep + 'transErase'
-               arcpy.Select_analysis (transRtn, transErase, transQry)
+               arcpy.Select_analysis (tranClp, transErase, transQry)
             
             # Cull Hydro Erase Features
             printMsg('Culling hydro erase features based on prevalence in SBBs...')
@@ -307,7 +312,7 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites
             # Re-merge split sites, if applicable
             printMsg("Reconnecting split sites, where warranted...")
             shrinkFrags = scratchGDB + os.sep + 'shrinkFrags'
-            ShrinkWrap(tmpSS_grp, coalDist, shrinkFrags, 2)
+            ShrinkWrap(tmpSS_grp, coalDist, shrinkFrags, 8)
             
             # Process:  Clean Erase (final removal of exclusion features)
             if site_Type == 'TERRESTRIAL':
