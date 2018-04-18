@@ -85,43 +85,6 @@ def addRanks(table, sort_field, category_field, rank_field='RANK', thresh = 5, t
          print sortVal
          row[1] = i
          cur.updateRow(row)
-
-def TabToDict(inTab, fldKey, fldValue):
-   '''Converts two fields in a table to a dictionary'''
-   codeDict = {}
-   with arcpy.da.SearchCursor(inTab, [fldKey, fldValue]) as sc:
-      for row in sc:
-         key = sc[0]
-         val = sc[1]
-         codeDict[key] = val
-   return codeDict 
-
-def countFeatures(features):
-   '''Gets count of features'''
-   count = int((arcpy.GetCount_management(features)).getOutput(0))
-   return count
-
-def updateTiers(in_procEOs, elcode, availSlots):
-   r = 1
-   c = 0
-   while availSlots > 0 AND c < availSlots:
-      where_clause1 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "RANK" <= %s' %(elcode, str(r))
-      where_clause2 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "RANK" > %s' %(elcode, str(r))
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_choiceEO", where_clause1)
-      c = countFeatures("lyr_EO")
-      if c < availSlots:
-         arcpy.CalculateField_management("lyr_choiceEO", "TIER", "Priority")
-         availSlots -= c
-         r += 1
-      elif c == availSlots:
-         arcpy.CalculateField_management("lyr_choiceEO", "TIER", "Priority")
-         arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_surplusEO", where_clause2)
-         arcpy.CalculateField_management("lyr_surplusEO", "TIER", "Surplus")
-         availSlots -= c
-      else:
-         arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_surplusEO", where_clause2)
-         arcpy.CalculateField_management("lyr_surplusEO", "TIER", "Surplus")
-   return availSlots
    
 def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab):
    '''Scores EOs based on a number of factors. 
@@ -148,19 +111,6 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    arcpy.JoinField_management(out_procEOs, "EORANK", in_eoSelOrder, "EORANK", "SEL_ORDER")
       
    # Add and calculate some fields
-   
-   # Field: OBSYEAR
-   printMsg("Calculating OBSYEAR field...")
-   arcpy.AddField_management(out_procEOs, "OBSYEAR", "SHORT")
-   codeblock = '''def truncDate(lastobs):
-      try:
-         year = int(lastobs[:4])
-      except:
-         year = 0
-      return year'''
-   expression = "truncDate(!LASTOBS!)"
-   arcpy.CalculateField_management(out_procEOs, "OBSYEAR", expression, "PYTHON_9.3", codeblock)
-   
    # Field: NEW_GRANK
    printMsg("Calculating NEW_GRANK field...")
    arcpy.AddField_management(out_procEOs, "NEW_GRANK", "TEXT", "", "", 2)
@@ -277,27 +227,21 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
       
    # Summarize to get count of EOs per element
    printMsg("Summarizing...")
-   arcpy.Statistics_analysis("lyr_EO", out_sumTab, ["EO_ID COUNT"], ["ELCODE", "NEW_GRANK"])
+   arcpy.Statistics_analysis("lyr_EO", out_sumTab, [["EO_ID", "COUNT"]], "ELCODE")
+   arcpy.JoinField_management("lyr_EO", "ELCODE", out_sumTab, "ELCODE", "COUNT_EO_ID")
    
-   # Add more info to summary table
-   # Field: TARGET
-   arcpy.AddField_management(out_sumTab, "TARGET", "SHORT")
-   codeblock = '''def target(grank, count):
-      if grank in ('G1', 'G2'):
-         initTarget = 5
-      else:
-         initTarget = 2
-      if count < initTarget:
-         target = count
-      else:
-         target = initTarget
-      return target'''
-   expression =  "target(!NEW_GRANK!, !COUNT_EO_ID!)" 
-   arcpy.CalculateField_management(out_sumTab, "TARGET", expression, "PYTHON_9.3", codeblock)
+   printMsg("EO attribution complete")
+   return (out_procEOs, out_sumTab)
+
+def ScoreEOs(in_procEOs, out_sortedEOs):
+   # Get subset of EOs to summarize based on EXCLUSION field
+   where_clause = '"EXCLUSION" = \'Keep\''
+   arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
    
    # Field: TIER
    printMsg("Assigning initial tiers...")
-   arcpy.AddField_management(out_sumTab, "TIER", "TEXT", "", "", 25)
+   if not arcpy.ListFields("lyr_EO", "TIER"):
+      arcpy.AddField_management("lyr_EO", "TIER", "TEXT", "", "", 25)
    codeblock = '''def calcTier(grank, count):
       if count == 1:
          return "Irreplaceable"
@@ -306,77 +250,74 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
       else:
          return "Choice"'''
    expression = "calcTier(!NEW_GRANK!, !COUNT_EO_ID!)"
-   arcpy.CalculateField_management(out_sumTab, "TIER", expression, "PYTHON_9.3", codeblock)
+   arcpy.CalculateField_management("lyr_EO", "TIER", expression, "PYTHON_9.3", codeblock)
    
-   # Join the TIER field to the EO table
-   arcpy.JoinField_management("lyr_EO", "ELCODE", out_sumTab, "ELCODE", "TIER")
+   # Get subset of essential and irreplaceable EOs
+   where_clause = '"TIER" in (\'Irreplaceable\', \'Essential\')'
+   arcpy.MakeFeatureLayer_management ("lyr_EO", "lyr_Essential", where_clause)
    
-   printMsg("EO attribution complete")
-   return (out_procEOs, out_sumTab)
-
-def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
-   # Get subset of choice elements
+   # Get subset of choice EOs
    where_clause = '"TIER" = \'Choice\''
-   arcpy.MakeTableView_management (in_sumTab, "choiceTab", where_clause)
+   arcpy.MakeFeatureLayer_management ("lyr_EO", "lyr_Choice", where_clause)
    
-   # Make a data dictionary relating ELCODE to TARGET 
-   targetDict = TabToDict("choiceTab", "ELCODE", "TARGET")
+   # Field: NEAR_DIST
+   arcpy.Near_analysis("lyr_Choice", "lyr_Essential", "", "NO_LOCATION", "NO_ANGLE", "PLANAR")
    
-   # Loop through the dictionary and process each ELCODE
-   for key in targetDict:
-      # Get subset of EOs to process
-      elcode = key
-      printMsg('Working on elcode %s...' %key)
-      Slots = targetDict[key]
-      where_clause = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\'' %elcode
-      
-      # Rank by EO-rank (selection order)
-      printMsg('Filtering by EO-rank...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "SEL_ORDER", "TIER", rank_field='RANK', thresh = 0.5, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
+   # Field: INV_DIST
+   if not arcpy.ListFields("lyr_Choice", "INV_DIST"):
+      arcpy.AddField_management("lyr_Choice", "TIER", "TEXT", "", "", 25)
+   arcpy.AddField_management("lyr_Choice", "INV_DIST", "DOUBLE")
+   expression = "1/math.sqrt(!NEAR_DIST! + 1)"
+   arcpy.CalculateField_management("lyr_Choice", "INV_DIST", expression , "PYTHON_9.3")
    
-      # Rank by presence on NAP
-      printMsg('Filtering by presence on NAP...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "ysnNAP DESC", "TIER", rank_field='RANK', thresh = 0.5, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
+   # Field: SCORE
+   printMsg("Calculating scores...")
+   if not arcpy.ListFields("lyr_EO", "SCORE"):
+      arcpy.AddField_management("lyr_EO", "SCORE", "DOUBLE")
+   codeblock = '''def calcScore(SELORDER, NAPINT, BMI1, BMI2, INVDIST):
+      score_SelOrder = (10 - SELORDER)*100000
       
-      # Rank by BMI score
-      printMsg('Filtering by BMI score...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "BMI_score DESC", "TIER", rank_field='RANK', thresh = 5, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
+      if NAPINT == None:
+         score_NAP = 0
+      else:
+         score_NAP = NAPINT*10000
       
-      # Rank by last observation year
-      printMsg('Filtering by last observation...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "OBSYEAR DESC", "TIER", rank_field='RANK', thresh = 3, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
+      if BMI1 == None:
+         score_BMI1 = 0
+      else:
+         score_BMI1 = int(BMI1)*100
+      
+      if BMI2 == None:
+         score_BMI2 = 0
+      else:
+         score_BMI2 = int(BMI2)
+         
+      if INVDIST == None:
+         INVDIST = 0
+      
+      finalScore = score_SelOrder + score_NAP + score_BMI1 + score_BMI2 + INVDIST
+      return finalScore'''
+   expression = "calcScore(!SEL_ORDER!, !ysnNAP!, !PERCENT_bmi1!, !PERCENT_bmi2!, !INV_DIST!)"
+   arcpy.CalculateField_management("lyr_EO", "SCORE", expression, "PYTHON_9.3", codeblock)
+   
+   # Field: ChoiceRANK
+   printMsg("Calculating ranks...")
+   addRanks("lyr_EO", ["SCORE DESC"], "ELCODE", "ChoiceRANK")
+   
+   # Field: TIER
+   printMsg("Updating choice tiers...")
+   codeblock = '''def calcTier(grank, choicerank, tier):
+      if tier in ("Irreplaceable", "Essential"):
+         return tier
+      else:
+         if (grank in ("G1", "G2") and choicerank <=5) or (grank in ("G3", "G4", "G5") and choicerank <=2):
+            return "Tier 1 Choice"
+         else:
+            return "Tier 2 Choice"'''
+   expression = "calcTier(!NEW_GRANK!, !ChoiceRANK!, !TIER!)"
+   arcpy.CalculateField_management("lyr_EO", "TIER", expression, "PYTHON_9.3", codeblock)
    
    # Sort
-   # Field: ChoiceRANK
-   printMsg("Assigning final ranks...")
-   arcpy.AddField_management(in_procEOs, "ChoiceRANK", "TEXT", "", "", 25)
-   codeblock = '''def calcRank(tier):
-      if tier == "Irreplaceable":
-         return 1
-      elif tier == "Essential":
-         return 2
-      elif tier == "Priority":
-         return 3
-      elif tier == "Choice":
-         return 4
-      elif tier == "Surplus":
-         return 5
-      else:
-         return 6'''
-   expression = "calcRank(!TIER!)"
-   arcpy.CalculateField_management(out_sumTab, "TIER", expression, "PYTHON_9.3", codeblock)
    arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"]])
 
    printMsg("Attribution and sorting complete.")
