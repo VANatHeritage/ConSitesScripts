@@ -2,7 +2,7 @@
 # CreateSBBs.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-01-29
-# Last Edit: 2018-02-01
+# Last Edit: 2018-03-09
 # Creator:  Kirsten R. Hazler
 #
 # Summary:
@@ -42,7 +42,10 @@ def PrepProcFeats(in_PF, fld_Rule, fld_Buff, tmpWorkspace):
          try:
             RuleInteger = int(RuleString)
          except:
-            RuleInteger = 0
+            if RuleString == 'AHZ':
+               RuleInteger = -1
+            else:
+               RuleInteger = 0
          return RuleInteger"""
       arcpy.CalculateField_management(tmp_PF, "intRule", expression1, "PYTHON", codeblock1)
 
@@ -70,11 +73,11 @@ def PrepProcFeats(in_PF, fld_Rule, fld_Buff, tmpWorkspace):
       tback()
       quit()
 
-def CreateStandardSBB(in_PF, out_SBB, fld_Buff, scratchGDB = "in_memory"):
+def CreateStandardSBB(in_PF, out_SBB, scratchGDB = "in_memory"):
    '''Creates standard buffer SBBs for specified subset of PFs'''
    try:
       # Process: Select (Defined Buffer Rules)
-      selQry = "(intRule in (1,2,3,4,8,10,11,12,13,14)) AND ( fltBuffer <> 0)"
+      selQry = "(intRule in (-1,1,2,3,4,8,10,11,12,13,14)) AND (fltBuffer <> 0)"
       arcpy.MakeFeatureLayer_management(in_PF, "tmpLyr", selQry)
 
       # Count records and proceed accordingly
@@ -82,7 +85,7 @@ def CreateStandardSBB(in_PF, out_SBB, fld_Buff, scratchGDB = "in_memory"):
       if count > 0:
          # Process: Buffer
          tmpSBB = scratchGDB + os.sep + 'tmpSBB'
-         arcpy.Buffer_analysis("tmpLyr", tmpSBB, fld_Buff, "FULL", "ROUND", "NONE", "", "PLANAR")
+         arcpy.Buffer_analysis("tmpLyr", tmpSBB, "fltBuffer", "FULL", "ROUND", "NONE", "", "PLANAR")
          # Append to output and cleanup
          arcpy.Append_management (tmpSBB, out_SBB, "NO_TEST")
          printMsg('Simple buffer SBBs completed')
@@ -97,7 +100,7 @@ def CreateNoBuffSBB(in_PF, out_SBB):
    '''Creates SBBs that are simple copies of PFs for specified subset'''
    try:
       # Process: Select (No-Buffer Rules)
-      selQry = "(intRule = 15) OR ((intRule = 13) and (fltBuffer = 0))"
+      selQry = "(intRule in (-1, 13,15) AND (fltBuffer = 0))"
       arcpy.MakeFeatureLayer_management(in_PF, "tmpLyr", selQry)
 
       # Count records and proceed accordingly
@@ -301,7 +304,7 @@ def CreateSBBs(in_PF, fld_SFID, fld_Rule, fld_Buff, in_nwi5, in_nwi67, in_nwi9, 
 
    # Standard buffer SBBs
    printMsg('Processing the simple defined-buffer features...')
-   CreateStandardSBB(tmp_PF, out_SBB, 'fltBuffer')
+   CreateStandardSBB(tmp_PF, out_SBB)
 
    # No buffer SBBs
    printMsg('Processing the no-buffer features')
@@ -421,7 +424,7 @@ def ExpandSBBs(in_Cores, in_SBB, in_PF, joinFld, out_SBB, scratchGDB = "in_memor
    sbbAll = scratchGDB + os.sep + "sbbAll"
    #sbbFinal = myWorkspace + os.sep + "sbbFinal"
    arcpy.Merge_management ([SBB_sub, sbbExpand], sbbAll)
-   arcpy.Dissolve_management (sbbAll, out_SBB, joinFld, "")
+   arcpy.Dissolve_management (sbbAll, out_SBB, [joinFld, "intRule"], "")
    #arcpy.MakeFeatureLayer_management(sbbFinal, "SBB_lyr") 
    
    printMsg('SBB processing complete')
@@ -432,7 +435,17 @@ def ExpandSBBs(in_Cores, in_SBB, in_PF, joinFld, out_SBB, scratchGDB = "in_memor
    
    return out_SBB
 
-# Use the main function below to run CreateConSites function directly from Python IDE or command line with hard-coded variables
+def ParseSBBs(in_SBB, out_terrSBB, out_ahzSBB):
+   '''Splits input SBBs into two feature classes, one for standard terrestrial SBBs and one for AHZ SBBs.'''
+   terrQry = "intRule <> -1" 
+   ahzQry = "intRule = -1"
+   arcpy.Select_analysis (in_SBB, out_terrSBB, terrQry)
+   arcpy.Select_analysis (in_SBB, out_ahzSBB, ahzQry)
+   
+   sbbTuple = (out_terrSBB, out_ahzSBB)
+   return sbbTuple
+
+# Use the main function below to run function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up your variables here
    in_PF = r'C:\Users\xch43889\Documents\Working\ConSites\Biotics.gdb\ProcFeats_20180131_173111'

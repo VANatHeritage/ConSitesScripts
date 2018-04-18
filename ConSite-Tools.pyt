@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-02-01
+# Last Edit: 2018-03-26
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -51,7 +51,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesce, shrinkwrap, create_sbb, expand_sbb, create_consite, review_consite]
+      self.tools = [coalesce, shrinkwrap, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite]
 
 # Define the tools
 class coalesce(object):
@@ -156,17 +156,57 @@ class shrinkwrap(object):
 
       return out_Feats
 
-class create_sbb(object):
+class extract_biotics(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "1: Create Site Building Blocks"
+      self.label = "0: Extract Biotics data"
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      parm0 = defineParam('BioticsPF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "BIOTICS_DLINK.ProcFeats")
+      parm1 = defineParam('BioticsCS', "Input Conservation Sites", "GPFeatureLayer", "Required", "Input", "BIOTICS_DLINK.all_consite_types")
+      parm2 = defineParam('outGDB', "Output Geodatabase", "DEWorkspace", "Required", "Input")
+
+      parms = [parm0, parm1, parm2]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      ExtractBiotics(BioticsPF, BioticsCS, outGDB)
+
+      return
+
+class create_sbb(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "1: Create Site Building Blocks (SBBs)"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Site Automation Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
       parm1 = defineParam('fld_SFID', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm2 = defineParam('fld_Rule', "SBB Rule field", "String", "Required", "Input", 'RULE')
       parm3 = defineParam('fld_Buff', "SBB Buffer field", "String", "Required", "Input", 'BUFFER')
@@ -217,16 +257,16 @@ class create_sbb(object):
 class expand_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "2: Expand Site Building Blocks with Core Area"
+      self.label = "2: Expand SBBs with Core Area"
       self.description = "Expands SBBs by adding core area."
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input")
+      parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input", "Cores123\Cores123")
       parm1 = defineParam('in_SBB', "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
-      parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
       parm3 = defineParam('joinFld', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm4 = defineParam('out_SBB', "Output Expanded Site Building Blocks", "DEFeatureClass", "Required", "Output")
       parm5 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
@@ -268,10 +308,53 @@ class expand_sbb(object):
       
       return out_SBB
       
+class parse_sbb(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "3: Parse SBBs by Type"
+      self.description = "Splits SBB feature class into AHZ and non-AHZ features."
+      self.canRunInBackground = True
+      self.category = "Site Automation Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm0 = defineParam('in_SBB', "Input Site Building Blocks", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam('out_terrSBB', "Output Standard Terrestrial Site Building Blocks", "DEFeatureClass", "Required", "Output")
+      parm2 = defineParam('out_ahzSBB', "Output Anthropogenic Habitat Zone Site Building Blocks", "DEFeatureClass", "Required", "Output")
+
+      parms = [parm0, parm1, parm2]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      ParseSBBs(in_SBB, out_terrSBB, out_ahzSBB)
+      arcpy.MakeFeatureLayer_management (out_terrSBB, "terrSBB_lyr")
+      arcpy.MakeFeatureLayer_management (out_ahzSBB, "ahzSBB_lyr")
+      
+      return (out_terrSBB, out_ahzSBB)
+            
 class create_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "3: Create Conservation Sites"
+      self.label = "4: Create Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
@@ -280,17 +363,22 @@ class create_consite(object):
       """Define parameter definitions"""
       parm00 = defineParam("in_SBB", "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
       parm01 = defineParam("ysn_Expand", "Expand SBB Selection?", "GPBoolean", "Required", "Input", "false")
-      parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
       parm03 = defineParam("joinFld", "Source Feature ID field", "String", "Required", "Input", "SFID")
-      parm04 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPFeatureLayer", "Required", "Input")
-      parm04.multiValue = True
-      parm05 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input")
-      parm06 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Required", "Input")
-      parm07 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input")
-      parm08 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
-      parm09 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
-
-      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08, parm09]
+      parm04 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input", "Biotics_ConSites")
+      parm05 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
+      parm06 = defineParam("site_Type", "Site Type", "String", "Required", "Input")
+      parm06.filter.list = ["TERRESTRIAL", "AHZ"]
+      parm07 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input", "HydrographicFeatures")
+      parm08 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPValueTable", "Optional", "Input")
+      parm08.columns = [["GPFeatureLayer","Transportation Layers"]]
+      parm08.values = [["VirginiaRailSurfaces"], ["VirginiaRoadSurfaces"]]
+      parm08.enabled = False
+      parm09 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Optional", "Input", "ExclusionFeatures")
+      parm09.enabled = False
+      parm10 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+      
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08, parm09, parm10]
       return parms
 
    def isLicensed(self):
@@ -305,11 +393,30 @@ class create_consite(object):
          fc = parameters[0].valueAsText
          field_names = [f.name for f in arcpy.ListFields(fc)]
          parameters[3].filter.list = field_names
+      
+      if parameters[6].altered:
+         type = parameters[6].value 
+         if type == "TERRESTRIAL":
+            parameters[8].enabled = 1
+            parameters[8].parameterType = "Required"
+            parameters[9].enabled = 1
+            parameters[9].parameterType = "Required"
+         else:
+            parameters[8].enabled = 0
+            parameters[8].parameterType = "Optional"
+            parameters[9].enabled = 0
+            parameters[9].parameterType = "Optional"
+            
       return
 
    def updateMessages(self, parameters):
       """Modify the messages created by internal validation for each tool
       parameter.  This method is called after internal validation."""
+      if parameters[6].value == "TERRESTRIAL":
+         if parameters[8].value == None:
+            parameters[8].SetErrorMessage("Input Transportation Surfaces: Value is required for TERRESTRIAL sites")
+         if parameters[9].value == None:
+            parameters[9].SetErrorMessage("Input Exclusion Features: Value is required for TERRESTRIAL sites")
       return
 
    def execute(self, parameters, messages):
@@ -321,15 +428,14 @@ class create_consite(object):
          scratchParm = scratch_GDB 
       else:
          scratchParm = "in_memory" 
-
-      CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_TranSurf, in_Hydro, in_Exclude, in_ConSites, out_ConSites, scratchParm)
+      CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites, site_Type, in_Hydro, in_TranSurf, in_Exclude, scratchParm)
 
       return out_ConSites
       
 class review_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "4: Review Conservation Sites"
+      self.label = "5: Review Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
       self.category = "Site Automation Tools"
