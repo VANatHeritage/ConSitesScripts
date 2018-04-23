@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2018-04-18
+# Last Edit: 2018-04-23
 # Creator:  Roy Gilb and Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -32,9 +32,55 @@ def printMsg(msg):
    arcpy.AddMessage(msg)
    print msg
 
+def printWrng(msg):
+   arcpy.AddWarning(msg)
+   print 'Warning: ' + msg
+
+def unique_values(table, field):
+   '''This function was obtained from:
+   https://arcpy.wordpress.com/2012/02/01/create-a-list-of-unique-field-values/'''
+   with arcpy.da.SearchCursor(table, [field]) as cursor:
+      return sorted({row[0] for row in cursor})
+
+def addRanks(table, sort_field, order, rank_field='RANK', thresh = 5, threshtype = "ABS"):
+   valList = unique_values(table, sort_field)
+   if order == "DESC":
+      valList.reverse()
+   #printMsg('Values in order are: %s' % str(valList))
+   rankDict = {}
+   rank = 1
+   sortVal = valList[0]
+   
+   printMsg('Setting up ranking dictionary...')
+   for v in valList:
+      if threshtype == "PER":
+         diff = 100*abs(v - sortVal/sortVal)
+      else:
+         diff = abs(v-sortVal)
+      if diff > thresh:
+         #printMsg('Difference is greater than threshold, so updating values.')
+         sortVal = v
+         rank += 1
+      else:
+         #printMsg('Difference is less than or equal to threshold, so maintaining values.')
+      rankDict[v] = rank
+   printMsg('Ranking dictionary (value:rank) is as follows: %s' %str(rankDict))
+   
+   printMsg('Writing ranks to table...')
+   if not arcpy.ListFields(table, rank_field):
+      arcpy.AddField_management(table, rank_field, "SHORT")
+   codeblock = '''def rankVals(val, rankDict):
+      rank = rankDict[val]
+      return rank
+   '''
+   expression = "rankVals(!%s!, %s)" %(sort_field, rankDict)
+   arcpy.CalculateField_management(table, rank_field, expression, "PYTHON_9.3", codeblock)
+   printMsg('Finished ranking.')
+   return
+      
 # Original AddRanks function obtained from: https://arcpy.wordpress.com/2013/08/02/ranking-field-values/
 # Modified by KRH
-def addRanks(table, sort_field, category_field, rank_field='RANK', thresh = 5, threshtype = "ABS"):
+def CrappyaddRanks(table, sort_field, category_field, rank_field='RANK', thresh = 5, threshtype = "ABS"):
    """Use sort_fields and category_field to apply a ranking to the table.
 
    Parameters:
@@ -51,38 +97,54 @@ def addRanks(table, sort_field, category_field, rank_field='RANK', thresh = 5, t
          The difference between neighboring values to be considered "significant"
       threshtype: string [ABS | PER]
          Threshold type: absolute or percentage difference
+         
+   NOTE: This function ended up not working consistently, so it's heading for the trash heap.
    """
  
    # add rank field if it does not already exist
    if not arcpy.ListFields(table, rank_field):
       arcpy.AddField_management(table, rank_field, "SHORT")
 
-   sort_sql = ', '.join(['ORDER BY ' + category_field + ',' + sort_field])
+   #sort_sql = ', '.join(['ORDER BY ' + category_field + ',' + sort_field])
+   sort_sql = 'ORDER BY %s, %s' %(category_field, sort_field)
+   printMsg('This is the SQL: %s' %sort_sql)
    
-   # Addition to original function code next few lines
-   # Allows user to supply "DESC" string after field name when descending sort is needed - KRH
    clean_sortfield = sort_field.replace(' DESC', '')
-   # End of addition to original function code - KRH
    
    query_fields = [category_field, rank_field, clean_sortfield]
+   #query_fields = "category_field; rank_field; clean_sortfield"
+   printMsg('The query fields are %s' %str(query_fields))
+   #sort_fields = "%s; %s" % (category_field, sort_field)
 
-   with arcpy.da.UpdateCursor(table, query_fields, sql_clause=(None, sort_sql)) as cur:
+   with arcpy.da.UpdateCursor(table, query_fields, sql_clause=(None, None)) as cur:
+   #with arcpy.UpdateCursor(table, "", "", query_fields, sort_fields) as cur:
       category_field_val = None
       i = 0
+      printMsg('Rank initially set to zero')
       for row in cur:
          if category_field_val == row[0]:
+            printMsg('Still in same category...')
+            printMsg('Sort value for comparison is %s' %str(sortVal))
             if threshtype == 'PER':
                diff = 100*abs((row[2] - sortVal)/sortVal)
+               printMsg('Percentage difference is %s' %str(diff))
             else:
                diff = abs(row[2] - sortVal)
+               printMsg('Absolute difference is %s' %str(diff))
             if diff > thresh:
+               printMsg('Difference is greater than threshold, so updating values.')
                sortVal = row[2]
                i += 1
+            else:
+               printMsg('Difference is less than or equal to threshold, so maintaining values.')
          else:
             category_field_val = row[0]
             sortVal = row[2]
             i = 1
-         print sortVal
+            printMsg('Current category is %s' % row[0])
+            printMsg('Current sort value is %s' % str(row[2]))
+            printMsg('Current rank is %s' % str(i))
+         #print sortVal
          row[1] = i
          cur.updateRow(row)
 
@@ -101,26 +163,36 @@ def countFeatures(features):
    count = int((arcpy.GetCount_management(features)).getOutput(0))
    return count
 
-def updateTiers(in_procEOs, elcode, availSlots):
+def updateTiers(in_procEOs, elcode, availSlots, rankFld):
    r = 1
-   c = 0
-   while availSlots > 0 AND c < availSlots:
-      where_clause1 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "RANK" <= %s' %(elcode, str(r))
-      where_clause2 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "RANK" > %s' %(elcode, str(r))
+   while availSlots > 0:
+      where_clause1 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "%s" <= %s' %(elcode, rankFld, str(r))
+      where_clause2 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "%s" > %s' %(elcode, rankFld, str(r))
       arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_choiceEO", where_clause1)
-      c = countFeatures("lyr_EO")
-      if c < availSlots:
-         arcpy.CalculateField_management("lyr_choiceEO", "TIER", "Priority")
+      c = countFeatures("lyr_choiceEO")
+      printMsg('Current rank: %s' % str(r))
+      printMsg('Available slots: %s' % str(availSlots))
+      printMsg('Features counted: %s' % str(c))
+      if c == 0:
+         print "Nothing to work with here. Moving on."
+         break
+      elif c < availSlots:
+         printMsg('Filling some slots')
+         arcpy.CalculateField_management("lyr_choiceEO", "TIER", "'Priority'", "PYTHON")
          availSlots -= c
          r += 1
       elif c == availSlots:
-         arcpy.CalculateField_management("lyr_choiceEO", "TIER", "Priority")
+         printMsg('Filling all slots')
+         arcpy.CalculateField_management("lyr_choiceEO", "TIER", "'Priority'", "PYTHON")
          arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_surplusEO", where_clause2)
-         arcpy.CalculateField_management("lyr_surplusEO", "TIER", "Surplus")
+         arcpy.CalculateField_management("lyr_surplusEO", "TIER", "'Surplus'", "PYTHON")
          availSlots -= c
+         break
       else:
+         printMsg('Unable to differentiate; moving on to next criteria.')
          arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_surplusEO", where_clause2)
-         arcpy.CalculateField_management("lyr_surplusEO", "TIER", "Surplus")
+         arcpy.CalculateField_management("lyr_surplusEO", "TIER", "'Surplus'", "PYTHON")
+         break
    return availSlots
    
 def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab):
@@ -185,7 +257,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    
    # Set EXCLUSION value for low EO ranks
    codeblock = '''def reclass(order):
-      if order == 0:
+      if order == 0 or order == None:
          return "Low EO Rank"
       else:
          return "Keep"'''
@@ -247,13 +319,14 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
          bmi1 = 0
       if not bmi2:
          bmi2 = 0
-      score = (2*bmi1 + bmi2)/2
+      score = int((2*bmi1 + bmi2)/2)
       return score'''
    expression = 'score( !PERCENT_bmi1!, !PERCENT_bmi2!)'
-   arcpy.CalculateField_management(out_procEOs, "BMI_score", "!PERCENTAGE!", "PYTHON")
+   arcpy.CalculateField_management(out_procEOs, "BMI_score", expression, "PYTHON_9.3", codeblock)
    
    # Field: ysnNAP
    arcpy.AddField_management(out_procEOs, "ysnNAP", "SHORT")
+   arcpy.CalculateField_management(out_procEOs, "ysnNAP", 0, "PYTHON")
    arcpy.MakeFeatureLayer_management(out_procEOs, "lyr_EO")
    where_clause = '"MATYPE" = \'State Natural Area Preserve\''
    arcpy.MakeFeatureLayer_management(in_consLands, "lyr_NAP", where_clause) 
@@ -277,7 +350,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
       
    # Summarize to get count of EOs per element
    printMsg("Summarizing...")
-   arcpy.Statistics_analysis("lyr_EO", out_sumTab, ["EO_ID COUNT"], ["ELCODE", "NEW_GRANK"])
+   arcpy.Statistics_analysis("lyr_EO", out_sumTab, [["EO_ID", "COUNT"]], ["ELCODE", "NEW_GRANK"])
    
    # Add more info to summary table
    # Field: TARGET
@@ -321,47 +394,63 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    
    # Make a data dictionary relating ELCODE to TARGET 
    targetDict = TabToDict("choiceTab", "ELCODE", "TARGET")
+   #print targetDict
    
    # Loop through the dictionary and process each ELCODE
    for key in targetDict:
-      # Get subset of EOs to process
       elcode = key
       printMsg('Working on elcode %s...' %key)
-      Slots = targetDict[key]
-      where_clause = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\'' %elcode
+      try:
+         # Get subset of EOs to process
+         Slots = targetDict[key]
+         where_clause = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\'' %elcode
+         arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+         currentCount = countFeatures("lyr_EO")
+         print 'There are %s "Choice" features with this elcode' % str(currentCount)
+               
+         # Rank by EO-rank (selection order)
+         printMsg('Updating tiers based on EO-rank...')
+         addRanks("lyr_EO", "SEL_ORDER", "", rank_field='RANK_eo', thresh = 0.5, threshtype = "ABS")
+         availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_eo")
+         Slots = availSlots
       
-      # Rank by EO-rank (selection order)
-      printMsg('Filtering by EO-rank...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "SEL_ORDER", "TIER", rank_field='RANK', thresh = 0.5, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
-   
-      # Rank by presence on NAP
-      printMsg('Filtering by presence on NAP...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "ysnNAP DESC", "TIER", rank_field='RANK', thresh = 0.5, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
-      
-      # Rank by BMI score
-      printMsg('Filtering by BMI score...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "BMI_score DESC", "TIER", rank_field='RANK', thresh = 5, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
-      
-      # Rank by last observation year
-      printMsg('Filtering by last observation...')
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-      addRanks("lyr_EO", "OBSYEAR DESC", "TIER", rank_field='RANK', thresh = 3, threshtype = "ABS")
-      availSlots = updateTiers(in_procEOs, elcode, Slots)
-      Slots = availSlots
-   
+         # Rank by presence on NAP
+         if Slots == 0:
+            pass
+         else:
+            printMsg('Updating tiers based on presence on NAP...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "ysnNAP", "DESC", rank_field='RANK_nap', thresh = 0.5, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_nap")
+            Slots = availSlots
+         
+         # Rank by BMI score
+         if Slots == 0:
+            pass
+         else:
+            printMsg('Updating tiers based on BMI score...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "BMI_score", "DESC", rank_field='RANK_bmi', thresh = 5, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_bmi")
+            Slots = availSlots
+         
+         # Rank by last observation year
+         if Slots == 0:
+            pass
+         else:
+            printMsg('Updating tiers based on last observation...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "OBSYEAR", "DESC", rank_field='RANK_year', thresh = 3, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_year")
+            Slots = availSlots
+            if Slots > 0:
+               printMsg('No more criteria available for differentiation; Choice ties remain.')
+      except:
+         printWrng('There was a problem processing elcode %s.' %elcode)
    # Sort
    # Field: ChoiceRANK
    printMsg("Assigning final ranks...")
-   arcpy.AddField_management(in_procEOs, "ChoiceRANK", "TEXT", "", "", 25)
+   arcpy.AddField_management(in_procEOs, "ChoiceRANK", "SHORT")
    codeblock = '''def calcRank(tier):
       if tier == "Irreplaceable":
          return 1
@@ -376,7 +465,7 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
       else:
          return 6'''
    expression = "calcRank(!TIER!)"
-   arcpy.CalculateField_management(out_sumTab, "TIER", expression, "PYTHON_9.3", codeblock)
+   arcpy.CalculateField_management(in_procEOs, "ChoiceRANK", expression, "PYTHON_9.3", codeblock)
    arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"]])
 
    printMsg("Attribution and sorting complete.")
@@ -385,20 +474,20 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\Biotics.gdb\ProcFeats_20180222_191353'
-   in_eoReps = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\Biotics.gdb\EO_reps20180222'
-   in_sppExcl= r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\Biotics.gdb\ExcludeSpecies'
-   in_eoSelOrder = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\EssentialConSites_02012018\Ark\Tables\EORANKNUM.dbf'
-   in_consLands = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\Conslands.gdb\MAs'
-   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\Conslands.gdb\ManagedAreas\MAs_flattened'
-   out_procEOs = r'C:\Testing\ECS_Test20180223.gdb' + os.sep + 'procEOs2'
-   out_sumTab = r'C:\Testing\ECS_Test20180223.gdb' + os.sep + 'eoSumTab2'
-   out_sortedEOs = r'C:\Testing\ECS_Test20180223.gdb' + os.sep + 'procSortedEOs2'
+   in_ProcFeats = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ProcFeats_20180222_191353'
+   in_eoReps = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\EO_reps20180222'
+   in_sppExcl= r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ExcludeSpecies'
+   in_eoSelOrder = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\EO_RankNum'
+   in_consLands = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\MAs'
+   in_consLands_flat = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\MngAreas_flat'
+   out_procEOs = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Outputs.gdb' + os.sep + 'procEOs'
+   out_sumTab = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Outputs.gdb' + os.sep + 'eoSumTab'
+   out_sortedEOs = r'E:\Laptop_MyDocuments\Working\ConSites\Essential_ConSites\ECS_Outputs.gdb' + os.sep + 'procSortedEOs'
    # End of variable input
 
    # Specify function(s) to run below
    AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab)
-   ScoreEOs(out_procEOs, out_sortedEOs)
+   ScoreEOs(out_procEOs, out_sumTab, out_sortedEOs)
    
 if __name__ == '__main__':
    main()
