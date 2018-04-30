@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-03-19
+# Last Edit: 2018-04-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -608,17 +608,21 @@ def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    Note: this tool must be run from within a map document containing the relevant query layers.'''
    # Local variables:
    ts = datetime.now().strftime("%Y%m%d_%H%M%S") # timestamp
+   
+   # Inform user
+   printMsg('This process can only be run in the foreground, and takes a few minutes...')
 
    # Process: Copy Features (ConSites)
    printMsg('Copying ConSites')
    outCS = outGDB + os.sep + 'ConSites_' + ts
-   arcpy.CopyFeatures_management(BioticsCS, outCS, "", "0", "0", "0")
+   arcpy.CopyFeatures_management(BioticsCS, outCS)
+   printMsg('Conservation Sites successfully exported to %s' %outCS)
 
    # Process: Copy Features (ProcFeats)
    printMsg('Copying Procedural Features')
    unprjPF = r'in_memory\unprjProcFeats'
-   arcpy.CopyFeatures_management(BioticsPF, unprjPF, "", "0", "0", "0")
-
+   arcpy.CopyFeatures_management(BioticsPF, unprjPF)
+   
    # Process: Project
    printMsg('Projecting ProcFeats features')
    outPF = outGDB + os.sep + 'ProcFeats_' + ts
@@ -626,30 +630,31 @@ def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    transformMethod = "WGS_1984_(ITRF00)_To_NAD_1983"
    inCoordSyst = "PROJCS['WGS_1984_Web_Mercator_Auxiliary_Sphere',GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Mercator_Auxiliary_Sphere'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',0.0],PARAMETER['Standard_Parallel_1',0.0],PARAMETER['Auxiliary_Sphere_Type',0.0],UNIT['Meter',1.0]]"
    arcpy.Project_management(unprjPF, outPF, outCoordSyst, transformMethod, inCoordSyst, "PRESERVE_SHAPE", "")
+   printMsg('Procedural Features successfully exported to %s' %outPF)
 
-   # Add layers to map after removing existing layers, if present
-   printMsg('Adding layers to map document')
-   mxd = arcpy.mapping.MapDocument("CURRENT")
-   dataFrame = arcpy.mapping.ListDataFrames(mxd, "*")[0] 
-   for lyr in ["Biotics_TerrSites", "Biotics_AHZSites", "Biotics_ProcFeats"]: 
-      try:
-         arcpy.mapping.RemoveLayer(dataFrame, lyr)
-      except: pass
+   # # Add layers to map after removing existing layers, if present
+   # printMsg('Adding layers to map document')
+   # mxd = arcpy.mapping.MapDocument("CURRENT")
+   # dataFrame = arcpy.mapping.ListDataFrames(mxd, "*")[0] 
+   # for lyr in ["Biotics_TerrSites", "Biotics_AHZSites", "Biotics_ProcFeats"]: 
+      # try:
+         # arcpy.mapping.RemoveLayer(dataFrame, lyr)
+      # except: pass
       
-   addTerrSites = arcpy.mapping.Layer(outCS)
-   addTerrSites.name = "Biotics_TerrSites"
-   addTerrSites.definitionQuery = "SITE_TYPE = 'Conservation Site'"
-   arcpy.mapping.AddLayer(dataFrame, addTerrSites)
+   # addTerrSites = arcpy.mapping.Layer(outCS)
+   # addTerrSites.name = "Biotics_TerrSites"
+   # addTerrSites.definitionQuery = "SITE_TYPE = 'Conservation Site'"
+   # arcpy.mapping.AddLayer(dataFrame, addTerrSites)
 
-   addAHZSites = arcpy.mapping.Layer(outCS)
-   addAHZSites.name = "Biotics_AHZSites"
-   addAHZSites.definitionQuery = "SITE_TYPE = 'Anthropogenic Habitat Zone'"
-   arcpy.mapping.AddLayer(dataFrame, addAHZSites)
+   # addAHZSites = arcpy.mapping.Layer(outCS)
+   # addAHZSites.name = "Biotics_AHZSites"
+   # addAHZSites.definitionQuery = "SITE_TYPE = 'Anthropogenic Habitat Zone'"
+   # arcpy.mapping.AddLayer(dataFrame, addAHZSites)
 
-   addProcFeats = arcpy.mapping.Layer(outPF)
-   addProcFeats.name = "Biotics_ProcFeats"
-   addProcFeats.definitionQuery = "RULE NOT IN ( 'CAVE' , 'SCU' )"
-   arcpy.mapping.AddLayer(dataFrame, addProcFeats)
+   # addProcFeats = arcpy.mapping.Layer(outPF)
+   # addProcFeats.name = "Biotics_ProcFeats"
+   # addProcFeats.definitionQuery = "RULE NOT IN ( 'CAVE' , 'SCU' )"
+   # arcpy.mapping.AddLayer(dataFrame, addProcFeats)
    
 def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
    '''Selects features within specified distance of selection features, and copies to output.
