@@ -2,22 +2,22 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-04-30
+# Last Edit: 2018-05-03
 # Creator:  Kirsten R. Hazler
 
 # Summary:
-# A library of functions used to automatically delineate Natural Heritage Conservation Sites 
+# A library of helper functions used to automatically delineate Natural Heritage Conservation Sites 
 
 # ----------------------------------------------------------------------------------------
 
 # Import modules
-import os, sys, traceback
+import os, sys, traceback, numpy
 try:
    arcpy
-   print "arcpy is already loaded"
+   print "Arcpy is already loaded"
 except:
    import arcpy   
-   print "initiating arcpy..."
+   print "Initiating arcpy..."
    
 #from time import time as t
 from datetime import datetime as datetime
@@ -35,6 +35,22 @@ def countSelectedFeatures(featureLyr):
    desc = arcpy.Describe(featureLyr)
    count = len(desc.FIDSet)
    return count
+
+def unique_values(table, field):
+   '''This function was obtained from:
+   https://arcpy.wordpress.com/2012/02/01/create-a-list-of-unique-field-values/'''
+   with arcpy.da.SearchCursor(table, [field]) as cursor:
+      return sorted({row[0] for row in cursor})
+   
+def TabToDict(inTab, fldKey, fldValue):
+   '''Converts two fields in a table to a dictionary'''
+   codeDict = {}
+   with arcpy.da.SearchCursor(inTab, [fldKey, fldValue]) as sc:
+      for row in sc:
+         key = sc[0]
+         val = sc[1]
+         codeDict[key] = val
+   return codeDict 
    
 def GetElapsedTime (t1, t2):
    """Gets the time elapsed between the start time (t1) and the finish time (t2)."""
@@ -382,8 +398,7 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scr
    return outEraseFeats
    
 def CullEraseFeats (inEraseFeats, in_Feats, fld_SFID, PerCov, outEraseFeats, scratchGDB = "in_memory"):
-   '''For ConSite creation: Culls exclusion features containing a significant percentage of any 
-input feature's (PF or SBB) area'''
+   '''For ConSite creation: Culls exclusion features containing a significant percentage of any input feature's (PF or SBB) area'''
    # Process:  Add Field (Erase ID) and Calculate
    arcpy.AddField_management (inEraseFeats, "eFID", "LONG")
    arcpy.CalculateField_management (inEraseFeats, "eFID", "!OBJECTID!", "PYTHON")
