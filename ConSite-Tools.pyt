@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-04-30
+# Last Edit: 2018-05-10
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -162,7 +162,7 @@ class extract_biotics(object):
       self.label = "0: Extract Biotics data"
       self.description = ""
       self.canRunInBackground = False
-	  # For some reason, this tool fails if run in the background.
+      # For some reason, this tool fails if run in the background.
       self.category = "Site Automation Tools"
 
    def getParameterInfo(self):

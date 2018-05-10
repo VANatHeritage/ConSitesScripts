@@ -2,24 +2,33 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2018-05-09
+# Last Edit: 2018-05-10
 # Creator:  Kirsten R. Hazler and Roy Gilb
 # ---------------------------------------------------------------------------
 
 # Import modules and functions
-import libConSiteFx
-from libConSiteFx import *
+import Helper
+from Helper import *
 
 scratchGDB = arcpy.env.scratchGDB
+arcpy.env.overwriteOutput = True
 
-def addRanks(table, sort_field, order, rank_field='RANK', thresh = 5, threshtype = "ABS", rounding = None):
-   '''A helper function called by ScoreEOs and BuildPortfolio'''
+### HELPER FUNCTIONS ###
+def addRanks(table, sort_field, order = 'ASCENDING', rank_field='RANK', thresh = 5, threshtype = 'ABS', rounding = None):
+   '''A helper function called by ScoreEOs and BuildPortfolio functions; ranks records by one specified sorting field.
+   Parameters:
+   - table: the input table to which ranks will be added
+   - sort_field: the input field on which ranks will be based
+   - order: controls the sorting order. Assumes ascending order unless "DESC" or "DESCENDING" is entered.
+   - rank_field: the name of the new field that will be created to contain the ranks
+   - thresh: the amount by which sorted values must differ to be ranked differently. 
+   - threshtype: determines whether the threshold is an absolute value ("ABS") or a percentage ("PER")
+   - rounding: determines whether sorted values are to be rounded prior to ranking, and by how much. Must be an integer or None. With rounding = 2, 1234.5678 and 1234.5690 are treated as the equivalent number for ranking purposes. With rounding = -1, 11 and 12 are treated as equivalents for ranking.
+   '''
    valList = unique_values(table, sort_field)
    if rounding <> None:
       valList = [round(val, rounding) for val in valList]
-      # With rounding = 2, values like 1234.5678 and 1234.5690 are treated as the equivalent number.
-      # Note you can also use a negative number for rounding, so for example if rounding = -1, then 11 and 12 are treated as equivalents.
-   if order == "DESC":
+   if order == "DESC" or order == "DESCENDING":
       valList.reverse()
    printMsg('Values in order are: %s' % str(valList))
    rankDict = {}
@@ -56,7 +65,13 @@ def addRanks(table, sort_field, order, rank_field='RANK', thresh = 5, threshtype
    return
       
 def updateTiers(in_procEOs, elcode, availSlots, rankFld):
-   '''A helper function called by ScoreEOs'''
+   '''A helper function called by ScoreEOs. Updates tier levels, specifically bumping "Choice" records up to "Priority" or down to "Surplus".
+   Parameters:
+   - in_procEOs: input processed EOs (i.e., out_procEOs from the AttributeEOs function)
+   - elcode: the element code to be processed
+   - availSlots: available slots remaining to be filled in the EO portfolio
+   - rankFld: the ranking field used to determine which record(s) should fill the available slots
+   '''
    r = 1
    while availSlots > 0:
       where_clause1 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "%s" <= %s' %(elcode, rankFld, str(r))
@@ -89,7 +104,13 @@ def updateTiers(in_procEOs, elcode, availSlots, rankFld):
    return availSlots
 
 def updateSlots(in_procEOs, elcode, availSlots, rankFld):
-   '''A helper function called by ScoreEOs'''
+   '''A helper function called by BuildPortfolio. Updates portfolio status for EOs, specifically adding records to the portfolio.
+   Parameters:
+   - in_procEOs: input processed EOs (i.e., out_procEOs from the AttributeEOs function, further processed by the ScoreEOs function)
+   - elcode: the element code to be processed
+   - availSlots: available slots remaining to be filled in the EO portfolio
+   - rankFld: the ranking field used to determine which record(s) should fill the available slots
+   '''
    r = 1
    while availSlots > 0:
       where_clause1 = '"ELCODE" = \'%s\' AND "TIER" = \'Choice\' AND "PORTFOLIO" = 0 AND "%s" <= %s' %(elcode, rankFld, str(r))
@@ -116,16 +137,69 @@ def updateSlots(in_procEOs, elcode, availSlots, rankFld):
          #printMsg('Unable to differentiate; moving on to next criteria.')
          break
    return availSlots
+
+def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
+   '''A helper function called by BuildPortfolio. Selects ConSites intersecting EOs in the EO portfolio, and adds them to the ConSite portfolio. Then selects "Choice" EOs intersecting ConSites in the portfolio, and adds them to the EO portfolio (bycatch). Finally, updates the summary table to indicate how many EOs of each element are in the different tier classes, and how many are included in the current portfolio.
+   Parameters:
+   - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function, further processed by the ScoreEOs function)
+   - in_ConSites: input Conservation Site boundaries
+   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function, further processed by the ScoreEOs function.
+   '''
+   # Intersect ConSites with subset of EOs, and set PORTFOLIO to 1
+   where_clause = '"ChoiceRANK" < 4 OR "PORTFOLIO" = 1' 
+   arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+   arcpy.MakeFeatureLayer_management (in_ConSites, "lyr_CS")
+   arcpy.SelectLayerByLocation_management ("lyr_CS", "INTERSECT", "lyr_EO", 0, "NEW_SELECTION", "NOT_INVERT")
+   arcpy.CalculateField_management("lyr_CS", "PORTFOLIO", 1, "PYTHON_9.3")
+   arcpy.CalculateField_management("lyr_EO", "PORTFOLIO", 1, "PYTHON_9.3")
+   printMsg('ConSites portfolio updated')
    
+   # Intersect Choice EOs with Portfolio ConSites, and set PORTFOLIO to 1
+   where_clause = '"TIER" = \'Choice\''
+   arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+   where_clause = '"PORTFOLIO" = 1'
+   arcpy.MakeFeatureLayer_management (in_ConSites, "lyr_CS", where_clause)
+   arcpy.SelectLayerByLocation_management ("lyr_EO", "INTERSECT", "lyr_CS", 0, "NEW_SELECTION", "NOT_INVERT")
+   arcpy.CalculateField_management("lyr_EO", "PORTFOLIO", 1, "PYTHON_9.3")
+   printMsg('EOs portfolio updated')
+   
+   # Fill in counter fields
+   printMsg('Summarizing portfolio status...')
+   freqTab = in_procEOs + '_freq'
+   pivotTab = in_procEOs + '_pivot'
+   arcpy.Frequency_analysis(in_procEOs, freqTab, frequency_fields="ELCODE;TIER") 
+   arcpy.PivotTable_management(freqTab, fields="ELCODE", pivot_field="TIER", value_field="FREQUENCY", out_table=pivotTab)
+   
+   fields = ["Irreplaceable", "Essential", "Priority", "Choice", "Surplus"]
+   for fld in fields:
+      try:
+         arcpy.DeleteField_management (in_sumTab, fld)
+      except:
+         pass
+      arcpy.JoinField_management (in_sumTab, "ELCODE", pivotTab, "ELCODE", fld)
+      #printMsg('Field "%s" joined to table %s.' %(fld, in_sumTab))
+   
+   portfolioTab = in_procEOs + '_portfolio'
+   arcpy.Frequency_analysis(in_procEOs, portfolioTab, frequency_fields="ELCODE", summary_fields="PORTFOLIO")
+   try: 
+      arcpy.DeleteField_management (in_sumTab, "PORTFOLIO")
+   except:
+      pass
+   arcpy.JoinField_management (in_sumTab, "ELCODE", portfolioTab, "ELCODE", "PORTFOLIO")
+   #printMsg('Field "PORTFOLIO" joined to table %s.' %in_sumTab)
+
+
+### MAIN FUNCTIONS ###   
 def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab):
-   '''Attaches various attributes to EOs, and creates a summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
-   Inputs:
+   '''Attaches various attributes to EOs, and creating a new output attributed feature class as well as a summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
+   Parameters:
    - in_ProcFeats: Input feature class with "site-worthy" procedural features
    - in_eoReps: Input feature class or table with EO reps, e.g., EO_Reps_All.shp
    - in_sppExcl: Input table containing list of elements to be excluded from the process, e.g., EO_Exclusions.dbf
    - in_eoSelOrder: Input table designating selection order for different EO rank codes, e.g., EORANKNUM.dbf
    - in_consLands: Input feature class with conservation lands (managed areas), e.g., MAs.shp
-   - out_procEOs: Output EOs with TIER scores
+   - in_consLands_flat: A "flattened" version of in_ConsLands, based on level of Biodiversity Management Intent (BMI). (This is needed due to stupid overlapping polygons in our database. Sigh.)
+   - out_procEOs: Output EOs with TIER scores and other attributes.
    - out_sumTab: Output table summarizing number of included EOs per element'''
    
    # Dissolve procedural features on EO_ID
@@ -310,10 +384,10 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    return (out_procEOs, out_sumTab)
 
 def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
-   '''Scores EOs based on a variety of attributes. This function must follow, and requires inputs from the outputs of the AttributeEOs function. 
-   Inputs:
-   - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the previous function)
-   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the previous function.
+   '''Ranks EOs within an element based on a variety of attributes. This function must follow, and requires inputs from, the outputs of the AttributeEOs function. 
+   Parameters:
+   - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function)
+   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
    - out_sortedEOs: output feature class of processed EOs, sorted by element code and rank.
    '''
    # Get subset of choice elements
@@ -373,21 +447,9 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
             Slots = availSlots
             if Slots > 0:
                printMsg('No more criteria available for differentiation; Choice ties remain.')
-               
-         # # Rank by number of source features
-         # Ludwig said not to use this criterion.
-         # if Slots == 0:
-            # pass
-         # else:
-            # printMsg('Updating tiers based on number of source features...')
-            # arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            # addRanks("lyr_EO", "COUNT_SFID", "DESC", rank_field='RANK_srcFeats', thresh = 0, threshtype = "ABS")
-            # availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_srcFeats")
-            # Slots = availSlots
-            # if Slots > 0:
-               # printMsg('No more criteria available for differentiation; Choice ties remain.')
       except:
          printWrng('There was a problem processing elcode %s.' %elcode)
+         tback()
    # Sort
    # Field: ChoiceRANK
    printMsg("Assigning final ranks...")
@@ -412,57 +474,18 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
 
-def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
-   '''A helper function called by BuildPortfolio'''
-   # Intersect ConSites with subset of EOs, and set PORTFOLIO to 1
-   where_clause = '"ChoiceRANK" < 4 OR "PORTFOLIO" = 1' 
-   arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-   arcpy.MakeFeatureLayer_management (in_ConSites, "lyr_CS")
-   arcpy.SelectLayerByLocation_management ("lyr_CS", "INTERSECT", "lyr_EO", 0, "NEW_SELECTION", "NOT_INVERT")
-   arcpy.CalculateField_management("lyr_CS", "PORTFOLIO", 1, "PYTHON_9.3")
-   arcpy.CalculateField_management("lyr_EO", "PORTFOLIO", 1, "PYTHON_9.3")
-   printMsg('ConSites portfolio updated')
-   
-   # Intersect Choice EOs with Portfolio ConSites, and set PORTFOLIO to 1
-   where_clause = '"TIER" = \'Choice\''
-   arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-   where_clause = '"PORTFOLIO" = 1'
-   arcpy.MakeFeatureLayer_management (in_ConSites, "lyr_CS", where_clause)
-   arcpy.SelectLayerByLocation_management ("lyr_EO", "INTERSECT", "lyr_CS", 0, "NEW_SELECTION", "NOT_INVERT")
-   arcpy.CalculateField_management("lyr_EO", "PORTFOLIO", 1, "PYTHON_9.3")
-   printMsg('EOs portfolio updated')
-   
-   # Fill in counter fields
-   printMsg('Summarizing portfolio status...')
-   freqTab = in_procEOs + '_freq'
-   pivotTab = in_procEOs + '_pivot'
-   arcpy.Frequency_analysis(in_procEOs, freqTab, frequency_fields="ELCODE;TIER") 
-   arcpy.PivotTable_management(freqTab, fields="ELCODE", pivot_field="TIER", value_field="FREQUENCY", out_table=pivotTab)
-   
-   fields = ["Irreplaceable", "Essential", "Priority", "Choice", "Surplus"]
-   for fld in fields:
-      try:
-         arcpy.DeleteField_management (in_sumTab, fld)
-      except:
-         pass
-      arcpy.JoinField_management (in_sumTab, "ELCODE", pivotTab, "ELCODE", fld)
-      #printMsg('Field "%s" joined to table %s.' %(fld, in_sumTab))
-   
-   portfolioTab = in_procEOs + '_portfolio'
-   arcpy.Frequency_analysis(in_procEOs, portfolioTab, frequency_fields="ELCODE", summary_fields="PORTFOLIO")
-   try: 
-      arcpy.DeleteField_management (in_sumTab, "PORTFOLIO")
-   except:
-      pass
-   arcpy.JoinField_management (in_sumTab, "ELCODE", portfolioTab, "ELCODE", "PORTFOLIO")
-   #printMsg('Field "PORTFOLIO" joined to table %s.' %in_sumTab)
-   
 def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
-   '''build options:
+   '''Builds a portfolio of EOs and Conservation Sites of highest conservation priority.
+   Parameters:
+   - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function, further processed by the ScoreEOs function)
+   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function, further processed by the ScoreEOs function.
+   - in_ConSites: input Conservation Site boundaries
+   - build: type of portfolio build to perform. The options are:
       - NEW: overwrite any existing portfolio picks for both EOs and ConSites
       - NEW_EO: overwrite existing EO picks, but keep previous ConSite picks
       - NEW_CS: overwrite existing ConSite picks, but keep previous EO picks
-      - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites'''
+      - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites
+   '''
    # Add "PORTFOLIO" field to in_procEOs and in_ConSites tables, and set to zero
    for tab in [in_procEOs, in_ConSites]:
       arcpy.AddField_management(tab, "PORTFOLIO", "SHORT")
@@ -582,15 +605,7 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
          
       except:
          printWrng('There was a problem processing elcode %s.' %elcode)  
-         # Error handling code swiped from "A Python Primer for ArcGIS"
-         tb = sys.exc_info()[2]
-         tbinfo = traceback.format_tb(tb)[0]
-         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
-         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
-
-         printWrng(msgs)
-         printWrng(pymsg)
-         printMsg(arcpy.GetMessages(1))         
+         tback()        
 
    UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab)
    printMsg('Portfolio summary updated.')
