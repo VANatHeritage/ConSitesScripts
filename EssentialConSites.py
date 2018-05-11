@@ -38,7 +38,7 @@ def addRanks(table, sort_field, order = 'ASCENDING', rank_field='RANK', thresh =
    #printMsg('Setting up ranking dictionary...')
    for v in valList:
       if threshtype == "PER":
-         diff = 100*abs(v - sortVal/sortVal)
+         diff = 100*abs(v - sortVal)/sortVal
       else:
          diff = abs(v-sortVal)
       if diff > thresh:
