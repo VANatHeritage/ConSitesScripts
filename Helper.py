@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-05-10
+# Last Edit: 2018-05-15
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -19,7 +19,6 @@ except:
    import arcpy   
    print "Initiating arcpy..."
    
-#from time import time as t
 from datetime import datetime as datetime
 
 def countFeatures(features):
@@ -56,6 +55,16 @@ def GetElapsedTime (t1, t2):
    (h, m) = (m/60, m%60)
    deltaString = '%s days, %s hours, %s minutes, %s seconds' % (str(d), str(h), str(m), str(s))
    return deltaString
+
+def multiMeasure(meas, multi):
+   '''Given a measurement string such as "100 METERS" and a multiplier, multiplies the number by the specified multiplier, and returns a new measurement string along with its individual components'''
+   parseMeas = meas.split(" ") # parse number and units
+   num = float(parseMeas[0]) # convert string to number
+   units = parseMeas[1]
+   num = num * multi
+   newMeas = str(num) + " " + units
+   measTuple = (num, units, newMeas)
+   return measTuple
    
 def createTmpWorkspace():
    '''Creates a new temporary geodatabase with a timestamp tag, within the current scratchFolder'''

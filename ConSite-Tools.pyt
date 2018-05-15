@@ -51,10 +51,10 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesce, shrinkwrap, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite]
+      self.tools = [coalesceFeats, shrinkwrap, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite]
 
 # Define the tools
-class coalesce(object):
+class coalesceFeats(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
       self.label = "Coalesce"
@@ -72,6 +72,8 @@ class coalesce(object):
       parm3.filter.list = ["Local Database"]
       parms = [parm0, parm1, parm2, parm3]
       return parms
+
+      return 
 
    def isLicensed(self):
       """Set whether tool is licensed to execute."""
@@ -97,9 +99,9 @@ class coalesce(object):
          scratchParm = scratch_GDB 
       else:
          scratchParm = "in_memory" 
-      
-      Coalesce(in_Feats, dil_Dist, out_Feats, scratchParm)
 
+      Coalesce(in_Feats, dil_Dist, out_Feats, scratchParm)
+      
       return out_Feats
 
 class shrinkwrap(object):
