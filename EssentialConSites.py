@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2018-05-10
+# Last Edit: 2018-05-21
 # Creator:  Kirsten R. Hazler and Roy Gilb
 # ---------------------------------------------------------------------------
 
@@ -14,6 +14,23 @@ scratchGDB = arcpy.env.scratchGDB
 arcpy.env.overwriteOutput = True
 
 ### HELPER FUNCTIONS ###
+def TabulateBMI(procEOs, conslands, bmiValue, fldName):
+   '''A helper function called by the AttributeEOs function; tabulates the percentage of each EO covered by conservation lands with specified BMI value.
+   Parameters:
+   - procEOs: Feature class with processed EOs
+   - conslands: Feature class with conservation lands, flattened by BMI level
+   - bmiValue: The value of BMI used to select subset of conservation lands
+   - fldName: The output field name to be used to store percent of EO covered by selected conservation lands
+   '''
+   printMsg("Tabulating intersection of EOs with conservation lands of specified BMI...")
+   where_clause = '"BMI" = \'%s\'' %bmiValue
+   arcpy.MakeFeatureLayer_management (conslands, "lyr_bmi", where_clause)
+   TabInter_bmi = scratchGDB + os.sep + "TabInter_bmi"
+   arcpy.TabulateIntersection_analysis(procEOs, "EO_ID", "lyr_bmi", TabInter_bmi)
+   arcpy.AddField_management(TabInter_bmi, fldName, "DOUBLE")
+   arcpy.CalculateField_management(TabInter_bmi, fldName, "!PERCENTAGE!", "PYTHON")
+   arcpy.JoinField_management(procEOs, "EO_ID", TabInter_bmi, "EO_ID", fldName)
+
 def addRanks(table, sort_field, order = 'ASCENDING', rank_field='RANK', thresh = 5, threshtype = 'ABS', rounding = None):
    '''A helper function called by ScoreEOs and BuildPortfolio functions; ranks records by one specified sorting field.
    Parameters:
@@ -283,41 +300,30 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO", where_clause)
    arcpy.CalculateField_management("lyr_EO", "EXCLUSION", "'Military Exclusion'", "PYTHON")
    
-   # Tabulate Intersection of EOs with conservation lands where BMI = 1
+   # Tabulate Intersection of EOs with conservation lands of specified BMI values
    printMsg("Tabulating intersection of EOs with BMI-1 lands...")
-   where_clause = '"BMI" = \'1\''
-   arcpy.MakeFeatureLayer_management (in_consLands_flat, "lyr_bmi1", where_clause)
-   TabInter_bmi1 = scratchGDB + os.sep + "TabInter_bmi1"
-   arcpy.TabulateIntersection_analysis(out_procEOs, "EO_ID", "lyr_bmi1", TabInter_bmi1)
-   
-   # Field: PERCENT_bmi1
-   arcpy.AddField_management(TabInter_bmi1, "PERCENT_bmi1", "DOUBLE")
-   arcpy.CalculateField_management(TabInter_bmi1, "PERCENT_bmi1", "!PERCENTAGE!", "PYTHON")
-   arcpy.JoinField_management(out_procEOs, "EO_ID", TabInter_bmi1, "EO_ID", "PERCENT_bmi1")
-   
-   # Tabulate Intersection of EOs with conservation lands where BMI = 2
+   TabulateBMI(out_procEOs, in_consLands_flat, "1", "PERCENT_bmi1")
+
    printMsg("Tabulating intersection of EOs with BMI-2 lands...")
-   where_clause = '"BMI" = \'2\''
-   arcpy.MakeFeatureLayer_management (in_consLands_flat, "lyr_bmi2", where_clause)
-   TabInter_bmi2 = scratchGDB + os.sep + "TabInter_bmi2"
-   arcpy.TabulateIntersection_analysis(out_procEOs, "EO_ID", "lyr_bmi2", TabInter_bmi2)
+   TabulateBMI(out_procEOs, in_consLands_flat, "2", "PERCENT_bmi2")
    
-   # Field: PERCENT_bmi2
-   arcpy.AddField_management(TabInter_bmi2, "PERCENT_bmi2", "DOUBLE")
-   arcpy.CalculateField_management(TabInter_bmi2, "PERCENT_bmi2", "!PERCENTAGE!", "PYTHON")
-   arcpy.JoinField_management(out_procEOs, "EO_ID", TabInter_bmi2, "EO_ID", "PERCENT_bmi2")
+   printMsg("Tabulating intersection of EOs with BMI-3 lands...")
+   TabulateBMI(out_procEOs, in_consLands_flat, "3", "PERCENT_bmi3")
+   
+   printMsg("Tabulating intersection of EOs with BMI-4 lands...")
+   TabulateBMI(out_procEOs, in_consLands_flat, "4", "PERCENT_bmi4")
 
    printMsg("Calculating additional fields...")
    # Field: BMI_score
    arcpy.AddField_management(out_procEOs, "BMI_score", "DOUBLE")
-   codeblock = '''def score(bmi1, bmi2):
-      if not bmi1:
-         bmi1 = 0
-      if not bmi2:
-         bmi2 = 0
-      score = int((2*bmi1 + bmi2)/2)
+   codeblock = '''def score(bmi1, bmi2, bmi3, bmi4):
+      parmVals = {1:bmi1, 2:bmi2, 3:bmi3, 4:bmi4}
+      for key in parmVals:
+         if not parmVals[key]:
+            parmVals[key] = 0.0
+      score = int((8*parmVals[1] + 4*parmVals[2] + 2*parmVals[3] + 1*parmVals[4])/8)
       return score'''
-   expression = 'score( !PERCENT_bmi1!, !PERCENT_bmi2!)'
+   expression = 'score(!PERCENT_bmi1!, !PERCENT_bmi2!, !PERCENT_bmi3!, !PERCENT_bmi4!)'
    arcpy.CalculateField_management(out_procEOs, "BMI_score", expression, "PYTHON_9.3", codeblock)
    
    # Field: ysnNAP
@@ -613,18 +619,18 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\PF_TestSubset2'
+   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\TerrProcFeats_20180510'
    #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ProcFeats_20180222_191353'
    #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\PF_TestSubset2'
-   in_eoReps = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\EO_reps20180222'
-   in_sppExcl= r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ExcludeSpecies'
-   in_eoSelOrder = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\EO_RankNum'
-   in_consLands = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\MAs'
-   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\MngAreas_flat'
-   in_ConSites = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ConSites_20180222_191353'   #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ConSites_TestSubset2'
-   out_procEOs = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Outputs.gdb' + os.sep + 'procEOs_0507'
-   out_sumTab = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Outputs.gdb' + os.sep + 'eoSumTab_0507'
-   out_sortedEOs = r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Outputs.gdb' + os.sep + 'procSortedEOs_0507'
+   in_eoReps = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\EO_reps20180222'
+   in_sppExcl= r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ExcludeSpecies'
+   in_eoSelOrder = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\EO_RankNum'
+   in_consLands = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\MAs'
+   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\MngAreas_flat'
+   in_ConSites = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\TerrConSites_20180510'   #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ConSites_TestSubset2'
+   out_procEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs.gdb' + os.sep + 'terr_procEOs_0521'
+   out_sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs.gdb' + os.sep + 'terr_eoSumTab_0521'
+   out_sortedEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs.gdb' + os.sep + 'terr_procSortedEOs_0521'
    # End of variable input
 
    # Specify function(s) to run below
