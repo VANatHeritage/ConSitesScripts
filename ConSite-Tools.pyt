@@ -2,14 +2,11 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-05-10
+# Last Edit: 2018-05-24
 # Creator:  Kirsten R. Hazler
 
 # Summary:
-# A toolbox for automatic delineation of Natural Heritage Conservation Sites
-
-# TO DO:
-#
+# A toolbox for automatic delineation and prioritization of Natural Heritage Conservation Sites
 # ----------------------------------------------------------------------------------------
 
 import libConSiteFx
@@ -17,6 +14,7 @@ from libConSiteFx import *
 from CreateSBBs import *
 from CreateConSites import *
 from ReviewConSites import *
+from EssentialConSites import *
 
 # First define some handy functions
 def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction, defaultVal = None):
@@ -51,7 +49,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrap, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite]
+      self.tools = [coalesceFeats, shrinkwrap, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, attribute_eo, score_eo, build_portfolio]
 
 # Define the tools
 class coalesceFeats(object):
@@ -165,7 +163,7 @@ class extract_biotics(object):
       self.description = ""
       self.canRunInBackground = False
       # For some reason, this tool fails if run in the background.
-      self.category = "Site Automation Tools"
+      self.category = "Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -205,7 +203,7 @@ class create_sbb(object):
       self.label = "1: Create Site Building Blocks (SBBs)"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Automation Tools"
+      self.category = "Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -263,7 +261,7 @@ class expand_sbb(object):
       self.label = "2: Expand SBBs with Core Area"
       self.description = "Expands SBBs by adding core area."
       self.canRunInBackground = True
-      self.category = "Site Automation Tools"
+      self.category = "Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -317,7 +315,7 @@ class parse_sbb(object):
       self.label = "3: Parse SBBs by Type"
       self.description = "Splits SBB feature class into AHZ and non-AHZ features."
       self.canRunInBackground = True
-      self.category = "Site Automation Tools"
+      self.category = "Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -360,7 +358,7 @@ class create_consite(object):
       self.label = "4: Create Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Automation Tools"
+      self.category = "Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -441,7 +439,7 @@ class review_consite(object):
       self.label = "5: Review Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Automation Tools"
+      self.category = "Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -487,3 +485,138 @@ class review_consite(object):
       ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID, scratchParm)
 
       return out_Sites
+      
+class attribute_eo(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "1: Attribute Element Occurrences"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Site Prioritization Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("in_ProcFeats", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("in_eoReps", "Input Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
+      parm02 = defineParam("in_sppExcl", "Input Species Exclusion Table", "GPTableView", "Required", "Input")
+      parm03 = defineParam("in_eoSelOrder", "Input EO Selection Order Table", "GPTableView", "Required", "Input")
+      parm04 = defineParam("in_consLands", "Input Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm05 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm06 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output")
+      parm07 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output")
+
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab)
+
+      return (out_procEOs, out_sumTab)
+      
+class score_eo(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "2: Score Element Occurrences"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Site Prioritization Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("in_procEOs", "Input Attributed Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      parm02 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output")
+
+      parms = [parm00, parm01, parm02]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      
+      # Run function
+      ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs)
+
+      return (out_sortedEOs)
+      
+class build_portfolio(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "3: Build Conservation Portfolio"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Site Prioritization Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("in_sortedEOs", "Input Scored Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Output")
+      parm02 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      parm03 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "GPTableView", "Required", "Output")
+      parm04 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm05 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "GPFeatureLayer", "Required", "Output")
+      parm06 = defineParam("build", "Portfolio Build Option", "String", "Required", "Input", "NEW")
+      parm06.filter.list = ["NEW", "NEW_EO", "NEW_CS", "UPDATE"]
+
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      # Run function
+      BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, build)
+      
+      return (out_sortedEOs, out_sumTab, out_ConSites)      

@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2018-05-21
+# Last Edit: 2018-05-24
 # Creator:  Kirsten R. Hazler and Roy Gilb
 # ---------------------------------------------------------------------------
 
@@ -10,7 +10,6 @@
 import Helper
 from Helper import *
 
-scratchGDB = arcpy.env.scratchGDB
 arcpy.env.overwriteOutput = True
 
 ### HELPER FUNCTIONS ###
@@ -22,6 +21,7 @@ def TabulateBMI(procEOs, conslands, bmiValue, fldName):
    - bmiValue: The value of BMI used to select subset of conservation lands
    - fldName: The output field name to be used to store percent of EO covered by selected conservation lands
    '''
+   scratchGDB = arcpy.env.scratchGDB
    printMsg("Tabulating intersection of EOs with conservation lands of specified BMI...")
    where_clause = '"BMI" = \'%s\'' %bmiValue
    arcpy.MakeFeatureLayer_management (conslands, "lyr_bmi", where_clause)
@@ -160,7 +160,7 @@ def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
    Parameters:
    - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function, further processed by the ScoreEOs function)
    - in_ConSites: input Conservation Site boundaries
-   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function, further processed by the ScoreEOs function.
+   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
    '''
    # Intersect ConSites with subset of EOs, and set PORTFOLIO to 1
    where_clause = '"ChoiceRANK" < 4 OR "PORTFOLIO" = 1' 
@@ -208,7 +208,7 @@ def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
 
 ### MAIN FUNCTIONS ###   
 def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab):
-   '''Attaches various attributes to EOs, and creating a new output attributed feature class as well as a summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
+   '''Attaches various attributes to EOs, creating a new output attributed feature class as well as a summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
    Parameters:
    - in_ProcFeats: Input feature class with "site-worthy" procedural features
    - in_eoReps: Input feature class or table with EO reps, e.g., EO_Reps_All.shp
@@ -218,6 +218,8 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    - in_consLands_flat: A "flattened" version of in_ConsLands, based on level of Biodiversity Management Intent (BMI). (This is needed due to stupid overlapping polygons in our database. Sigh.)
    - out_procEOs: Output EOs with TIER scores and other attributes.
    - out_sumTab: Output table summarizing number of included EOs per element'''
+   
+   scratchGDB = arcpy.env.scratchGDB
    
    # Dissolve procedural features on EO_ID
    printMsg("Dissolving procedural features by EO...")
@@ -336,16 +338,6 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    arcpy.CalculateField_management("lyr_EO", "ysnNAP", 1, "PYTHON")
    #arcpy.SelectLayerByAttribute_management("lyr_EO", "CLEAR_SELECTION")
    
-   # # Field: NEAR_DIST
-   # where_clause = '"BMI" in (\'1\',\'2\')'
-   # arcpy.MakeFeatureLayer_management (in_consLands, "lyr_ConsLands", where_clause)
-   # arcpy.Near_analysis(out_procEOs, "lyr_ConsLands", "", "NO_LOCATION", "NO_ANGLE", "PLANAR")
-   
-   # # Field: INV_DIST
-   # arcpy.AddField_management(out_procEOs, "INV_DIST", "DOUBLE")
-   # expression = "1/math.sqrt(!NEAR_DIST! + 1)"
-   # arcpy.CalculateField_management(out_procEOs, "INV_DIST", expression , "PYTHON_9.3")
-
    # Get subset of EOs to summarize based on EXCLUSION field
    where_clause = '"EXCLUSION" = \'Keep\''
    arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO", where_clause)
@@ -396,6 +388,16 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
    - out_sortedEOs: output feature class of processed EOs, sorted by element code and rank.
    '''
+         
+   # Make in-memory copies of input
+   tmpEOs = "in_memory" + os.sep + "tmpEOs"
+   arcpy.CopyFeatures_management(in_procEOs, tmpEOs)
+   in_procEOs = tmpEOs
+   
+   # Add ranking fields
+   for fld in ['RANK_eo', 'RANK_nap', 'RANK_bmi', 'RANK_year']:
+      arcpy.AddField_management(in_procEOs, fld, "SHORT")
+   
    # Get subset of choice elements
    where_clause = '"TIER" = \'Choice\''
    arcpy.MakeTableView_management (in_sumTab, "choiceTab", where_clause)
@@ -475,30 +477,54 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
          return 6'''
    expression = "calcRank(!TIER!)"
    arcpy.CalculateField_management(in_procEOs, "ChoiceRANK", expression, "PYTHON_9.3", codeblock)
-   arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"]])
+   
+   arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"],["RANK_eo", "ASCENDING"], ["RANK_nap", "ASCENDING"], ["RANK_bmi", "ASCENDING"], ["RANK_year", "ASCENDING"]])
 
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
 
-def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
+def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, build = 'NEW'):
    '''Builds a portfolio of EOs and Conservation Sites of highest conservation priority.
    Parameters:
-   - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function, further processed by the ScoreEOs function)
-   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function, further processed by the ScoreEOs function.
+   - in_sortedEOs: input feature class of scored EOs (i.e., out_sortedEOs from the ScoreEOs function)
+   - out_sortedEOs: output prioritized EOs
+   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
+   - out_sumTab: updated output element portfolio summary table
    - in_ConSites: input Conservation Site boundaries
+   - out_ConSites: output prioritized Conservation Sites
    - build: type of portfolio build to perform. The options are:
       - NEW: overwrite any existing portfolio picks for both EOs and ConSites
       - NEW_EO: overwrite existing EO picks, but keep previous ConSite picks
       - NEW_CS: overwrite existing ConSite picks, but keep previous EO picks
       - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites
    '''
-   # Add "PORTFOLIO" field to in_procEOs and in_ConSites tables, and set to zero
-   for tab in [in_procEOs, in_ConSites]:
+   
+   # Make copies of inputs
+   tmpEOs = "in_memory" + os.sep + "tmpEOs"
+   arcpy.CopyFeatures_management(in_sortedEOs, tmpEOs)
+   in_sortedEOs = tmpEOs
+   
+   scratchGDB = arcpy.env.scratchGDB 
+   
+   tmpTab = scratchGDB + os.sep + "tmpTab"
+   arcpy.CopyRows_management(in_sumTab, tmpTab)
+   in_sumTab = tmpTab
+   
+   tmpCS = scratchGDB + os.sep + "tmpCS"
+   arcpy.CopyFeatures_management(in_ConSites, tmpCS)
+   in_ConSites = tmpCS
+      
+   # Add "PORTFOLIO" field to in_sortedEOs and in_ConSites tables, and set to zero
+   for tab in [in_sortedEOs, in_ConSites]:
       arcpy.AddField_management(tab, "PORTFOLIO", "SHORT")
       # This command should be ignored if field already exists
       
+   # Add ranking fields
+   for fld in ['RANK_csVal', 'RANK_area']:
+      arcpy.AddField_management(in_sortedEOs, fld, "SHORT")
+      
    if build == 'NEW' or build == 'NEW_EO':
-      arcpy.CalculateField_management(in_procEOs, "PORTFOLIO", 0, "PYTHON_9.3")
+      arcpy.CalculateField_management(in_sortedEOs, "PORTFOLIO", 0, "PYTHON_9.3")
       printMsg('Portfolio picks reset to zero for EOs')
    else:
       printMsg('Portfolio picks maintained for EOs')
@@ -510,8 +536,8 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
       printMsg('Portfolio picks maintained for ConSites')
       
    if build == 'NEW':
-      # Add "EO_CONSVALUE" field to in_procEOs, and calculate
-      arcpy.AddField_management(in_procEOs, "EO_CONSVALUE", "SHORT")
+      # Add "EO_CONSVALUE" field to in_sortedEOs, and calculate
+      arcpy.AddField_management(in_sortedEOs, "EO_CONSVALUE", "SHORT")
       codeblock = '''def calcConsVal(tier):
          if tier == "Irreplaceable":
             return 100
@@ -524,13 +550,13 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
          else:
             return 0'''
       expression = "calcConsVal(!TIER!)"
-      arcpy.CalculateField_management(in_procEOs, "EO_CONSVALUE", expression, "PYTHON_9.3", codeblock)
+      arcpy.CalculateField_management(in_sortedEOs, "EO_CONSVALUE", expression, "PYTHON_9.3", codeblock)
       printMsg('EO_CONSVALUE field set')
       
       # Add "CS_CONSVALUE" field to in_ConSites, and calculate
       printMsg('Looping through ConSites to sum conservation values of EOs...')
       arcpy.AddField_management(in_ConSites, "CS_CONSVALUE", "SHORT")
-      arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO")
+      arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO")
       with arcpy.da.UpdateCursor(in_ConSites, ["SHAPE@", "CS_CONSVALUE"]) as mySites:
          for site in mySites:
             myShp = site[0]
@@ -551,25 +577,25 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
       arcpy.AddField_management(in_ConSites, "CS_AREA_HA", "DOUBLE")
       expression = '!SHAPE_Area!/10000'
       arcpy.CalculateField_management(in_ConSites, "CS_AREA_HA", expression, "PYTHON_9.3")
-   UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab)
+   UpdatePortfolio(in_sortedEOs,in_ConSites,in_sumTab)
    
    # Spatial Join EOs to ConSites, and join relevant field back to EOs
    for fld in ["CS_CONSVALUE", "CS_AREA_HA"]:
       try: 
-         arcpy.DeleteField_management (in_procEOs, fld)
+         arcpy.DeleteField_management (in_sortedEOs, fld)
       except:
          pass
-   joinFeats = in_procEOs + '_csJoin'
-   fldmap1 = 'EO_ID "EO_ID" true true false 20 Text 0 0 ,First,#,%s,EO_ID,-1,-1'%in_procEOs
+   joinFeats = in_sortedEOs + '_csJoin'
+   fldmap1 = 'EO_ID "EO_ID" true true false 20 Text 0 0 ,First,#,%s,EO_ID,-1,-1'%in_sortedEOs
    fldmap2 = 'CS_CONSVALUE "CS_CONSVALUE" true true false 2 Short 0 0 ,Max,#,%s,CS_CONSVALUE,-1,-1' %in_ConSites
    fldmap3 = 'CS_AREA_HA "CS_AREA_HA" true true false 4 Double 0 0 ,Max,#,%s,CS_AREA_HA,-1,-1' %in_ConSites
    field_mapping="""%s;%s;%s""" %(fldmap1,fldmap2,fldmap3)
    
    printMsg('Performing spatial join between EOs and ConSites...')
-   arcpy.SpatialJoin_analysis(in_procEOs, in_ConSites, joinFeats, "JOIN_ONE_TO_ONE", "KEEP_ALL", field_mapping, "INTERSECT")
+   arcpy.SpatialJoin_analysis(in_sortedEOs, in_ConSites, joinFeats, "JOIN_ONE_TO_ONE", "KEEP_ALL", field_mapping, "INTERSECT")
    for fld in ["CS_CONSVALUE", "CS_AREA_HA"]:
-      arcpy.JoinField_management (in_procEOs, "EO_ID", joinFeats, "EO_ID", fld)
-   #printMsg('Field "CS_CONSVALUE" joined to table %s.' %in_procEOs)
+      arcpy.JoinField_management (in_sortedEOs, "EO_ID", joinFeats, "EO_ID", fld)
+   #printMsg('Field "CS_CONSVALUE" joined to table %s.' %in_sortedEOs)
 
    # Make a data dictionary relating ELCODE to available slots, where portfolio still not filled 
    printMsg('Finding ELCODES for which portfolio is still not filled...')
@@ -591,20 +617,20 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
          Slots = slotDict[elcode]
          printMsg('There are still %s slots to fill.' %str(int(Slots)))
          where_clause = '"ELCODE" = \'%s\' and "TIER" = \'Choice\' and "PORTFOLIO" = 0' %elcode
-         arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+         arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
          c = countFeatures("lyr_EO")
          printMsg('There are %s features where %s.' %(str(int(c)), where_clause))
 
          # Rank by CS_CONSVALUE
          printMsg('Filling slots based on CS_CONSVALUE...')
-         addRanks("lyr_EO", "CS_CONSVALUE", "DESC", rank_field='CS_RANK', thresh = 0.5, threshtype = "ABS")
-         availSlots = updateSlots("lyr_EO", elcode, Slots, "CS_RANK")
+         addRanks("lyr_EO", "CS_CONSVALUE", "DESC", rank_field='RANK_csVal', thresh = 0.5, threshtype = "ABS")
+         availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_csVal")
          Slots = availSlots
          
          # Rank by CS_AREA_HA
          printMsg('Filling slots based on CS_AREA_HA...')
-         addRanks("lyr_EO", "CS_AREA_HA", "DESC", rank_field='Area_RANK', thresh = 0.5, threshtype = "ABS", rounding = 1)
-         availSlots = updateSlots("lyr_EO", elcode, Slots, "Area_RANK")
+         addRanks("lyr_EO", "CS_AREA_HA", "DESC", rank_field='RANK_area', thresh = 0.5, threshtype = "ABS", rounding = 1)
+         availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_area")
          Slots = availSlots
          if Slots > 0:
             printMsg('No more criteria available for differentiation; Choice ties remain.')
@@ -613,8 +639,18 @@ def BuildPortfolio(in_procEOs, in_sumTab, in_ConSites, build = 'NEW'):
          printWrng('There was a problem processing elcode %s.' %elcode)  
          tback()        
 
-   UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab)
-   printMsg('Portfolio summary updated.')
+   UpdatePortfolio(in_sortedEOs,in_ConSites,in_sumTab)
+   
+   # Create final outputs
+   arcpy.Sort_management(in_sortedEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"], ["RANK_eo", "ASCENDING"], ["RANK_nap", "ASCENDING"], ["RANK_bmi", "ASCENDING"], ["RANK_year", "ASCENDING"], ["RANK_csVal", "ASCENDING"], ["RANK_area", "ASCENDING"], ["PORTFOLIO", "DESCENDING"]])
+   
+   arcpy.Sort_management(in_ConSites, out_ConSites, [["CS_CONSVALUE", "DESCENDING"]])
+   
+   arcpy.CopyRows_management(in_sumTab, out_sumTab)
+      
+   printMsg('Conservation sites prioritized and portfolio summary updated.')
+   
+   return(out_sortedEOs, out_sumTab, out_ConSites)
    
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
