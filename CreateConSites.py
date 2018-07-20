@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25 (Adapted from suite of ModelBuilder models)
-# Last Edit: 2018-03-29
+# Last Edit: 2018-07-19
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -192,16 +192,19 @@ def CreateConSites(in_SBB, ysn_Expand, in_PF, joinFld, in_ConSites, out_ConSites
             hydroClp = scratchGDB + os.sep + 'hydroClp'
             CleanClip(sub_Hydro, tmpBuff, hydroClp, scratchParm)
                         
-            # Cull Transportation Surface Features 
-            if site_Type == 'TERRESTRIAL':
-               # printMsg('Culling transportation erase features based on prevalence in SBBs...')
-               # transRtn = scratchGDB + os.sep + 'transRtn'
-               # CullEraseFeats (tranClp, tmpSBB, joinFld, transPerCov, transRtn, scratchParm)
-            
+            # Cull Transportation Surface and Exclusion Features 
+            # This is to eliminate features intended to be ignored in automation process
+            if site_Type == 'TERRESTRIAL':    
                # Get Transportation Surface Erase Features
                printMsg('Subsetting transportation features')
                transErase = scratchGDB + os.sep + 'transErase'
                arcpy.Select_analysis (tranClp, transErase, transQry)
+               
+               # Get Exclusion Erase Features
+               printMsg('Subsetting exclusion features')
+               exclErase = scratchGDB + os.sep + 'exclErase'
+               arcpy.Select_analysis (efClp, exclErase, transQry)
+               efClp = exclErase
             
             # Cull Hydro Erase Features
             printMsg('Culling hydro erase features based on prevalence in SBBs...')
