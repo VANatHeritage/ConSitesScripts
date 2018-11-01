@@ -100,7 +100,7 @@ def CreateNoBuffSBB(in_PF, out_SBB):
    '''Creates SBBs that are simple copies of PFs for specified subset'''
    try:
       # Process: Select (No-Buffer Rules)
-      selQry = "(intRule in (-1, 13,15) AND (fltBuffer = 0))"
+      selQry = "(intRule in (-1,13,15) AND (fltBuffer = 0))"
       arcpy.MakeFeatureLayer_management(in_PF, "tmpLyr", selQry)
 
       # Count records and proceed accordingly

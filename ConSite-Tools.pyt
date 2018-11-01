@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-05-24
+# Last Edit: 2018-11-01
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -163,7 +163,7 @@ class extract_biotics(object):
       self.description = ""
       self.canRunInBackground = False
       # For some reason, this tool fails if run in the background.
-      self.category = "Site Delineation Tools"
+      self.category = "Standard Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -203,7 +203,7 @@ class create_sbb(object):
       self.label = "1: Create Site Building Blocks (SBBs)"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Delineation Tools"
+      self.category = "Standard Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -261,7 +261,7 @@ class expand_sbb(object):
       self.label = "2: Expand SBBs with Core Area"
       self.description = "Expands SBBs by adding core area."
       self.canRunInBackground = True
-      self.category = "Site Delineation Tools"
+      self.category = "Standard Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -315,7 +315,7 @@ class parse_sbb(object):
       self.label = "3: Parse SBBs by Type"
       self.description = "Splits SBB feature class into AHZ and non-AHZ features."
       self.canRunInBackground = True
-      self.category = "Site Delineation Tools"
+      self.category = "Standard Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -358,7 +358,7 @@ class create_consite(object):
       self.label = "4: Create Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Delineation Tools"
+      self.category = "Standard Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -439,7 +439,7 @@ class review_consite(object):
       self.label = "5: Review Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Delineation Tools"
+      self.category = "Standard Site Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
