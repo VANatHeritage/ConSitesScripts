@@ -2,11 +2,11 @@
 # libScuFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-29
-# Last Edit: 2017-09-06
+# Last Edit: 2018-11-05
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
-# A library of functions for prioritizing Stream Conservation Units (SCUs) for conservation.
+# A library of functions for delineating and prioritizing Stream Conservation Units (SCUs) for conservation.
 
 # Usage Tips:
 # 
@@ -504,31 +504,32 @@ def prioritizeSCUs(in_Feats, fld_ID, fld_BRANK, lo_BRANK, in_Integrity, lo_Integ
       
    return out_Feats
    
-# # Use the main function below to run the delinFlowDistBuff function directly from Python IDE or command line with hard-coded variables
+# Use the main function below to run the delinFlowDistBuff function directly from Python IDE or command line with hard-coded variables
+def main():
+   in_Feats = r'C:\Users\xch43889\Documents\ArcGIS\Default.gdb\scuBaseline_Dissolve'
+   fld_ID = 'ID'
+   in_FlowDir = r'H:\Backups\DCR_Work_DellD\GIS_Data_VA_proc\Finalized\NHDPlus_Virginia.gdb\fdir_VA'
+   out_Feats = r'C:\Users\xch43889\Documents\ArcGIS\Default.gdb\scuBaseline_FlowBuff1k'
+   maxDist = 1000
+   dilDist = 0
+   out_Scratch = r'C:\Users\xch43889\Documents\ArcGIS\scratch.gdb'
+   # End of user input
+
+   delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist, out_Scratch)
+   
+# # Use the main function below to run the getZonalStats function
 # def main():
-   # in_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCUs20170724.shp\dk_1500912213976.shp'
+   # # Set up hard-coded variables
+   # in_Polys = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work_20170903.gdb\scuFlowBuff250_examples'
+   # in_Raster = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\ConsPrior.tif'
    # fld_ID = 'lngID'
-   # in_FlowDir = r'H:\Backups\DCR_Work_DellD\GIS_Data_VA_proc\Finalized\NHDPlus_Virginia.gdb\fdir_VA'
-   # out_Feats = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work.gdb\scuFlowBuffs250'
-   # maxDist = 250
+   # fld_Stats = 'ConsPrior'
+   # type_Stats = ['MIN', 'MAX', 'MEAN', 'MEDIAN']
+   # out_Polys = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb\test'
    # out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb'
    # # End of user input
-
-   # delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, out_Scratch)
    
-# Use the main function below to run the getZonalStats function
-def main():
-   # Set up hard-coded variables
-   in_Polys = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\SCU_work_20170903.gdb\scuFlowBuff250_examples'
-   in_Raster = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\ConsPrior.tif'
-   fld_ID = 'lngID'
-   fld_Stats = 'ConsPrior'
-   type_Stats = ['MIN', 'MAX', 'MEAN', 'MEDIAN']
-   out_Polys = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb\test'
-   out_Scratch = r'C:\Users\xch43889\Documents\Working\SCU_prioritization\scratch.gdb'
-   # End of user input
-   
-   getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, type_Stats, out_Polys, out_Scratch)
+   # getZonalStats(in_Polys, in_Raster, fld_ID, fld_Stats, type_Stats, out_Polys, out_Scratch)
 
 if __name__ == '__main__':
    main()

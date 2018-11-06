@@ -6,7 +6,7 @@
 # Creator:  Kirsten R. Hazler
 
 # Summary:
-# Function to create Conservation Sites (ConSites) from Site Building Blocks (SBBs), corresponding Procedural Features (PFs), polygons delineating open water and transportation surfaces, and "Exclusion" features. 
+# Function to create standard terrestrial Conservation Sites (ConSites) from Site Building Blocks (SBBs), corresponding Procedural Features (PFs), polygons delineating open water and transportation surfaces, and "Exclusion" features. Also allows construction of Anthropogenic Habitat Zones (AHZs).
 # ----------------------------------------------------------------------------------------
 
 # Import function libraries and settings
