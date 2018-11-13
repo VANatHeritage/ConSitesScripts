@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-06
+# Last Edit: 2018-11-13
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -29,13 +29,13 @@ import os, sys, datetime, traceback, gc
 arcpy.CheckOutExtension("Network")
 arcpy.CheckOutExtension("Spatial")
 
-def MakeServiceLayers_scu(in_GDB, out_Dir):
+def MakeServiceLayers_scu(in_GDB):
    '''Make two service layers needed for analysis.
    Parameters:
-   - in_GDB = The geodatabase containing the hydro network and associated features
-   - out_Dir = Directory to contain output layer files '''
+   - in_GDB = The geodatabase containing the hydro network and associated features'''
    
    # Set up some variables
+   out_Dir = os.path.dirname(in_GDB)
    nwDataset = in_GDB + os.sep + "HydroNet" + os.sep + "HydroNet_ND"
    nwLines = in_GDB + os.sep + "HydroNet" + os.sep + "NHDLine"
    where_clause = "FType = 343" # DamWeir only
@@ -44,13 +44,13 @@ def MakeServiceLayers_scu(in_GDB, out_Dir):
    lyrDownTrace = out_Dir + os.sep + "naDownTrace.lyr"
    lyrUpTrace = out_Dir + os.sep + "naUpTrace.lyr"
    
-   # Downstream trace with breaks at 1500, 2000
+   # Downstream trace with breaks at 1609 (1 mile), 3218 (2 miles)
    printMsg('Creating downstream service layer...')
    naDownTraceLayer = arcpy.MakeServiceAreaLayer_na(in_network_dataset=nwDataset,
          out_network_analysis_layer="naDownTrace", 
          impedance_attribute="Length", 
          travel_from_to="TRAVEL_FROM", 
-         default_break_values="1500, 2000", 
+         default_break_values="1609, 3218", 
          polygon_type="NO_POLYS", 
          merge="NO_MERGE", 
          nesting_type="RINGS", 
@@ -82,18 +82,18 @@ def MakeServiceLayers_scu(in_GDB, out_Dir):
          exclude_restricted_elements="INCLUDE", 
          search_query="NHDFlowline #;HydroNet_ND_Junctions #")
    
-   printMsg('Saving downstream service layer...')
-   arcpy.SaveToLayerFile_management(in_layer="naDownTrace", out_layer=lyrDownTrace, is_relative_path="RELATIVE", version="CURRENT") 
+   printMsg('Saving downstream service layer to %s...' %lyrDownTrace)
+   arcpy.SaveToLayerFile_management("naDownTrace", lyrDownTrace) 
    
    naDownTraceLayer = naDownTraceLayer.getOutput(0)
    
-   # Upstream trace with breaks at 3000, 3500
+   # Upstream trace with break at 3218 (2 miles)
    printMsg('Creating upstream service layer...')
    naUpTraceLayer = arcpy.MakeServiceAreaLayer_na(in_network_dataset=nwDataset,
          out_network_analysis_layer="naUpTrace", 
          impedance_attribute="Length", 
          travel_from_to="TRAVEL_FROM", 
-         default_break_values="3000, 3500", 
+         default_break_values="3218", 
          polygon_type="NO_POLYS", 
          merge="NO_MERGE", 
          nesting_type="RINGS", 
@@ -125,41 +125,116 @@ def MakeServiceLayers_scu(in_GDB, out_Dir):
          exclude_restricted_elements="INCLUDE", 
          search_query="NHDFlowline #;HydroNet_ND_Junctions #")
          
-   printMsg('Saving upstream service layer...')      
-   arcpy.SaveToLayerFile_management(in_layer="naUpTrace", out_layer=lyrUpTrace, is_relative_path="RELATIVE", version="CURRENT") 
+   printMsg('Saving upstream service layer to %s...' %lyrUpTrace)      
+   arcpy.SaveToLayerFile_management("naUpTrace", lyrUpTrace) 
    
    naUpTraceLayer = naUpTraceLayer.getOutput(0)
    
    return(naDownTraceLayer, naUpTraceLayer)
 
-def MakeNetworkPts_scu(in_PF, in_GDB, out_Points):
+def MakeNetworkPts_scu(in_PF, fld_SFID = "SFID", in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = "in_memory"):
    '''Given SCU-worthy procedural features, creates points on the network by intersection, then loads them into service layers.
    Parameters:
    - in_PF = Input SCU-worthy procedural features
-   - in_GDB = The geodatabase containing the hydro network and associated features
-   - out_Points = Output points feature class'''
-   # select the PFs that intersect the hydro network
-   # intersect features with network and get points
-   arcpy.env.Extent = in_PF
-   nhdFlowlines = in_GDB + os.sep + 'HydroNet' + os.sep + 'NHDFlowline'
-   inFeats = [in_PF, nhdFlowlines]
-   arcpy.Intersect_analysis(inFeats, out_Points, "ALL", "", "POINT") 
+   - fld_SFID = Field in in_PF containing unique ID
+   - in_downTrace = Service layer set up to run downstream
+   - in_upTrace = Service layer set up to run upstream
+   - out_Scratch = geodatabase to contain intermediate products'''
    
-   # select the PFs that do not intersect the hydro network
-   # generate the point on network closest to each feature
-   # or should original feature be shifted, then points generated??
-  
-   # combine all points and load as facilities in both service layers
+   # Set up some variables
+   pf = arcpy.mapping.Layer(in_PF)
+   pfData = pf.dataSource
+   dt = arcpy.mapping.Layer(in_downTrace)
+   ut = arcpy.mapping.Layer(in_upTrace)
+   wsp = dt.workspacePath
+   out_Dir = os.path.dirname(wsp)
+   lyrDownTrace = out_Dir + os.sep + 'naDownTrace'
+   lyrUpTrace = out_Dir + os.sep + 'naUpTrace'
+   pfCirc = out_Scratch + os.sep + 'pfCirc'
+   scuPoints = out_Scratch + os.sep + 'scuPoints'
+   sr = arcpy.Describe(in_PF).spatialReference
+   tmpPts = out_Scratch + os.sep + 'tmpPts'
+   tmpPts2 = out_Scratch + os.sep + 'tmpPts2'
+   pfBuff = out_Scratch + os.sep + 'pfBuff'
    
-def CreateLines_scu():
-   '''Solves the service area layers, and combines them to get baseline linear SCUs'''
-   # Run upstream
-   # Run downstream
-   # Split upstream into 3000, > 3000
-   # Split downstream into 1500, > 1500
-   # For upstream segments >3000, select only those intersecting downstream segments <=1500
-   # For downstream segments > 1500, select only those intersecting upstream segments <=3000
-   # Merge the relevant segments: upstream up to 3000, downstream up to 1500, and the additional selected segments
+   # Create bounding circles around PFs
+   printMsg('Creating bounding circles for procedural features...')
+   arcpy.MinimumBoundingGeometry_management (in_PF, pfCirc, "CIRCLE", "NONE", "", "MBG_FIELDS")
+   
+   # Create empty feature class to store points
+   printMsg('Creating empty feature class for points')
+   if arcpy.Exists(scuPoints):
+      arcpy.Delete_management(scuPoints)
+   outDir = os.path.dirname(scuPoints)
+   outName = os.path.basename(scuPoints)
+   printMsg('Creating %s in %s' %(outName, outDir))
+   arcpy.CreateFeatureclass_management (outDir, outName, "POINT", in_PF, '', '', sr)
+   
+   # For each PF, get the intersections of the PF with its bounding circle
+   printMsg('Generating points on circles...')
+   with  arcpy.da.SearchCursor(in_PF, [fld_SFID]) as myPFs:
+      for PF in myPFs:
+         id = PF[0]
+         qry = "%s = '%s'" % (fld_SFID, id)
+         arcpy.MakeFeatureLayer_management (pfCirc,  "tmpCirc", qry)
+         arcpy.MakeFeatureLayer_management (pfData,  "tmpPF", qry)
+         # Buffer first by small amount to avoid some weird results for some features
+         arcpy.Buffer_analysis("tmpPF", pfBuff, "1 Meters", "", "", "NONE")
+         arcpy.Intersect_analysis ([pfBuff, "tmpCirc"], tmpPts, "", "", "POINT")
+         c = countFeatures(tmpPts) # Check for empty output and proceed accordingly
+         # You get empty output if PF is a perfect circle
+         if c == 0:
+            # generate centroid instead
+            arcpy.FeatureToPoint_management ("tmpPF", tmpPts, "CENTROID")
+            arcpy.Append_management (tmpPts, scuPoints, "NO_TEST")
+         else:
+            # explode multipoint
+            arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
+            arcpy.Append_management (tmpPts2, scuPoints, "NO_TEST")
+     
+   # Load all points as facilities into both service layers; search distance 500 meters
+   printMsg('Loading points into service layers...')
+   for sa in [[dt,lyrDownTrace], [ut, lyrUpTrace]]:
+      inLyr = sa[0]
+      outLyr = sa[1]
+      naPoints = arcpy.AddLocations_na(in_network_analysis_layer=inLyr, 
+         sub_layer="Facilities", 
+         in_table=scuPoints, 
+         field_mappings="Name FID #", 
+         search_tolerance="500 Meters", 
+         sort_field="", 
+         search_criteria="NHDFlowline SHAPE;HydroNet_ND_Junctions NONE", 
+         match_type="MATCH_TO_CLOSEST", 
+         append="CLEAR", 
+         snap_to_position_along_network="SNAP", ###?
+         snap_offset="", 
+         exclude_restricted_elements="EXCLUDE", 
+         search_query="NHDFlowline #;HydroNet_ND_Junctions #")
+      printMsg('Saving updated %s service layer to %s...' %(inLyr,outLyr))      
+      arcpy.SaveToLayerFile_management(inLyr, outLyr)
+   printMsg('Completed point loading.')
+   
+   del pf, dt, ut
+   return()
+   
+def CreateLines_scu(in_downTrace, in_upTrace, out_Lines, out_Scratch = "in_memory"):
+   '''Given service areas with loaded points, solves the service area lines, and combines them to get baseline linear SCUs
+   - in_downTrace = Service layer set up to run downstream
+   - in_upTrace = Service layer set up to run upstream
+   - out_Lines = Output linear SCUs
+   - out_Scratch = geodatabase to contain intermediate products'''
+   
+   # Set up some variables
+   dt = arcpy.mapping.Layer(in_downTrace)
+   ut = arcpy.mapping.Layer(in_upTrace)
+   wsp = dt.workspacePath
+   out_Dir = os.path.dirname(wsp)
+   lyrDownTrace = out_Dir + os.sep + 'naDownTrace'
+   lyrUpTrace = out_Dir + os.sep + 'naUpTrace'
+
+   # Solve upstream and downstream service layers; save
+   # For downstream segments > 1609, select only those intersecting upstream segments 
+   # Merge the relevant segments: upstream up to 3218, downstream up to 1609, and the additional selected segments
    # Dissolve the merged segments; no multiparts
    
 def CreatePolys_scu():
