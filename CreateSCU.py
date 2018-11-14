@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-13
+# Last Edit: 2018-11-14
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -45,12 +45,14 @@ def MakeServiceLayers_scu(in_GDB):
    lyrUpTrace = out_Dir + os.sep + "naUpTrace.lyr"
    
    # Downstream trace with breaks at 1609 (1 mile), 3218 (2 miles)
-   printMsg('Creating downstream service layer...')
-   naDownTraceLayer = arcpy.MakeServiceAreaLayer_na(in_network_dataset=nwDataset,
-         out_network_analysis_layer="naDownTrace", 
+   # Upstream trace with breaks at 3218 (2 miles) and 4827 (3 miles)
+   printMsg('Creating upstream and downstream service layers...')
+   for sl in [["naDownTrace", "1609, 3218"], ["naUpTrace", "3218, 4827"]]:
+      serviceLayer = arcpy.MakeServiceAreaLayer_na(in_network_dataset=nwDataset,
+         out_network_analysis_layer=sl[0], 
          impedance_attribute="Length", 
          travel_from_to="TRAVEL_FROM", 
-         default_break_values="1609, 3218", 
+         default_break_values=sl[1], 
          polygon_type="NO_POLYS", 
          merge="NO_MERGE", 
          nesting_type="RINGS", 
@@ -67,51 +69,10 @@ def MakeServiceLayers_scu(in_GDB):
          hierarchy="NO_HIERARCHY", 
          time_of_day="")
    
-   printMsg('Adding dam barriers to downstream service layer...')
-   barriers = arcpy.AddLocations_na(in_network_analysis_layer="naDownTrace", 
-         sub_layer="Line Barriers", 
-         in_table=in_Lines, 
-         field_mappings="Name Permanent_Identifier #", 
-         search_tolerance="100 Meters", 
-         sort_field="", 
-         search_criteria="NHDFlowline SHAPE_MIDDLE_END;HydroNet_ND_Junctions NONE", 
-         match_type="MATCH_TO_CLOSEST", 
-         append="CLEAR", 
-         snap_to_position_along_network="SNAP", 
-         snap_offset="5 Meters", 
-         exclude_restricted_elements="INCLUDE", 
-         search_query="NHDFlowline #;HydroNet_ND_Junctions #")
-   
-   printMsg('Saving downstream service layer to %s...' %lyrDownTrace)
-   arcpy.SaveToLayerFile_management("naDownTrace", lyrDownTrace) 
-   
-   naDownTraceLayer = naDownTraceLayer.getOutput(0)
-   
-   # Upstream trace with break at 3218 (2 miles)
-   printMsg('Creating upstream service layer...')
-   naUpTraceLayer = arcpy.MakeServiceAreaLayer_na(in_network_dataset=nwDataset,
-         out_network_analysis_layer="naUpTrace", 
-         impedance_attribute="Length", 
-         travel_from_to="TRAVEL_FROM", 
-         default_break_values="3218", 
-         polygon_type="NO_POLYS", 
-         merge="NO_MERGE", 
-         nesting_type="RINGS", 
-         line_type="TRUE_LINES_WITH_MEASURES", 
-         overlap="NON_OVERLAP", 
-         split="SPLIT", 
-         excluded_source_name="", 
-         accumulate_attribute_name="Length", 
-         UTurn_policy="ALLOW_UTURNS", 
-         restriction_attribute_name="NoConnectors;NoPipelines;NoUndergroundConduits;FlowUpOnly", 
-         polygon_trim="TRIM_POLYS", 
-         poly_trim_value="100 Meters", 
-         lines_source_fields="LINES_SOURCE_FIELDS", 
-         hierarchy="NO_HIERARCHY", 
-         time_of_day="")
-   
-   printMsg('Adding dam barriers to upstream service layer...')
-   barriers = arcpy.AddLocations_na(in_network_analysis_layer="naUpTrace", 
+   # Add dam barriers to both service layers and save
+   printMsg('Adding dam barriers to service layers...')
+   for sl in [["naDownTrace", lyrDownTrace], ["naUpTrace", lyrUpTrace]]:
+      barriers = arcpy.AddLocations_na(in_network_analysis_layer=sl[0], 
          sub_layer="Line Barriers", 
          in_table=in_Lines, 
          field_mappings="Name Permanent_Identifier #", 
@@ -125,12 +86,10 @@ def MakeServiceLayers_scu(in_GDB):
          exclude_restricted_elements="INCLUDE", 
          search_query="NHDFlowline #;HydroNet_ND_Junctions #")
          
-   printMsg('Saving upstream service layer to %s...' %lyrUpTrace)      
-   arcpy.SaveToLayerFile_management("naUpTrace", lyrUpTrace) 
+      printMsg('Saving service layer to %s...' %sl[1])      
+      arcpy.SaveToLayerFile_management(sl[0], sl[1]) 
    
-   naUpTraceLayer = naUpTraceLayer.getOutput(0)
-   
-   return(naDownTraceLayer, naUpTraceLayer)
+   return (lyrDownTrace, lyrUpTrace)
 
 def MakeNetworkPts_scu(in_PF, fld_SFID = "SFID", in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = "in_memory"):
    '''Given SCU-worthy procedural features, creates points on the network by intersection, then loads them into service layers.
