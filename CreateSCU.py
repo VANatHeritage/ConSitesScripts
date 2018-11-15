@@ -21,9 +21,11 @@
 # Import modules
 import arcpy
 from arcpy.sa import *
-import libConSiteFx
-from libConSiteFx import *
-import os, sys, datetime, traceback, gc
+import Helper
+from Helper import *
+
+# Set overwrite option so that existing data may be overwritten
+arcpy.env.overwriteOutput = True
 
 # Check out extension licenses
 arcpy.CheckOutExtension("Network")
@@ -107,6 +109,9 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    - in_upTrace = Service layer set up to run upstream
    - out_Scratch = geodatabase to contain intermediate products'''
    
+   # timestamp
+   t0 = datetime.now()
+   
    # Set up some variables
    sr = arcpy.Describe(in_PF).spatialReference
    descDT = arcpy.Describe(in_downTrace)
@@ -121,10 +126,10 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    hydroNet = os.path.dirname(cp)
    nhdArea = hydroNet + os.sep + "NHDArea"
    nhdFlowline = hydroNet + os.sep + "NHDFlowline"
-   outDir = os.path.dirname(hydroNet)
-   outDir = os.path.dirname(outDir)
-   lyrDownTrace = outDir + os.sep + 'naDownTrace.lyr'
-   lyrUpTrace = outDir + os.sep + 'naUpTrace.lyr'
+   hydroDir = os.path.dirname(hydroNet)
+   hydroDir = os.path.dirname(hydroDir)
+   lyrDownTrace = hydroDir + os.sep + 'naDownTrace.lyr'
+   lyrUpTrace = hydroDir + os.sep + 'naUpTrace.lyr'
    pfCirc = out_Scratch + os.sep + 'pfCirc'
    pfBuff = out_Scratch + os.sep + 'pfBuff'
    tmpPts = out_Scratch + os.sep + 'tmpPts'
@@ -212,6 +217,12 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    printMsg('Completed point loading.')
    
    del naPoints
+   
+   # timestamp
+   t1 = datetime.now()
+   ds = GetElapsedTime (t0, t1)
+   printMsg('Completed function. Time elapsed: %s' % ds)
+   
    return (lyrDownTrace, lyrUpTrace)
    
 def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = "in_memory"):
@@ -221,6 +232,9 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    - in_upTrace = Service layer set up to run upstream
    - out_Lines = Final output linear SCUs
    - out_Scratch = geodatabase to contain intermediate products'''
+   
+   # timestamp
+   t0 = datetime.now()
    
    # Set up some variables
    descDT = arcpy.Describe(in_downTrace)
@@ -235,10 +249,11 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    hydroNet = os.path.dirname(cp)
    # nhdArea = hydroNet + os.sep + "NHDArea"
    # nhdFlowline = hydroNet + os.sep + "NHDFlowline"
-   outDir = os.path.dirname(hydroNet)
-   outDir = os.path.dirname(outDir)
-   lyrDownTrace = outDir + os.sep + 'naDownTrace.lyr'
-   lyrUpTrace = outDir + os.sep + 'naUpTrace.lyr'
+   hydroDir = os.path.dirname(hydroNet)
+   hydroDir = os.path.dirname(hydroDir)
+   outDir = os.path.dirname(out_Lines)
+   lyrDownTrace = hydroDir + os.sep + 'naDownTrace.lyr'
+   lyrUpTrace = hydroDir + os.sep + 'naUpTrace.lyr'
    downLines = out_Scratch + os.sep + 'downLines'
    upLines = out_Scratch + os.sep + 'upLines'
   
@@ -314,7 +329,7 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    arcpy.Buffer_analysis(comboLines, buffLines, "1 Meters", "FULL", "ROUND", "ALL") 
    
    printMsg('Exploding buffers...')
-   explBuff = out_Scratch + os.sep + 'explBuff'
+   explBuff = outDir + os.sep + 'explBuff'
    arcpy.MultipartToSinglepart_management(buffLines, explBuff)
    
    printMsg('Grouping segments...')
@@ -328,9 +343,12 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    printMsg('Dissolving segments by group...')
    arcpy.Dissolve_management(joinLines, out_Lines, "grpID", "", "MULTI_PART", "DISSOLVE_LINES")
    
-   printMsg('Mission accomplished')
+   # timestamp
+   t1 = datetime.now()
+   ds = GetElapsedTime (t0, t1)
+   printMsg('Completed function. Time elapsed: %s' % ds)
+
    return out_Lines
-   
    
 def CreatePolys_scu():
    '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons'''
@@ -351,7 +369,7 @@ def CreateCatchments_scu():
 # Use the main function below to run functions directly from Python IDE or command line with hard-coded variables
 def main():
    in_GDB = r'C:\Users\xch43889\Documents\Working\SCU\VA_HydroNet.gdb'
-   in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfSet3'
+   in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuPFs'
    out_Points = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfPoints'
    out_Lines = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuLines'
    in_downTrace = r'C:\Users\xch43889\Documents\Working\SCU\naDownTrace.lyr'
@@ -361,7 +379,7 @@ def main():
 
    # Function(s) to run
    # (downLyr, upLyr) = MakeServiceLayers_scu(in_GDB)
-   # MakeNetworkPts_scu(in_PF, out_Points, "SFID", in_downTrace, in_upTrace, "in_memory")
+   MakeNetworkPts_scu(in_PF, out_Points, "SFID", in_downTrace, in_upTrace, "in_memory")
    CreateLines_scu(out_Lines, in_downTrace, in_upTrace, scratchGDB)
    
 if __name__ == '__main__':
