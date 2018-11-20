@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-05-15
+# Last Edit: 2018-11-20
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -21,6 +21,104 @@ except:
    
 from datetime import datetime as datetime
 
+def getScratchMsg(scratchGDB):
+   '''Prints message informing user of where scratch output will be written'''
+   if scratchGDB != "in_memory":
+      msg = "Scratch outputs will be stored here: %s" % scratchGDB
+   else:
+      msg = "Scratch products are being stored in memory and will not persist. If processing fails inexplicably, or if you want to be able to inspect scratch products, try running this with a specified scratchGDB on disk."
+   
+   return msg
+   
+def printMsg(msg):
+   arcpy.AddMessage(msg)
+   print msg
+   
+def printWrng(msg):
+   arcpy.AddWarning(msg)
+   print 'Warning: ' + msg
+   
+def printErr(msg):
+   arcpy.AddError(msg)
+   print 'Error: ' + msg
+
+def garbagePickup(trashList):
+   '''Deletes Arc files in list, with error handling. Argument must be a list.'''
+   for t in trashList:
+      try:
+         arcpy.Delete_management(t)
+      except:
+         pass
+   return
+   
+def CleanFeatures(inFeats, outFeats):
+   '''Repairs geometry, then explodes multipart polygons to prepare features for geoprocessing.'''
+   
+   # Process: Repair Geometry
+   arcpy.RepairGeometry_management(inFeats, "DELETE_NULL")
+
+   # Have to add the while/try/except below b/c polygon explosion sometimes fails inexplicably.
+   # This gives it 10 tries to overcome the problem with repeated geometry repairs, then gives up.
+   counter = 1
+   while counter <= 10:
+      try:
+         # Process: Multipart To Singlepart
+         arcpy.MultipartToSinglepart_management(inFeats, outFeats)
+         
+         counter = 11
+         
+      except:
+         arcpy.AddMessage("Polygon explosion failed.")
+         # Process: Repair Geometry
+         arcpy.AddMessage("Trying to repair geometry (try # %s)" %str(counter))
+         arcpy.RepairGeometry_management(inFeats, "DELETE_NULL")
+         
+         counter +=1
+         
+         if counter == 11:
+            arcpy.AddMessage("Polygon explosion problem could not be resolved.  Copying features.")
+            arcpy.CopyFeatures_management (inFeats, outFeats)
+   
+   return outFeats
+
+def CleanClip(inFeats, clipFeats, outFeats, scratchGDB = "in_memory"):
+   '''Clips the Input Features with the Clip Features.  The resulting features are then subjected to geometry repair and exploded (eliminating multipart polygons)'''
+   # # Determine where temporary data are written
+   # msg = getScratchMsg(scratchGDB)
+   # arcpy.AddMessage(msg)
+   
+   # Process: Clip
+   tmpClip = scratchGDB + os.sep + "tmpClip"
+   arcpy.Clip_analysis(inFeats, clipFeats, tmpClip)
+
+   # Process: Clean Features
+   CleanFeatures(tmpClip, outFeats)
+   
+   # Cleanup
+   if scratchGDB == "in_memory":
+      garbagePickup([tmpClip])
+   
+   return outFeats
+   
+def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
+   '''Uses Eraser Features to erase portions of the Input Features, then repairs geometry and explodes any multipart polygons.'''
+   # # Determine where temporary data are written
+   # msg = getScratchMsg(scratchGDB)
+   # arcpy.AddMessage(msg)
+   
+   # Process: Erase
+   tmpErased = scratchGDB + os.sep + "tmpErased"
+   arcpy.Erase_analysis(inFeats, eraseFeats, tmpErased, "")
+
+   # Process: Clean Features
+   CleanFeatures(tmpErased, outFeats)
+   
+   # Cleanup
+   if scratchGDB == "in_memory":
+      garbagePickup([tmpErased])
+   
+   return outFeats
+   
 def countFeatures(features):
    '''Gets count of features'''
    count = int((arcpy.GetCount_management(features)).getOutput(0))
@@ -79,27 +177,6 @@ def createTmpWorkspace():
    
    return tmpWorkspace
 
-def getScratchMsg(scratchGDB):
-   '''Prints message informing user of where scratch output will be written'''
-   if scratchGDB != "in_memory":
-      msg = "Scratch outputs will be stored here: %s" % scratchGDB
-   else:
-      msg = "Scratch products are being stored in memory and will not persist. If processing fails inexplicably, or if you want to be able to inspect scratch products, try running this with a specified scratchGDB on disk."
-   
-   return msg
-   
-def printMsg(msg):
-   arcpy.AddMessage(msg)
-   print msg
-   
-def printWrng(msg):
-   arcpy.AddWarning(msg)
-   print 'Warning: ' + msg
-   
-def printErr(msg):
-   arcpy.AddError(msg)
-   print 'Error: ' + msg
- 
 def tback():
    '''Standard error handling routing to add to bottom of scripts'''
    tb = sys.exc_info()[2]
@@ -114,15 +191,6 @@ def tback():
    
    return msgList
    
-def garbagePickup(trashList):
-   '''Deletes Arc files in list, with error handling. Argument must be a list.'''
-   for t in trashList:
-      try:
-         arcpy.Delete_management(t)
-      except:
-         pass
-   return
-
 def clearSelection(fc):
    typeFC= (arcpy.Describe(fc)).dataType
    if typeFC == 'FeatureLayer':

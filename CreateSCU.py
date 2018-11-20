@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-15
+# Last Edit: 2018-11-20
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -13,6 +13,8 @@
 
 # Dependencies:
 # This set of functions will not work if the hydro network is not set up properly! The network geodatabase VA_HydroNet.gdb has been set up manually, not programmatically.
+
+# Note that the restrictions (contained in "r" variable below) for traversing the network must have been defined in the HydroNet itself (manually). If any additional restrictions are added, the HydroNet must be rebuilt or they will not take effect. I originally set a restriction of NoEphemeralOrIntermittent, but on testing I discovered that this eliminated some stream segments that actually contained EOs. I set the restriction to NoEphemeral instead. We may find that we need to remove the NoEphemeral restriction as well, or that users will need to edit attributes of the NHDFlowline segments on a case-by-case basis.
 
 # Syntax:  
 # 
@@ -31,25 +33,25 @@ arcpy.env.overwriteOutput = True
 arcpy.CheckOutExtension("Network")
 arcpy.CheckOutExtension("Spatial")
 
-def MakeServiceLayers_scu(in_GDB):
+def MakeServiceLayers_scu(in_hydroGDB):
    '''Make two service layers needed for analysis.
    Parameters:
-   - in_GDB = The geodatabase containing the hydro network and associated features. 
+   - in_hydroGDB = The geodatabase containing the hydro network and associated features. 
    '''
    
    # Set up some variables
-   out_Dir = os.path.dirname(in_GDB)
-   nwDataset = in_GDB + os.sep + "HydroNet" + os.sep + "HydroNet_ND"
-   nwLines = in_GDB + os.sep + "HydroNet" + os.sep + "NHDLine"
-   where_clause = "FType = 343" # DamWeir only
-   arcpy.MakeFeatureLayer_management (nwLines, "lyr_DamWeir", where_clause)
+   out_Dir = os.path.dirname(in_hydroGDB)
+   nwDataset = in_hydroGDB + os.sep + "HydroNet" + os.sep + "HydroNet_ND"
+   nwLines = in_hydroGDB + os.sep + "HydroNet" + os.sep + "NHDLine"
+   qry = "FType = 343" # DamWeir only
+   arcpy.MakeFeatureLayer_management (nwLines, "lyr_DamWeir", qry)
    in_Lines = "lyr_DamWeir"
    lyrDownTrace = out_Dir + os.sep + "naDownTrace.lyr"
    lyrUpTrace = out_Dir + os.sep + "naUpTrace.lyr"
    
    # Downstream trace with breaks at 1609 (1 mile) and 3218 (2 miles)
    # Upstream trace with break at 3218 (2 miles)
-   r = "NoCanalDitches;NoConnectors;NoPipelines;NoUndergroundConduits;NoEphemeralOrIntermittent;NoCoastline"
+   r = "NoCanalDitches;NoConnectors;NoPipelines;NoUndergroundConduits;NoEphemeral;NoCoastline"
    printMsg('Creating upstream and downstream service layers...')
    for sl in [["naDownTrace", "1609, 3218", "FlowDownOnly"], ["naUpTrace", "3218", "FlowUpOnly"]]:
       restrictions = r + ";" + sl[2]
@@ -169,18 +171,20 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
             arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
             arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
          else:
-            # Generate points on bounding circle
-            # First buffer PF by small amount to avoid some weird results for some features
-            arcpy.Buffer_analysis("tmpPF", pfBuff, "1 Meters", "", "", "NONE")
-            arcpy.Intersect_analysis ([pfBuff, "tmpCirc"], tmpPts, "", "", "POINT")
-            c = countFeatures(tmpPts) # Check for empty output and proceed accordingly
-            if c == 0:
-               # Empty output if PF is a perfect circle; generate centroid instead
-               arcpy.FeatureToPoint_management ("tmpPF", tmpPts, "CENTROID")
-               arcpy.Append_management (tmpPts, out_Points, "NO_TEST")
-            else:
-               arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
-               arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
+            pass
+            
+         # Generate points on bounding circle (yes intentionally in addition to previous)
+         # First buffer PF by small amount to avoid some weird results for some features
+         arcpy.Buffer_analysis("tmpPF", pfBuff, "1 Meters", "", "", "NONE")
+         arcpy.Intersect_analysis ([pfBuff, "tmpCirc"], tmpPts, "", "", "POINT")
+         c = countFeatures(tmpPts) # Check for empty output and proceed accordingly
+         if c == 0:
+            # Empty output if PF is a perfect circle; generate centroid instead
+            arcpy.FeatureToPoint_management ("tmpPF", tmpPts, "CENTROID")
+            arcpy.Append_management (tmpPts, out_Points, "NO_TEST")
+         else:
+            arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
+            arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
             
          # If applicable, add points on nhdArea polygons
          # This catches some instances where the above didn't generate all needed points
@@ -218,6 +222,17 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    
    del naPoints
    
+   if out_Scratch == "in_memory":
+      # Clear out memory to avoid failures in subsequent functions
+      arcpy.env.workspace = "in_memory"
+      dataList = arcpy.ListDatasets()
+      for item in dataList:
+         try:
+            arcpy.Delete_management(item)
+            printMsg('Deleted %s from memory.' % item)
+         except:
+            pass
+   
    # timestamp
    t1 = datetime.now()
    ds = GetElapsedTime (t0, t1)
@@ -225,7 +240,7 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    
    return (lyrDownTrace, lyrUpTrace)
    
-def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = "in_memory"):
+def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = arcpy.env.scratchGDB):
    '''Solves the upstream and downstream service layers, and combines segments to create linear SCUs
    Parameters:
    - in_downTrace = Service layer set up to run downstream
@@ -237,6 +252,9 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    t0 = datetime.now()
    
    # Set up some variables
+   if out_Scratch == "in_memory":
+      # recast to save to disk, otherwise there is no OBJECTID field for queries as needed
+      outScratch = arcpy.env.scratchGDB
    descDT = arcpy.Describe(in_downTrace)
    if descDT.dataType == 'Layer':
       in_downTrace = arcpy.mapping.Layer(in_downTrace)
@@ -316,7 +334,7 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
       qryList = qryList.replace(']', ')')
       qry = "OBJECTID in %s" % qryList
    else:
-      qry = ""
+      qry = "OBJECTID = -1"
    arcpy.MakeFeatureLayer_management (dissolvedLines, "extendLines", qry)
    
    # Merge and dissolve the connected segments; ESRI does not make this simple
@@ -350,37 +368,170 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
 
    return out_Lines
    
-def CreatePolys_scu():
-   '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons'''
-   # Generate endpoints of linear SCUs and get segment bearings
-   # Eliminate endpoints not within StreamRiver polygons
-   # Eliminate endpoints that are also starting points
-   # For remaining points, generate lines perpendicular to segment
-   # Buffer perpendiculars by small amount (1 m)
-   # Use buffered perpendiculars to erase portions of StreamRiver polygons
-   # Discard StreamRiver polygons not containing linear SCUs
-   # Buffer linear SCUs by at least half of cell size in flow direction raster (5 m)
-   # Merge buffered SCUs with retained StreamRiver polygons
-   # Dissolve and assign IDs
+def CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, out_Scratch = arcpy.env.scratchGDB):
+   '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons
+   Parameters:
+   - in_lines = input linear SCUs, output from previous function
+   - in_hydroGDB = input geodatabase containing the hydro network and associated features
+   - out_Polys = output polygon SCUs
+   - out_Scratch = geodatabase to contain intermediate products
+   '''
+   
+   # timestamp
+   t0 = datetime.now()
+   
+   # Create empty feature class to store polygons
+   sr = arcpy.Describe(in_scuLines).spatialReference
+   printMsg('Creating empty feature class for polygons')
+   if arcpy.Exists(out_Polys):
+      arcpy.Delete_management(out_Polys)
+   outDir = os.path.dirname(out_Polys)
+   outName = os.path.basename(out_Polys)
+   arcpy.CreateFeatureclass_management (outDir, outName, "POLYGON", in_scuLines, '', '', sr)
+   
+   # Set up some variables:
+   nhdArea = in_hydroGDB + os.sep + "HydroNet" + os.sep + "NHDArea"
+   nhdFlowline = in_hydroGDB + os.sep + "HydroNet" + os.sep + "NHDFlowline"
+   qry = "FType = 460" # StreamRiver only
+   arcpy.MakeFeatureLayer_management (nhdArea, "StreamRiver", qry)
+   bufferLines = out_Scratch + os.sep + 'bufferLines'
+   danglePts = out_Scratch + os.sep + 'danglePts'
+   bufferPts = out_Scratch + os.sep + 'bufferPts'
+   mbgRect = out_Scratch + os.sep + 'mbgRect'
+   bufferRect = out_Scratch + os.sep + 'bufferRect'
+   clipRiver = out_Scratch + os.sep + 'clipRiver'
+   clipLines = out_Scratch + os.sep + 'clipLines'
+   perpLine1 = out_Scratch + os.sep + 'perpLine1'
+   perpLine2 = out_Scratch + os.sep + 'perpLine2'
+   perpLine = out_Scratch + os.sep + 'perpLine'
+   perpClip = out_Scratch + os.sep + 'perpClip'
+   splitPoly = out_Scratch + os.sep + 'splitPoly'
+   mergePoly = out_Scratch + os.sep + 'mergePoly'
+   tmpPoly = out_Scratch + os.sep + 'tmpPoly'
+      
+   with  arcpy.da.SearchCursor(in_scuLines, ["SHAPE@", "grpID"]) as myLines:
+      for line in myLines:
+         shp = line[0]
+         id = line[1]
+         arcpy.env.Extent = shp
+         
+         printMsg('Working on %s...' % str(id))
+         
+         # Buffer linear SCU by at least half of cell size in flow direction raster (5 m)
+         printMsg('Buffering linear SCU...')
+         arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "FLAT")
+         
+         # Generate points at line ends
+         printMsg('Generating split points...')
+         arcpy.FeatureVerticesToPoints_management(shp, danglePts, "DANGLE") 
+         arcpy.MakeFeatureLayer_management (danglePts, "danglePts")
+         
+         # Generate minimum convex polygon around line, buffer, and use to clip nhdArea
+         printMsg('Generating minimum bounding rectangle and buffering...')
+         arcpy.MinimumBoundingGeometry_management(shp, mbgRect, "RECTANGLE_BY_WIDTH")
+         arcpy.Buffer_analysis(mbgRect, bufferRect, "20 Meters")
+         printMsg('Clipping NHD to buffer...')
+         CleanClip("StreamRiver", bufferRect, clipRiver)
+         arcpy.MakeFeatureLayer_management (clipRiver, "clipRiver")
+
+         # Select only the points within clipped StreamRiver polygons
+         arcpy.SelectLayerByLocation_management("danglePts", "COMPLETELY_WITHIN", "clipRiver")
+         c = countSelectedFeatures("danglePts")
+         if c > 0:
+            # Buffer points and use them to clip flowlines
+            printMsg('Buffering split points...')
+            arcpy.Buffer_analysis("danglePts", bufferPts, "1 Meters")
+            printMsg('Clipping flowlines at split points...')
+            CleanClip(nhdFlowline, bufferPts, clipLines)
+            
+            # Add geometry attributes to clipped segments
+            printMsg('Adding geometry attributes...')
+            arcpy.AddGeometryAttributes_management(clipLines, "CENTROID;LINE_BEARING")
+            arcpy.AddField_management(clipLines, "PERP_BEARING1", "DOUBLE")
+            arcpy.AddField_management(clipLines, "PERP_BEARING2", "DOUBLE")
+            arcpy.AddField_management(clipLines, "DISTANCE", "DOUBLE")
+            expression = "PerpBearing(!BEARING!)"
+            code_block1='''def PerpBearing(bearing):
+               p = bearing + 90
+               if p > 360:
+                  p -= 360
+               return p'''
+            code_block2='''def PerpBearing(bearing):
+               p = bearing - 90
+               if p < 0:
+                  p += 360
+               return p'''
+            arcpy.CalculateField_management(clipLines, "PERP_BEARING1", expression, "PYTHON_9.3", code_block1)
+            arcpy.CalculateField_management(clipLines, "PERP_BEARING2", expression, "PYTHON_9.3", code_block2)
+            arcpy.CalculateField_management(clipLines, "DISTANCE", 500, "PYTHON_9.3")
+
+            # Generate lines perpendicular to segment (is 500 m sufficient for all cases?)
+            printMsg('Creating perpendicular lines at split points...')
+            for l in [["PERP_BEARING1", perpLine1],["PERP_BEARING2", perpLine2]]:
+               bearingFld = l[0]
+               outLine = l[1]
+               arcpy.BearingDistanceToLine_management(clipLines, outLine, "CENTROID_X", "CENTROID_Y", "DISTANCE", "METERS", bearingFld, "DEGREES", "GEODESIC", "", sr)
+            arcpy.Merge_management ([perpLine1, perpLine2], perpLine)
+            
+            # Clip perpendicular lines to clipped StreamRiver
+            CleanClip(perpLine, "clipRiver", perpClip)
+            arcpy.MakeFeatureLayer_management (perpClip, "perpClip")
+            
+            # Select lines intersecting the point buffers
+            arcpy.SelectLayerByLocation_management("perpClip", "INTERSECT", bufferPts, "", "NEW_SELECTION")
+            
+            # Select clipped StreamRiver polygons containing selected lines
+            arcpy.SelectLayerByLocation_management("clipRiver", "CONTAINS", "perpClip", "", "NEW_SELECTION")
+            
+            # Use selected lines to split clipped StreamRiver polygons
+            printMsg('Splitting river polygons with perpendiculars...')
+            arcpy.FeatureToPolygon_management("perpClip;clipRiver", splitPoly)
+            arcpy.MakeFeatureLayer_management (splitPoly, "splitPoly")
+            
+            # Select split StreamRiver polygons containing scuLines
+            arcpy.SelectLayerByLocation_management("splitPoly", "CROSSED_BY_THE_OUTLINE_OF", shp, "", "NEW_SELECTION")
+            arcpy.SelectLayerByLocation_management("splitPoly", "CONTAINS", shp, "", "ADD_TO_SELECTION")
+            
+            # Merge/dissolve polygons in with baseline buffered scuLines
+            printMsg('Merging and dissolving shapes...')
+            arcpy.Merge_management ([bufferLines, "splitPoly"], mergePoly)
+            arcpy.Dissolve_management (mergePoly, tmpPoly, "", "", "SINGLE_PART")
+            
+         else:
+            tmpPoly = bufferLines
+            
+         # Append to output
+         printMsg('Appending shape to output...')
+         arcpy.Append_management (tmpPoly, out_Polys, "NO_TEST")
+   
+   # timestamp
+   t1 = datetime.now()
+   ds = GetElapsedTime (t0, t1)
+   printMsg('Completed function. Time elapsed: %s' % ds)
+
+   return out_Polys
    
 def CreateCatchments_scu():
    '''Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'''
    
 # Use the main function below to run functions directly from Python IDE or command line with hard-coded variables
 def main():
-   in_GDB = r'C:\Users\xch43889\Documents\Working\SCU\VA_HydroNet.gdb'
-   in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuPFs'
-   out_Points = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfPoints'
-   out_Lines = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuLines'
+   in_hydroGDB = r'C:\Users\xch43889\Documents\Working\SCU\VA_HydroNet.gdb'
+   # in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuPFs'
+   in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfSet5'
+   out_Points = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfPoints_set5'
+   out_Lines = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuLines_set5'
    in_downTrace = r'C:\Users\xch43889\Documents\Working\SCU\naDownTrace.lyr'
    in_upTrace = r'C:\Users\xch43889\Documents\Working\SCU\naUpTrace.lyr'
-   scratchGDB = r'C:\Users\xch43889\Documents\Working\SCU\scratch.gdb'
+   scratchGDB = r'C:\Users\xch43889\Documents\Working\SCU\scratch2.gdb'
+   out_Polys = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuPolys_set5'
    # End of user input
 
    # Function(s) to run
    # (downLyr, upLyr) = MakeServiceLayers_scu(in_GDB)
-   MakeNetworkPts_scu(in_PF, out_Points, "SFID", in_downTrace, in_upTrace, "in_memory")
-   CreateLines_scu(out_Lines, in_downTrace, in_upTrace, scratchGDB)
+   # MakeNetworkPts_scu(in_PF, out_Points, "SFID", in_downTrace, in_upTrace, "in_memory")
+   # CreateLines_scu(out_Lines, in_downTrace, in_upTrace, scratchGDB)
+   CreatePolys_scu(out_Lines, in_hydroGDB, out_Polys, scratchGDB)
    
 if __name__ == '__main__':
    main()

@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-05-15
+# Last Edit: 2018-11-20
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -16,74 +16,6 @@ from Helper import *
 
 # Set overwrite option so that existing data may be overwritten
 arcpy.env.overwriteOutput = True
-   
-def CleanFeatures(inFeats, outFeats):
-   '''Repairs geometry, then explodes multipart polygons to prepare features for geoprocessing.'''
-   
-   # Process: Repair Geometry
-   arcpy.RepairGeometry_management(inFeats, "DELETE_NULL")
-
-   # Have to add the while/try/except below b/c polygon explosion sometimes fails inexplicably.
-   # This gives it 10 tries to overcome the problem with repeated geometry repairs, then gives up.
-   counter = 1
-   while counter <= 10:
-      try:
-         # Process: Multipart To Singlepart
-         arcpy.MultipartToSinglepart_management(inFeats, outFeats)
-         
-         counter = 11
-         
-      except:
-         arcpy.AddMessage("Polygon explosion failed.")
-         # Process: Repair Geometry
-         arcpy.AddMessage("Trying to repair geometry (try # %s)" %str(counter))
-         arcpy.RepairGeometry_management(inFeats, "DELETE_NULL")
-         
-         counter +=1
-         
-         if counter == 11:
-            arcpy.AddMessage("Polygon explosion problem could not be resolved.  Copying features.")
-            arcpy.CopyFeatures_management (inFeats, outFeats)
-   
-   return outFeats
-   
-def CleanClip(inFeats, clipFeats, outFeats, scratchGDB = "in_memory"):
-   '''Clips the Input Features with the Clip Features.  The resulting features are then subjected to geometry repair and exploded (eliminating multipart polygons)'''
-   # # Determine where temporary data are written
-   # msg = getScratchMsg(scratchGDB)
-   # arcpy.AddMessage(msg)
-   
-   # Process: Clip
-   tmpClip = scratchGDB + os.sep + "tmpClip"
-   arcpy.Clip_analysis(inFeats, clipFeats, tmpClip)
-
-   # Process: Clean Features
-   CleanFeatures(tmpClip, outFeats)
-   
-   # Cleanup
-   if scratchGDB == "in_memory":
-      garbagePickup([tmpClip])
-   
-   return outFeats
-   
-def CleanErase(inFeats, eraseFeats, outFeats, scratchGDB = "in_memory"):
-   '''Uses Eraser Features to erase portions of the Input Features, then repairs geometry and explodes any multipart polygons.'''
-   # # Determine where temporary data are written
-   # msg = getScratchMsg(scratchGDB)
-   # arcpy.AddMessage(msg)
-   
-   # Process: Erase
-   tmpErased = scratchGDB + os.sep + "tmpErased"
-   arcpy.Erase_analysis(inFeats, eraseFeats, tmpErased, "")
-
-   # Process: Clean Features
-   CleanFeatures(tmpErased, outFeats)
-   
-   # Cleanup
-   if scratchGDB == "in_memory":
-      garbagePickup([tmpErased])
-   
-   return outFeats
    
 def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    '''If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'''
