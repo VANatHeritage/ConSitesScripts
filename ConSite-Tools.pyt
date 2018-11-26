@@ -7,6 +7,9 @@
 
 # Summary:
 # A toolbox for automatic delineation and prioritization of Natural Heritage Conservation Sites
+
+# Usage Notes:
+# Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. This is undesirable for day-to-day use. 
 # ----------------------------------------------------------------------------------------
 
 import Helper
@@ -51,7 +54,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrap, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, attribute_eo, score_eo, build_portfolio]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, attribute_eo, score_eo, build_portfolio]
 
 # Define the tools
 class coalesceFeats(object):
@@ -104,7 +107,7 @@ class coalesceFeats(object):
       
       return out_Feats
 
-class shrinkwrap(object):
+class shrinkwrapFeats(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
       self.label = "Shrinkwrap"
@@ -493,15 +496,17 @@ class ServLyrs_scu(object):
       """Define the tool (tool name is the name of the class)."""
       self.label = "0: Make Network Analyst Service Layers"
       self.description = 'Make two service layers needed for distance analysis along hydro network.'
-      self.canRunInBackground = True
+      self.canRunInBackground = False
       self.category = "Stream Conservation Unit Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameters"""
       parm0 = defineParam("in_hydroGDB", "Input HydroNet geodatabase", "DEWorkspace", "Required", "Input")
       parm0.filter.list = ["Local Database"]
+      parm1 = defineParam("out_lyrDown", "Output Downstream Layer", "DELayer", "Derived", "Output")
+      parm2 = defineParam("out_lyrUp", "Output Upstream Layer", "DELayer", "Derived", "Output")
       
-      parms = [parm0]
+      parms = [parm0, parm1, parm2]
       return parms
 
    def isLicensed(self):
@@ -525,21 +530,26 @@ class ServLyrs_scu(object):
       declareParams(parameters)
       
       # Run the function
-      MakeServiceLayers_scu(in_hydroGDB)
+      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scu(in_hydroGDB)
+
+      # Update the derived parameters.
+      # This enables layers to be displayed automatically if running tool from ArcMap.
+      parameters[1].value = lyrDownTrace
+      parameters[2].value = lyrUpTrace
       
-      return
+      return 
       
 class NtwrkPts_scu(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
       self.label = "1: Make Network Points from Procedural Features"
       self.description = 'Given SCU-worthy procedural features, creates points along the hydro network, then loads them into service layers.'
-      self.canRunInBackground = True
+      self.canRunInBackground = False
       self.category = "Stream Conservation Unit Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
+      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
       parm1 = defineParam('out_Points', "Output Network Points", "DEFeatureClass", "Required", "Output")
       parm2 = defineParam('fld_SFID', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm3 = defineParam('in_downTrace', "Downstream Service Layer", "GPNALayer", "Required", "Input", 'naDownTrace')
@@ -557,6 +567,10 @@ class NtwrkPts_scu(object):
       """Modify the values and properties of parameters before internal
       validation is performed.  This method is called whenever a parameter
       has been changed."""
+      if parameters[0].altered:
+         fc = parameters[0].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[2].filter.list = field_names
       return
 
    def updateMessages(self, parameters):
@@ -575,7 +589,12 @@ class NtwrkPts_scu(object):
          scratchParm = "in_memory" 
       
       # Run the function
-      MakeNetworkPts_scu(in_PF, out_Points, fld_SFID, in_downTrace, in_upTrace, scratchParm)
+      (lyrDownTrace, lyrUpTrace) = MakeNetworkPts_scu(in_PF, out_Points, fld_SFID, in_downTrace, in_upTrace, scratchParm)
+      
+      # Update the derived parameters.
+      # This enables layers to be displayed automatically if running tool from ArcMap.
+      parameters[3].value = lyrDownTrace
+      parameters[4].value = lyrUpTrace
       
       return
       
@@ -584,7 +603,7 @@ class Lines_scu(object):
       """Define the tool (tool name is the name of the class)."""
       self.label = "2: Generate Linear SCUs"
       self.description = 'Solves the upstream and downstream service layers, and combines segments to create linear SCUs'
-      self.canRunInBackground = True
+      self.canRunInBackground = False
       self.category = "Stream Conservation Unit Delineation Tools"
 
    def getParameterInfo(self):
@@ -637,7 +656,7 @@ class Polys_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
+      parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input", "scuLines")
       parm1 = defineParam("in_hydroGDB", "Input HydroNet geodatabase", "DEWorkspace", "Required", "Input")
       parm1.filter.list = ["Local Database"]
       parm2 = defineParam('out_Polys', "Output SCU Polygons", "DEFeatureClass", "Required", "Output")

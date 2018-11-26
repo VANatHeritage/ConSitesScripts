@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-21
+# Last Edit: 2018-11-26
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -258,17 +258,13 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
       # recast to save to disk, otherwise there is no OBJECTID field for queries as needed
       outScratch = arcpy.env.scratchGDB
    descDT = arcpy.Describe(in_downTrace)
-   if descDT.dataType == 'Layer':
-      in_downTrace = arcpy.mapping.Layer(in_downTrace)
-      descDT = arcpy.Describe(in_downTrace)
+   printMsg('Casting strings to layer objects...')
+   in_downTrace = arcpy.mapping.Layer(in_downTrace)
+   descDT = arcpy.Describe(in_downTrace)
+   in_upTrace = arcpy.mapping.Layer(in_upTrace)
    descUT = arcpy.Describe(in_upTrace)
-   if descUT.dataType == 'Layer':
-      in_upTrace = arcpy.mapping.Layer(in_upTrace)
-      descUT = arcpy.Describe(in_upTrace)
    cp = descDT.network.catalogPath
    hydroNet = os.path.dirname(cp)
-   # nhdArea = hydroNet + os.sep + "NHDArea"
-   # nhdFlowline = hydroNet + os.sep + "NHDFlowline"
    hydroDir = os.path.dirname(hydroNet)
    hydroDir = os.path.dirname(hydroDir)
    outDir = os.path.dirname(out_Lines)
