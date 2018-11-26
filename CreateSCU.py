@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-20
+# Last Edit: 2018-11-21
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -14,6 +14,8 @@
 # Dependencies:
 # This set of functions will not work if the hydro network is not set up properly! The network geodatabase VA_HydroNet.gdb has been set up manually, not programmatically.
 
+# The Network Analyst extension is required for most functions, which will fail if the license is unavailable.
+
 # Note that the restrictions (contained in "r" variable below) for traversing the network must have been defined in the HydroNet itself (manually). If any additional restrictions are added, the HydroNet must be rebuilt or they will not take effect. I originally set a restriction of NoEphemeralOrIntermittent, but on testing I discovered that this eliminated some stream segments that actually contained EOs. I set the restriction to NoEphemeral instead. We may find that we need to remove the NoEphemeral restriction as well, or that users will need to edit attributes of the NHDFlowline segments on a case-by-case basis.
 
 # Syntax:  
@@ -21,23 +23,15 @@
 # ----------------------------------------------------------------------------------------
 
 # Import modules
-import arcpy
-from arcpy.sa import *
 import Helper
 from Helper import *
-
-# Set overwrite option so that existing data may be overwritten
-arcpy.env.overwriteOutput = True
-
-# Check out extension licenses
-arcpy.CheckOutExtension("Network")
-arcpy.CheckOutExtension("Spatial")
 
 def MakeServiceLayers_scu(in_hydroGDB):
    '''Make two service layers needed for analysis.
    Parameters:
    - in_hydroGDB = The geodatabase containing the hydro network and associated features. 
    '''
+   arcpy.CheckOutExtension("Network")
    
    # Set up some variables
    out_Dir = os.path.dirname(in_hydroGDB)
@@ -99,6 +93,8 @@ def MakeServiceLayers_scu(in_hydroGDB):
       
    del serviceLayer
    
+   arcpy.CheckInExtension("Network")
+   
    return (lyrDownTrace, lyrUpTrace)
 
 def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = "in_memory"):
@@ -110,6 +106,8 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    - in_downTrace = Service layer set up to run downstream
    - in_upTrace = Service layer set up to run upstream
    - out_Scratch = geodatabase to contain intermediate products'''
+   
+   arcpy.CheckOutExtension("Network")
    
    # timestamp
    t0 = datetime.now()
@@ -238,6 +236,8 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    ds = GetElapsedTime (t0, t1)
    printMsg('Completed function. Time elapsed: %s' % ds)
    
+   arcpy.CheckInExtension("Network")
+   
    return (lyrDownTrace, lyrUpTrace)
    
 def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = arcpy.env.scratchGDB):
@@ -247,6 +247,8 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    - in_upTrace = Service layer set up to run upstream
    - out_Lines = Final output linear SCUs
    - out_Scratch = geodatabase to contain intermediate products'''
+   
+   arcpy.CheckOutExtension("Network")
    
    # timestamp
    t0 = datetime.now()
@@ -366,12 +368,14 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    ds = GetElapsedTime (t0, t1)
    printMsg('Completed function. Time elapsed: %s' % ds)
 
+   arcpy.CheckInExtension("Network")
+   
    return out_Lines
    
 def CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, out_Scratch = arcpy.env.scratchGDB):
    '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons
    Parameters:
-   - in_lines = input linear SCUs, output from previous function
+   - in_scuLines = input linear SCUs, output from previous function
    - in_hydroGDB = input geodatabase containing the hydro network and associated features
    - out_Polys = output polygon SCUs
    - out_Scratch = geodatabase to contain intermediate products
@@ -513,6 +517,12 @@ def CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, out_Scratch = arcpy.env
    
 def CreateCatchments_scu():
    '''Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'''
+   
+   arcpy.CheckOutExtension("Spatial")
+   from arcpy.sa import *
+   
+   
+   arcpy.CheckInExtension("Spatial")
    
 # Use the main function below to run functions directly from Python IDE or command line with hard-coded variables
 def main():

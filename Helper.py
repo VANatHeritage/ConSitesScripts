@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-11-20
+# Last Edit: 2018-11-21
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -18,8 +18,12 @@ try:
 except:
    import arcpy   
    print "Initiating arcpy..."
+
+from datetime import datetime as datetime   
    
-from datetime import datetime as datetime
+# Set overwrite option so that existing data may be overwritten
+arcpy.env.overwriteOutput = True
+
 
 def getScratchMsg(scratchGDB):
    '''Prints message informing user of where scratch output will be written'''

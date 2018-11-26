@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-11-20
+# Last Edit: 2018-11-21
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -13,9 +13,6 @@
 # Import modules
 import Helper
 from Helper import *
-
-# Set overwrite option so that existing data may be overwritten
-arcpy.env.overwriteOutput = True
    
 def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
    '''If a positive number is entered for the dilation distance, features are expanded outward by the specified distance, then shrunk back in by the same distance. This causes nearby features to coalesce. If a negative number is entered for the dilation distance, features are first shrunk, then expanded. This eliminates narrow portions of existing features, thereby simplifying them. It can also break narrow "bridges" between features that were formerly coalesced.'''
