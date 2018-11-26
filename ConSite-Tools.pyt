@@ -9,7 +9,8 @@
 # A toolbox for automatic delineation and prioritization of Natural Heritage Conservation Sites
 # ----------------------------------------------------------------------------------------
 
-import libConSiteFx
+import Helper
+from Helper import *
 from libConSiteFx import *
 from CreateSBBs import *
 from CreateConSites import *
