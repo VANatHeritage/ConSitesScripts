@@ -2,14 +2,14 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-11-26
+# Last Edit: 2018-11-27
 # Creator:  Kirsten R. Hazler
 
 # Summary:
 # A toolbox for automatic delineation and prioritization of Natural Heritage Conservation Sites
 
 # Usage Notes:
-# Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. This is undesirable for day-to-day use. 
+# Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 # ----------------------------------------------------------------------------------------
 
 import Helper
@@ -220,7 +220,7 @@ class create_sbb(object):
       parm5 = defineParam('in_nwi67', "Input Rule 67 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule67")
       parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule9")
       parm7 = defineParam('out_SBB', "Output Site Building Blocks (SBBs)", "DEFeatureClass", "Required", "Output")
-      parm8 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
+      parm8 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8]
       return parms
@@ -275,7 +275,7 @@ class expand_sbb(object):
       parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
       parm3 = defineParam('joinFld', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm4 = defineParam('out_SBB', "Output Expanded Site Building Blocks", "DEFeatureClass", "Required", "Output")
-      parm5 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
+      parm5 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5]
       return parms
@@ -501,8 +501,7 @@ class ServLyrs_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam("in_hydroGDB", "Input HydroNet geodatabase", "DEWorkspace", "Required", "Input")
-      parm0.filter.list = ["Local Database"]
+      parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
       parm1 = defineParam("out_lyrDown", "Output Downstream Layer", "DELayer", "Derived", "Output")
       parm2 = defineParam("out_lyrUp", "Output Upstream Layer", "DELayer", "Derived", "Output")
       
@@ -530,7 +529,7 @@ class ServLyrs_scu(object):
       declareParams(parameters)
       
       # Run the function
-      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scu(in_hydroGDB)
+      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scu(in_hydroNet)
 
       # Update the derived parameters.
       # This enables layers to be displayed automatically if running tool from ArcMap.
@@ -544,19 +543,18 @@ class NtwrkPts_scu(object):
       """Define the tool (tool name is the name of the class)."""
       self.label = "1: Make Network Points from Procedural Features"
       self.description = 'Given SCU-worthy procedural features, creates points along the hydro network, then loads them into service layers.'
-      self.canRunInBackground = False
+      self.canRunInBackground = True
       self.category = "Stream Conservation Unit Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
-      parm1 = defineParam('out_Points', "Output Network Points", "DEFeatureClass", "Required", "Output")
-      parm2 = defineParam('fld_SFID', "Source Feature ID field", "String", "Required", "Input", 'SFID')
-      parm3 = defineParam('in_downTrace', "Downstream Service Layer", "GPNALayer", "Required", "Input", 'naDownTrace')
-      parm4 = defineParam('in_upTrace', "Upstream Service Layer", "GPNALayer", "Required", "Input", 'naUpTrace')
-      parm5 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
+      parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
+      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
+      parm2 = defineParam("out_Points", "Output Network Points", "DEFeatureClass", "Required", "Output")
+      parm3 = defineParam("fld_SFID", "Source Feature ID field", "String", "Required", "Input", "SFID")
+      parm4 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
-      parms = [parm0, parm1, parm2, parm3, parm4, parm5]
+      parms = [parm0, parm1, parm2, parm3, parm4]
       return parms
 
    def isLicensed(self):
@@ -567,10 +565,10 @@ class NtwrkPts_scu(object):
       """Modify the values and properties of parameters before internal
       validation is performed.  This method is called whenever a parameter
       has been changed."""
-      if parameters[0].altered:
-         fc = parameters[0].valueAsText
+      if parameters[1].altered:
+         fc = parameters[1].valueAsText
          field_names = [f.name for f in arcpy.ListFields(fc)]
-         parameters[2].filter.list = field_names
+         parameters[3].filter.list = field_names
       return
 
    def updateMessages(self, parameters):
@@ -589,12 +587,7 @@ class NtwrkPts_scu(object):
          scratchParm = "in_memory" 
       
       # Run the function
-      (lyrDownTrace, lyrUpTrace) = MakeNetworkPts_scu(in_PF, out_Points, fld_SFID, in_downTrace, in_upTrace, scratchParm)
-      
-      # Update the derived parameters.
-      # This enables layers to be displayed automatically if running tool from ArcMap.
-      parameters[3].value = lyrDownTrace
-      parameters[4].value = lyrUpTrace
+      scuPoints = MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID, scratchParm)
       
       return
       
@@ -603,17 +596,18 @@ class Lines_scu(object):
       """Define the tool (tool name is the name of the class)."""
       self.label = "2: Generate Linear SCUs"
       self.description = 'Solves the upstream and downstream service layers, and combines segments to create linear SCUs'
-      self.canRunInBackground = False
+      self.canRunInBackground = True
       self.category = "Stream Conservation Unit Delineation Tools"
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam('out_Lines', "Output Linear SCUs", "DEFeatureClass", "Required", "Output")
-      parm1 = defineParam('in_downTrace', "Downstream Service Layer", "GPNALayer", "Required", "Input", 'naDownTrace')
-      parm2 = defineParam('in_upTrace', "Upstream Service Layer", "GPNALayer", "Required", "Input", 'naUpTrace')
-      parm3 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
+      parm0 = defineParam("out_Lines", "Output Linear SCUs", "DEFeatureClass", "Required", "Output")
+      parm1 = defineParam("in_Points", "Input SCU Points", "GPFeatureLayer", "Required", "Input", "scuPoints")
+      parm2 = defineParam("in_downTrace", "Downstream Service Layer", "GPNALayer", "Required", "Input", "naDownTrace")
+      parm3 = defineParam("in_upTrace", "Upstream Service Layer", "GPNALayer", "Required", "Input", "naUpTrace")
+      parm4 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
-      parms = [parm0, parm1, parm2, parm3]
+      parms = [parm0, parm1, parm2, parm3, parm4]
       return parms
 
    def isLicensed(self):
@@ -642,7 +636,12 @@ class Lines_scu(object):
          scratchParm = arcpy.env.scratchGDB 
       
       # Run the function
-      CreateLines_scu(out_Lines, in_downTrace, in_upTrace, scratchParm)
+      (scuLines, lyrDownTrace, lyrUpTrace) = CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, scratchParm)
+      
+      # Update the derived parameters.
+      # This enables layers to be displayed automatically if running tool from ArcMap.
+      parameters[2].value = lyrDownTrace
+      parameters[3].value = lyrUpTrace
       
       return
 
@@ -657,10 +656,9 @@ class Polys_scu(object):
    def getParameterInfo(self):
       """Define parameters"""
       parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input", "scuLines")
-      parm1 = defineParam("in_hydroGDB", "Input HydroNet geodatabase", "DEWorkspace", "Required", "Input")
-      parm1.filter.list = ["Local Database"]
+      parm1 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
       parm2 = defineParam('out_Polys', "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
-      parm3 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Output")
+      parm3 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3]
       return parms
@@ -691,7 +689,7 @@ class Polys_scu(object):
          scratchParm = arcpy.env.scratchGDB 
       
       # Run the function
-      CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, scratchParm)
+      CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, scratchParm)
       
       return
       

@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-26
+# Last Edit: 2018-11-27
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -26,22 +26,25 @@
 import Helper
 from Helper import *
 
-def MakeServiceLayers_scu(in_hydroGDB):
+def MakeServiceLayers_scu(in_hydroNet):
    '''Make two service layers needed for analysis.
    Parameters:
-   - in_hydroGDB = The geodatabase containing the hydro network and associated features. 
+   - in_hydroNet = The hydro network dataset
    '''
    arcpy.CheckOutExtension("Network")
    
    # Set up some variables
-   out_Dir = os.path.dirname(in_hydroGDB)
-   nwDataset = in_hydroGDB + os.sep + "HydroNet" + os.sep + "HydroNet_ND"
-   nwLines = in_hydroGDB + os.sep + "HydroNet" + os.sep + "NHDLine"
+   descHydro = arcpy.Describe(in_hydroNet)
+   nwDataset = descHydro.catalogPath
+   catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
+   hydroDir = os.path.dirname(catPath)
+   hydroDir = os.path.dirname(hydroDir) # This is where output layer files will be saved
+   nwLines = catPath + os.sep + "NHDLine"
    qry = "FType = 343" # DamWeir only
    arcpy.MakeFeatureLayer_management (nwLines, "lyr_DamWeir", qry)
    in_Lines = "lyr_DamWeir"
-   lyrDownTrace = out_Dir + os.sep + "naDownTrace.lyr"
-   lyrUpTrace = out_Dir + os.sep + "naUpTrace.lyr"
+   lyrDownTrace = hydroDir + os.sep + "naDownTrace.lyr"
+   lyrUpTrace = hydroDir + os.sep + "naUpTrace.lyr"
    
    # Downstream trace with breaks at 1609 (1 mile) and 3218 (2 miles)
    # Upstream trace with break at 3218 (2 miles)
@@ -97,39 +100,25 @@ def MakeServiceLayers_scu(in_hydroGDB):
    
    return (lyrDownTrace, lyrUpTrace)
 
-def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = "in_memory"):
-   '''Given SCU-worthy procedural features, creates points along the network, then loads them into service layers. 
+def MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID = "SFID", out_Scratch = arcpy.env.scratchGDB):
+   '''Given SCU-worthy procedural features, creates points along the hydro network. 
    Parameters:
+   - in_hydroNet = The hydro network dataset
    - in_PF = Input SCU-worthy procedural features
    - out_Points = Output feature class containing points generated from procedural features
    - fld_SFID = Field in in_PF containing unique ID
-   - in_downTrace = Service layer set up to run downstream
-   - in_upTrace = Service layer set up to run upstream
    - out_Scratch = geodatabase to contain intermediate products'''
-   
-   arcpy.CheckOutExtension("Network")
    
    # timestamp
    t0 = datetime.now()
    
    # Set up some variables
-   sr = arcpy.Describe(in_PF).spatialReference
-   descDT = arcpy.Describe(in_downTrace)
-   if descDT.dataType == 'Layer':
-      in_downTrace = arcpy.mapping.Layer(in_downTrace)
-      descDT = arcpy.Describe(in_downTrace)
-   descUT = arcpy.Describe(in_upTrace)
-   if descUT.dataType == 'Layer':
-      in_upTrace = arcpy.mapping.Layer(in_upTrace)
-      descUT = arcpy.Describe(in_upTrace)
-   cp = descDT.network.catalogPath
-   hydroNet = os.path.dirname(cp)
-   nhdArea = hydroNet + os.sep + "NHDArea"
-   nhdFlowline = hydroNet + os.sep + "NHDFlowline"
-   hydroDir = os.path.dirname(hydroNet)
-   hydroDir = os.path.dirname(hydroDir)
-   lyrDownTrace = hydroDir + os.sep + 'naDownTrace.lyr'
-   lyrUpTrace = hydroDir + os.sep + 'naUpTrace.lyr'
+   sr = arcpy.Describe(in_PF).spatialReference   
+   descHydro = arcpy.Describe(in_hydroNet)
+   nwDataset = descHydro.catalogPath
+   catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
+   nhdArea = catPath + os.sep + "NHDArea"
+   nhdFlowline = catPath + os.sep + "NHDFlowline"
    pfCirc = out_Scratch + os.sep + 'pfCirc'
    pfBuff = out_Scratch + os.sep + 'pfBuff'
    tmpPts = out_Scratch + os.sep + 'tmpPts'
@@ -195,31 +184,7 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
             arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
          else:
             pass
-     
-   # Load all points as facilities into both service layers; search distance 500 meters
-   printMsg('Loading points into service layers...')
-   for sa in [[in_downTrace,lyrDownTrace], [in_upTrace, lyrUpTrace]]:
-      inLyr = sa[0]
-      outLyr = sa[1]
-      naPoints = arcpy.AddLocations_na(in_network_analysis_layer=inLyr, 
-         sub_layer="Facilities", 
-         in_table=out_Points, 
-         field_mappings="Name FID #", 
-         search_tolerance="500 Meters", 
-         sort_field="", 
-         search_criteria="NHDFlowline SHAPE;HydroNet_ND_Junctions NONE", 
-         match_type="MATCH_TO_CLOSEST", 
-         append="CLEAR", 
-         snap_to_position_along_network="SNAP", 
-         snap_offset="0 Meters", 
-         exclude_restricted_elements="EXCLUDE", 
-         search_query="NHDFlowline #;HydroNet_ND_Junctions #")
-      printMsg('Saving updated %s service layer to %s...' %(inLyr,outLyr))      
-      arcpy.SaveToLayerFile_management(inLyr, outLyr)
-   printMsg('Completed point loading.')
-   
-   del naPoints
-   
+
    if out_Scratch == "in_memory":
       # Clear out memory to avoid failures in subsequent functions
       arcpy.env.workspace = "in_memory"
@@ -236,16 +201,15 @@ def MakeNetworkPts_scu(in_PF, out_Points, fld_SFID = "SFID", in_downTrace = "naD
    ds = GetElapsedTime (t0, t1)
    printMsg('Completed function. Time elapsed: %s' % ds)
    
-   arcpy.CheckInExtension("Network")
+   return out_Points
    
-   return (lyrDownTrace, lyrUpTrace)
-   
-def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpTrace", out_Scratch = arcpy.env.scratchGDB):
-   '''Solves the upstream and downstream service layers, and combines segments to create linear SCUs
+def CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, out_Scratch = arcpy.env.scratchGDB):
+   '''Loads SCU points, solves the upstream and downstream service layers, and combines segments to create linear SCUs
    Parameters:
+   - out_Lines = Final output linear SCUs
+   - in_Points = Input feature class containing points generated from procedural features
    - in_downTrace = Service layer set up to run downstream
    - in_upTrace = Service layer set up to run upstream
-   - out_Lines = Final output linear SCUs
    - out_Scratch = geodatabase to contain intermediate products'''
    
    arcpy.CheckOutExtension("Network")
@@ -257,24 +221,44 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
    if out_Scratch == "in_memory":
       # recast to save to disk, otherwise there is no OBJECTID field for queries as needed
       outScratch = arcpy.env.scratchGDB
-   descDT = arcpy.Describe(in_downTrace)
    printMsg('Casting strings to layer objects...')
+   in_upTrace = arcpy.mapping.Layer(in_upTrace)
    in_downTrace = arcpy.mapping.Layer(in_downTrace)
    descDT = arcpy.Describe(in_downTrace)
-   in_upTrace = arcpy.mapping.Layer(in_upTrace)
-   descUT = arcpy.Describe(in_upTrace)
-   cp = descDT.network.catalogPath
-   hydroNet = os.path.dirname(cp)
-   hydroDir = os.path.dirname(hydroNet)
-   hydroDir = os.path.dirname(hydroDir)
-   outDir = os.path.dirname(out_Lines)
+   nwDataset = descDT.network.catalogPath
+   catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
+   hydroDir = os.path.dirname(catPath)
+   hydroDir = os.path.dirname(hydroDir) # This is where output layer files will be saved
    lyrDownTrace = hydroDir + os.sep + 'naDownTrace.lyr'
    lyrUpTrace = hydroDir + os.sep + 'naUpTrace.lyr'
    downLines = out_Scratch + os.sep + 'downLines'
    upLines = out_Scratch + os.sep + 'upLines'
+   outDir = os.path.dirname(out_Lines)
+  
+   # Load all points as facilities into both service layers; search distance 500 meters
+   printMsg('Loading points into service layers...')
+   for sa in [[in_downTrace,lyrDownTrace], [in_upTrace, lyrUpTrace]]:
+      inLyr = sa[0]
+      outLyr = sa[1]
+      naPoints = arcpy.AddLocations_na(in_network_analysis_layer=inLyr, 
+         sub_layer="Facilities", 
+         in_table=in_Points, 
+         field_mappings="Name FID #", 
+         search_tolerance="500 Meters", 
+         sort_field="", 
+         search_criteria="NHDFlowline SHAPE;HydroNet_ND_Junctions NONE", 
+         match_type="MATCH_TO_CLOSEST", 
+         append="CLEAR", 
+         snap_to_position_along_network="SNAP", 
+         snap_offset="0 Meters", 
+         exclude_restricted_elements="EXCLUDE", 
+         search_query="NHDFlowline #;HydroNet_ND_Junctions #")
+   printMsg('Completed point loading.')
+   
+   del naPoints
   
    # Solve upstream and downstream service layers; save out lines and updated layers
-   for sa in [[in_downTrace,downLines, lyrDownTrace], [in_upTrace, upLines, lyrUpTrace]]:
+   for sa in [[in_downTrace, downLines, lyrDownTrace], [in_upTrace, upLines, lyrUpTrace]]:
       inLyr = sa[0]
       outLines = sa[1]
       outLyr = sa[2]
@@ -286,6 +270,7 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
       inLines = arcpy.mapping.ListLayers(inLyr, "Lines")[0]
       printMsg('Saving out lines...')
       arcpy.CopyFeatures_management(inLines, outLines)
+      arcpy.RepairGeometry_management (outLines, "DELETE_NULL")
       printMsg('Saving updated %s service layer to %s...' %(inLyr,outLyr))      
       arcpy.SaveToLayerFile_management(inLyr, outLyr)
    
@@ -366,13 +351,13 @@ def CreateLines_scu(out_Lines, in_downTrace = "naDownTrace", in_upTrace = "naUpT
 
    arcpy.CheckInExtension("Network")
    
-   return out_Lines
+   return (out_Lines, lyrDownTrace, lyrUpTrace)
    
-def CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, out_Scratch = arcpy.env.scratchGDB):
+def CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.scratchGDB):
    '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons
    Parameters:
    - in_scuLines = input linear SCUs, output from previous function
-   - in_hydroGDB = input geodatabase containing the hydro network and associated features
+   - in_hydroNet = The hydro network dataset
    - out_Polys = output polygon SCUs
    - out_Scratch = geodatabase to contain intermediate products
    '''
@@ -382,18 +367,22 @@ def CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, out_Scratch = arcpy.env
    
    # Create empty feature class to store polygons
    sr = arcpy.Describe(in_scuLines).spatialReference
+   appendPoly = out_Scratch + os.sep + 'appendPoly'
    printMsg('Creating empty feature class for polygons')
-   if arcpy.Exists(out_Polys):
-      arcpy.Delete_management(out_Polys)
-   outDir = os.path.dirname(out_Polys)
-   outName = os.path.basename(out_Polys)
-   arcpy.CreateFeatureclass_management (outDir, outName, "POLYGON", in_scuLines, '', '', sr)
+   if arcpy.Exists(appendPoly):
+      arcpy.Delete_management(appendPoly)
+   arcpy.CreateFeatureclass_management (out_Scratch, 'appendPoly', "POLYGON", in_scuLines, '', '', sr)
    
    # Set up some variables:
-   nhdArea = in_hydroGDB + os.sep + "HydroNet" + os.sep + "NHDArea"
-   nhdFlowline = in_hydroGDB + os.sep + "HydroNet" + os.sep + "NHDFlowline"
+   descHydro = arcpy.Describe(in_hydroNet)
+   nwDataset = descHydro.catalogPath
+   catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
+   nhdArea = catPath + os.sep + "NHDArea"
+   nhdFlowline = catPath + os.sep + "NHDFlowline"
    qry = "FType = 460" # StreamRiver only
    arcpy.MakeFeatureLayer_management (nhdArea, "StreamRiver", qry)
+   
+   # Variables used in-loop:
    bufferLines = out_Scratch + os.sep + 'bufferLines'
    danglePts = out_Scratch + os.sep + 'danglePts'
    bufferPts = out_Scratch + os.sep + 'bufferPts'
@@ -502,7 +491,11 @@ def CreatePolys_scu(in_scuLines, in_hydroGDB, out_Polys, out_Scratch = arcpy.env
             
          # Append to output
          printMsg('Appending shape to output...')
-         arcpy.Append_management (tmpPoly, out_Polys, "NO_TEST")
+         arcpy.Append_management (tmpPoly, appendPoly, "NO_TEST")
+         
+   # Dissolve final output
+   printMsg('Dissolving final shapes...')
+   arcpy.Dissolve_management (appendPoly, out_Polys, "", "", "SINGLE_PART")
    
    # timestamp
    t1 = datetime.now()
