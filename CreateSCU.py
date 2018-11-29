@@ -2,14 +2,14 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-27
+# Last Edit: 2018-11-29
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
 # Functions for delineating Stream Conservation Units (SCUs).
 
 # Usage Tips:
-# 
+# "It ain't perfect, but it's pretty good."
 
 # Dependencies:
 # This set of functions will not work if the hydro network is not set up properly! The network geodatabase VA_HydroNet.gdb has been set up manually, not programmatically.
@@ -25,6 +25,7 @@
 # Import modules
 import Helper
 from Helper import *
+from arcpy.sa import *
 
 def MakeServiceLayers_scu(in_hydroNet):
    '''Make two service layers needed for analysis.
@@ -120,21 +121,29 @@ def MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID = "SFID", out_Sc
    nhdArea = catPath + os.sep + "NHDArea"
    nhdFlowline = catPath + os.sep + "NHDFlowline"
    pfCirc = out_Scratch + os.sep + 'pfCirc'
+   
+   # Variables used in-loop
    pfBuff = out_Scratch + os.sep + 'pfBuff'
+   slopBuff = out_Scratch + os.sep + 'clpBuff'
    tmpPts = out_Scratch + os.sep + 'tmpPts'
    tmpPts2 = out_Scratch + os.sep + 'tmpPts2'
+   attrib_Points = out_Scratch + os.sep + 'attrib_Points'
    clpArea = out_Scratch + os.sep + 'clpArea'
+   clpLine = out_Scratch + os.sep + 'clpLine'
+   # LineInArea = out_Scratch + os.sep + 'LineInArea'
       
    # Make some feature layers   
-   arcpy.MakeFeatureLayer_management (nhdFlowline, "nhdfl")
-   arcpy.MakeFeatureLayer_management (nhdArea, "nhda")
+   qry = "FType in (460, 558)" # StreamRiver and ArtificialPath only
+   arcpy.MakeFeatureLayer_management (nhdFlowline, "StreamRiver_Line", qry)
+   qry = "FType = 460" # StreamRiver only
+   arcpy.MakeFeatureLayer_management (nhdArea, "StreamRiver_Poly", qry)
    
-   # Create bounding circles around PFs
+   # Create bounding polygons around PFs
    printMsg('Creating bounding circles for procedural features...')
    arcpy.MinimumBoundingGeometry_management (in_PF, pfCirc, "CIRCLE", "NONE")
    
-   # Create empty feature class to store points
-   printMsg('Creating empty feature class for points')
+   # Create empty feature classes to store points
+   printMsg('Creating empty feature classes for points')
    if arcpy.Exists(out_Points):
       arcpy.Delete_management(out_Points)
    outDir = os.path.dirname(out_Points)
@@ -147,43 +156,58 @@ def MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID = "SFID", out_Sc
       for PF in myPFs:
          id = PF[0]
          printMsg('Working on SFID %s...' %id)
+         
+         # Create fresh feature class for storage
+         if arcpy.Exists(attrib_Points):
+            arcpy.Delete_management(attrib_Points)
+         arcpy.CreateFeatureclass_management (out_Scratch, 'attrib_Points', "POINT", in_PF, '', '', sr)
+         
+         # Make feature layers
          qry = "%s = '%s'" % (fld_SFID, id)
          arcpy.MakeFeatureLayer_management (pfCirc,  "tmpCirc", qry)
          arcpy.MakeFeatureLayer_management (in_PF,  "tmpPF", qry)
-         arcpy.SelectLayerByLocation_management ("nhdfl", "INTERSECT", "tmpPF", "", "NEW_SELECTION")
-         c = countSelectedFeatures("nhdfl")
-         if c > 0:
-            # Make points directly on network if possible
-            arcpy.Intersect_analysis (["tmpPF", "nhdfl"], tmpPts, "", "", "POINT")
-            arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
-            arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
-         else:
-            pass
-            
-         # Generate points on bounding circle (yes intentionally in addition to previous)
-         # First buffer PF by small amount to avoid some weird results for some features
+         
+         # Clip nhd layers
+         CleanClip("StreamRiver_Line", "tmpCirc", clpLine)
+         CleanClip("StreamRiver_Poly", "tmpCirc", clpArea)
+
+         # Generate points on bounding circle; this ensures the length of the PF along the FlowLine network is captured, for all but perfect circular features
+         ### First buffer PF by small amount to avoid some weird results for some features
          arcpy.Buffer_analysis("tmpPF", pfBuff, "1 Meters", "", "", "NONE")
          arcpy.Intersect_analysis ([pfBuff, "tmpCirc"], tmpPts, "", "", "POINT")
-         c = countFeatures(tmpPts) # Check for empty output and proceed accordingly
-         if c == 0:
-            # Empty output if PF is a perfect circle; generate centroid instead
+         c = countFeatures(tmpPts) # Check for empty output
+         if c == 0: # Empty output if PF is a perfect circle; alternatives needed
+            ### Make centroid
             arcpy.FeatureToPoint_management ("tmpPF", tmpPts, "CENTROID")
-            arcpy.Append_management (tmpPts, out_Points, "NO_TEST")
-         else:
+            arcpy.Append_management (tmpPts, attrib_Points, "NO_TEST")
+            ### Make additional points for large circles
+            arcpy.Intersect_analysis(["tmpPF", clpArea], tmpPts, "", "", "POINT")
+            c = countFeatures(tmpPts) # Check for empty output
+            if c > 0: 
+               arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
+               arcpy.Append_management (tmpPts2, attrib_Points, "NO_TEST")
+         else: # Finish processing normal generated points
             arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
-            arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
-            
-         # If applicable, add points on nhdArea polygons
-         # This catches some instances where the above didn't generate all needed points
-         arcpy.SelectLayerByLocation_management ("nhda", "INTERSECT", "tmpPF", "", "NEW_SELECTION")
-         c = countSelectedFeatures("nhda")
-         if c > 0:
-            arcpy.Clip_analysis ("nhda", "tmpCirc", clpArea)
-            arcpy.Intersect_analysis ([clpArea, nhdFlowline], tmpPts, "", "", "POINT")
+            arcpy.Append_management (tmpPts2, attrib_Points, "NO_TEST")
+         
+         # Get junctions with tributaries
+         arcpy.Intersect_analysis([clpLine, "tmpPF"], tmpPts, "", "", "POINT")
+         c = countFeatures(tmpPts) # Check for empty output
+         if c > 0: # Trib junctions present within PF
             arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
-            arcpy.Append_management (tmpPts2, out_Points, "NO_TEST")
+            arcpy.Append_management (tmpPts2, attrib_Points, "NO_TEST")
          else:
-            pass
+         ### Try using a "slop" buffer to account for discrepancies between PF and NHD
+            arcpy.Buffer_analysis("tmpPF", pfBuff, "30 Meters", "", "", "NONE")
+            CleanClip(pfBuff, "tmpCirc", slopBuff)
+            arcpy.Intersect_analysis([clpLine, slopBuff], tmpPts, "", "", "POINT")
+            c = countFeatures(tmpPts) # Check for empty output
+            if c > 0: # Trib junctions present within slop buffer
+               arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
+               arcpy.Append_management (tmpPts2, attrib_Points, "NO_TEST")
+
+         arcpy.CalculateField_management (attrib_Points, fld_SFID, "%s" %id, 'PYTHON_9.3')
+         arcpy.Append_management (attrib_Points, out_Points, "NO_TEST")
 
    if out_Scratch == "in_memory":
       # Clear out memory to avoid failures in subsequent functions
@@ -353,10 +377,10 @@ def CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, out_Scratch 
    
    return (out_Lines, lyrDownTrace, lyrUpTrace)
    
-def CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.scratchGDB):
+def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.scratchGDB):
    '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons
    Parameters:
-   - in_scuLines = input linear SCUs, output from previous function
+   - in_Lines = input linear SCUs, output from previous function
    - in_hydroNet = The hydro network dataset
    - out_Polys = output polygon SCUs
    - out_Scratch = geodatabase to contain intermediate products
@@ -366,12 +390,12 @@ def CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, out_Scratch = arcpy.env
    t0 = datetime.now()
    
    # Create empty feature class to store polygons
-   sr = arcpy.Describe(in_scuLines).spatialReference
+   sr = arcpy.Describe(in_Lines).spatialReference
    appendPoly = out_Scratch + os.sep + 'appendPoly'
    printMsg('Creating empty feature class for polygons')
    if arcpy.Exists(appendPoly):
       arcpy.Delete_management(appendPoly)
-   arcpy.CreateFeatureclass_management (out_Scratch, 'appendPoly', "POLYGON", in_scuLines, '', '', sr)
+   arcpy.CreateFeatureclass_management (out_Scratch, 'appendPoly', "POLYGON", in_Lines, '', '', sr)
    
    # Set up some variables:
    descHydro = arcpy.Describe(in_hydroNet)
@@ -398,7 +422,7 @@ def CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, out_Scratch = arcpy.env
    mergePoly = out_Scratch + os.sep + 'mergePoly'
    tmpPoly = out_Scratch + os.sep + 'tmpPoly'
       
-   with  arcpy.da.SearchCursor(in_scuLines, ["SHAPE@", "grpID"]) as myLines:
+   with  arcpy.da.SearchCursor(in_Lines, ["SHAPE@", "grpID"]) as myLines:
       for line in myLines:
          shp = line[0]
          id = line[1]
@@ -504,14 +528,205 @@ def CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, out_Scratch = arcpy.env
 
    return out_Polys
    
-def CreateCatchments_scu():
+def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilDist = 'None', out_Scratch = 'in_memory'):
    '''Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'''
    
    arcpy.CheckOutExtension("Spatial")
-   from arcpy.sa import *
    
+   # Get cell size and output spatial reference from in_FlowDir
+   cellSize = (arcpy.GetRasterProperties_management(in_FlowDir, "CELLSIZEX")).getOutput(0)
+   srRast = arcpy.Describe(in_FlowDir).spatialReference
+   linUnit = srRast.linearUnitName
+   printMsg('Cell size of flow direction raster is %s %ss' %(cellSize, linUnit))
+   printMsg('Flow modeling is strongly dependent on cell size.')
+
+   # Set environment setting and other variables
+   arcpy.env.snapRaster = in_FlowDir
+   (num, units, procDist) = multiMeasure(maxDist, 3)
+
+   # Check if input features and input flow direction have same spatial reference.
+   # If so, just make a copy. If not, reproject features to match raster.
+   srFeats = arcpy.Describe(in_Polys).spatialReference
+   if srFeats.Name == srRast.Name:
+      printMsg('Coordinate systems for features and raster are the same. Copying...')
+      arcpy.CopyFeatures_management (in_Polys, out_Polys)
+   else:
+      printMsg('Reprojecting features to match raster...')
+      # Check if geographic transformation is needed, and handle accordingly.
+      if srFeats.GCS.Name == srRast.GCS.Name:
+         geoTrans = ""
+         printMsg('No geographic transformation needed...')
+      else:
+         transList = arcpy.ListTransformations(srFeats,srRast)
+         geoTrans = transList[0]
+      arcpy.Project_management (in_Polys, out_Polys, srRast, geoTrans)
+
+   # Add and calculate a field needed for raster conversion
+   arcpy.AddField_management (out_Polys, 'rasterVal', 'SHORT')
+   arcpy.CalculateField_management (out_Polys, 'rasterVal', '1', 'PYTHON_9.3')
+      
+   # Count features and report
+   numFeats = countFeatures(out_Polys)
+   printMsg('There are %s features to process.' % numFeats)
    
+   # Variables used in loop
+   trashList = [] # Empty list for trash collection
+   tmpFeat = out_Scratch + os.sep + 'tmpFeat'
+   srcRast = out_Scratch + os.sep + 'srcRast'
+   procBuff = out_Scratch + os.sep + 'procBuff'
+   clp_FlowDir = out_Scratch + os.sep + 'clp_FlowDir'
+   clp_Watershed = out_Scratch + os.sep + 'clp_Watershed'
+   snk_FlowDir = out_Scratch + os.sep + 'snk_FlowDir'
+   FlowDist = out_Scratch + os.sep + 'FlowDist'
+   clipBuff = out_Scratch + os.sep + 'clipBuff'
+   clp_FlowDist = out_Scratch + os.sep + 'clp_FlowDist'
+   binRast = out_Scratch + os.sep + 'binRast'
+   cleanRast = out_Scratch + os.sep + 'cleanRast'
+   prePoly = out_Scratch + os.sep + 'prePoly'
+   finPoly = out_Scratch + os.sep + 'finPoly'
+   coalescedPoly = out_Scratch + os.sep + 'coalPoly'
+   multiPoly = out_Scratch + os.sep + 'multiPoly'
+   
+   # Create an empty list to store IDs of features that fail to get processed
+   myFailList = []
+
+   # Set up processing cursor and loop
+   flags = [] # Initialize empty list to keep track of suspects
+   cursor = arcpy.da.UpdateCursor(out_Polys, [fld_ID, "SHAPE@"])
+   counter = 1
+   for row in cursor:
+      try:
+         # Extract the unique ID and geometry object
+         myID = row[0]
+         myShape = row[1]
+
+         printMsg('Working on feature %s with ID %s' % (counter, str(myID)))
+
+         # Process:  Select (Analysis)
+         # Create a temporary feature class including only the current feature
+         selQry = "%s = %s" % (fld_ID, str(myID))
+         arcpy.Select_analysis (out_Polys, tmpFeat, selQry)
+
+         # Clip flow direction raster to processing buffer
+         printMsg('Buffering feature to set maximum processing distance')
+         arcpy.Buffer_analysis (tmpFeat, procBuff, procDist, "", "", "ALL", "")
+         myExtent = str(arcpy.Describe(procBuff).extent).replace(" NaN", "")
+         #printMsg('Extent: %s' %myExtent)
+         printMsg('Clipping flow direction raster to processing buffer')
+         arcpy.Clip_management (in_FlowDir, myExtent, clp_FlowDir, procBuff, "", "ClippingGeometry")
+         arcpy.env.extent = clp_FlowDir
+         arcpy.env.mask = clp_FlowDir
+         
+         # Convert feature to raster
+         arcpy.PolygonToRaster_conversion (tmpFeat, 'rasterVal', srcRast, "MAXIMUM_COMBINED_AREA", 'rasterVal', cellSize)
+
+         # Get the watershed for the SCU feature (truncated by processing buffer)
+         printMsg('Creating truncated watershed from feature...')
+         tmpRast = Watershed (clp_FlowDir, srcRast)
+         tmpRast.save(clp_Watershed)
+         arcpy.env.mask = clp_Watershed # Processing now restricted to Watershed
+         
+         # Burn SCU feature into flow direction raster as sink
+         printMsg('Creating sink from feature...')
+         tmpRast = Con(IsNull(srcRast),clp_FlowDir)
+         tmpRast.save(snk_FlowDir)
+         
+         # Calculate flow distance down to sink
+         printMsg('Within watershed, calculating flow distance to sink...')
+         tmpRast = FlowLength (snk_FlowDir, "DOWNSTREAM")
+         tmpRast.save(FlowDist)
+         
+         # Clip flow distance raster to the maximum distance buffer
+         arcpy.Buffer_analysis (tmpFeat, clipBuff, maxDist, "", "", "ALL", "")
+         myExtent = str(arcpy.Describe(clipBuff).extent).replace(" NaN", "")
+         #printMsg('Extent: %s' %myExtent)
+         printMsg('Clipping flow distance raster to maximum distance buffer')
+         arcpy.Clip_management (FlowDist, myExtent, clp_FlowDist, clipBuff, "", "ClippingGeometry")
+         arcpy.env.extent = clp_FlowDist
+         
+         # Make a binary raster based on flow distance
+         printMsg('Creating binary raster from flow distance...')
+         tmpRast = Con((IsNull(clp_FlowDist) == 1),
+                  (Con((IsNull(srcRast)== 0),1,0)),
+                  (Con((Raster(clp_FlowDist) <= num),1,0)))
+         tmpRast.save(binRast)
+         printMsg('Boundary cleaning...')
+         tmpRast = BoundaryClean (binRast, 'NO_SORT', 'TWO_WAY')
+         tmpRast.save(cleanRast)
+         printMsg('Setting zeros to nulls...')
+         tmpRast = SetNull (cleanRast, 1, 'Value = 0')
+         tmpRast.save(prePoly)
+
+         # Convert raster to polygon
+         printMsg('Converting flow distance raster to polygon...')
+         arcpy.RasterToPolygon_conversion (prePoly, finPoly, "NO_SIMPLIFY")
+
+         # If user specifies, coalesce to smooth
+         if dilDist == 'None':
+            printMsg('Final shape will not be smoothed.')
+            coalPoly = finPoly
+         else:
+            printMsg('Smoothing final shape...')
+            coalPoly = coalescedPoly
+            Coalesce(finPoly, dilDist, coalPoly, 'in_memory')
+         
+         # Check the number of features at this point. 
+         # It should be just one. If more, the output is likely bad and should be flagged.
+         count = countFeatures(coalPoly)
+         if count > 1:
+            printWrng('Output is suspect for feature %s' % str(myID))
+            flags.append(myID)
+            arcpy.Dissolve_management (coalPoly, multiPoly, "", "", "MULTI_PART")
+            coalPoly = multiPoly
+         
+         # Use the flow distance buffer geometry as the final shape
+         myFinalShape = arcpy.SearchCursor(coalPoly).next().Shape
+
+         # Update the feature with its final shape
+         row[1] = myFinalShape
+         cursor.updateRow(row)
+         del row 
+
+         printMsg('Finished processing feature %s' %str(myID))
+
+      except:
+         # Add failure message and append failed feature ID to list
+         printMsg("\nFailed to fully process feature " + str(myID))
+         myFailList.append(myID)
+
+         # Error handling code swiped from "A Python Primer for ArcGIS"
+         tb = sys.exc_info()[2]
+         tbinfo = traceback.format_tb(tb)[0]
+         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
+         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
+
+         printWrng(msgs)
+         printWrng(pymsg)
+         printMsg(arcpy.GetMessages(1))
+
+         # Add status message
+         printMsg("\nMoving on to the next feature.  Note that the output will be incomplete.")
+         
+      finally:
+         # Reset extent, because Arc is stupid.
+         arcpy.env.extent = "MAXOF"
+         
+         # Update counter
+         counter += 1
+         
+         # Grasping at straws here to avoid failure processing large datasets.
+         if counter%25 == 0:
+            printMsg('Compacting scratch geodatabase...')
+            arcpy.Compact_management (out_Scratch)
+   
+   if len(flags) > 0:
+      printWrng('These features may be incorrect: %s' % str(flags))
+   if len(myFailList) > 0:
+      printWrng('These features failed to process: %s' % str(myFailList))
+      
    arcpy.CheckInExtension("Spatial")
+   
+   return out_Polys
    
 # Use the main function below to run functions directly from Python IDE or command line with hard-coded variables
 def main():

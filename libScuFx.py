@@ -26,6 +26,7 @@ import libConSiteFx
 from libConSiteFx import *
 import os, sys, datetime, traceback, gc
 
+###DELETE THIS FUNCTION AFTER SUCCESSFULLY MOVED TO CreateSCU.py
 def delinFlowDistBuff(in_Feats, fld_ID, in_FlowDir, out_Feats, maxDist, dilDist = 0, out_Scratch = 'in_memory'):
    '''Delineates buffers based on flow distance down to features (rather than straight distance)'''
    # Get cell size and output spatial reference from in_FlowDir

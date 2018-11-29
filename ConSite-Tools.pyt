@@ -54,7 +54,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, attribute_eo, score_eo, build_portfolio]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, attribute_eo, score_eo, build_portfolio]
 
 # Define the tools
 class coalesceFeats(object):
@@ -690,6 +690,61 @@ class Polys_scu(object):
       
       # Run the function
       CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, scratchParm)
+      
+      return
+
+class FlowBuffers_scu(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "4: Buffer SCU Polygons"
+      self.description = 'Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'
+      self.canRunInBackground = True
+      self.category = "Stream Conservation Unit Delineation Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam('in_Polys', "Input Polygon SCUs", "GPFeatureLayer", "Required", "Input", "scuPolys")
+      parm1 = defineParam("fld_ID", "Polygon ID field", "String", "Required", "Input", "OBJECTID")
+      parm2 = defineParam("in_FlowDir", "Input Flow Direction Raster", "GPRasterLayer", "Required", "Input", "fdir_VA")
+      parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
+      parm4 = defineParam("maxDist", "Maximum Buffer Distance", "GPLinearUnit", "Required", "Input", "1609 METERS")
+      parm5 = defineParam("dilDist", "Dilation Distance (for smoothing)", "GPLinearUnit", "Optional", "Input")
+      parm6 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      if parameters[0].altered:
+         fc = parameters[0].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[1].filter.list = field_names
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      
+      if out_Scratch != 'None':
+         scratchParm = out_Scratch 
+      else:
+         scratchParm = "in_memory" 
+         
+      # Run the function
+      flowBuffs = CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilDist, scratchParm)
       
       return
       
