@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-29
+# Last Edit: 2018-11-30
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -403,16 +403,23 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
    catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
    nhdArea = catPath + os.sep + "NHDArea"
    nhdFlowline = catPath + os.sep + "NHDFlowline"
+   
+   # Make some feature layers   
+   qry = "FType in (460, 558)" # StreamRiver and ArtificialPath only
+   arcpy.MakeFeatureLayer_management (nhdFlowline, "StreamRiver_Line", qry)
    qry = "FType = 460" # StreamRiver only
-   arcpy.MakeFeatureLayer_management (nhdArea, "StreamRiver", qry)
+   arcpy.MakeFeatureLayer_management (nhdArea, "StreamRiver_Poly", qry)
    
    # Variables used in-loop:
    bufferLines = out_Scratch + os.sep + 'bufferLines'
-   danglePts = out_Scratch + os.sep + 'danglePts'
+   splitPts = out_Scratch + os.sep + 'splitPts'
+   tmpPts = out_Scratch + os.sep + 'tmpPts'
+   tmpPts2 = out_Scratch + os.sep + 'tmpPts2'
    bufferPts = out_Scratch + os.sep + 'bufferPts'
    mbgRect = out_Scratch + os.sep + 'mbgRect'
    bufferRect = out_Scratch + os.sep + 'bufferRect'
-   clipRiver = out_Scratch + os.sep + 'clipRiver'
+   clipRiverPoly = out_Scratch + os.sep + 'clipRiverPoly'
+   clipRiverLine = out_Scratch + os.sep + 'clipRiverLine'
    clipLines = out_Scratch + os.sep + 'clipLines'
    perpLine1 = out_Scratch + os.sep + 'perpLine1'
    perpLine2 = out_Scratch + os.sep + 'perpLine2'
@@ -434,26 +441,38 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
          printMsg('Buffering linear SCU...')
          arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "FLAT")
          
-         # Generate points at line ends
-         printMsg('Generating split points...')
-         arcpy.FeatureVerticesToPoints_management(shp, danglePts, "DANGLE") 
-         arcpy.MakeFeatureLayer_management (danglePts, "danglePts")
-         
-         # Generate minimum convex polygon around line, buffer, and use to clip nhdArea
+         # Generate minimum convex polygon around linear SCU, and buffer
+         # Use this to clip nhdArea and nhdFlowline
          printMsg('Generating minimum bounding rectangle and buffering...')
          arcpy.MinimumBoundingGeometry_management(shp, mbgRect, "RECTANGLE_BY_WIDTH")
          arcpy.Buffer_analysis(mbgRect, bufferRect, "20 Meters")
          printMsg('Clipping NHD to buffer...')
-         CleanClip("StreamRiver", bufferRect, clipRiver)
-         arcpy.MakeFeatureLayer_management (clipRiver, "clipRiver")
+         CleanClip("StreamRiver_Poly", bufferRect, clipRiverPoly)
+         arcpy.MakeFeatureLayer_management (clipRiverPoly, "clipRiverPoly")
+         CleanClip("StreamRiver_Line", bufferRect, clipRiverLine)
+         #arcpy.MakeFeatureLayer_management (clipRiverLine, "clipRiverLine")
+         
+         # Generate points at ends of linear SCU
+         printMsg('Generating split points at end of SCUs...')
+         arcpy.FeatureVerticesToPoints_management(shp, splitPts, "DANGLE") 
+                  
+         # Generate additional points where buffered linear SCU intersects Flowlines
+         printMsg('Generating additional split points...')
+         arcpy.Intersect_analysis ([bufferLines, clipRiverLine], tmpPts, "", "", "POINT")
+         c = countFeatures(tmpPts) # Check for empty output
+         if c > 0: 
+            arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
+            arcpy.Append_management (tmpPts2, splitPts, "NO_TEST")
+            # Replace a layer/table view name with a path to a dataset (which can be a layer file) or create the layer/table view within the script
 
          # Select only the points within clipped StreamRiver polygons
-         arcpy.SelectLayerByLocation_management("danglePts", "COMPLETELY_WITHIN", "clipRiver")
-         c = countSelectedFeatures("danglePts")
+         arcpy.MakeFeatureLayer_management (splitPts, "splitPts")
+         arcpy.SelectLayerByLocation_management("splitPts", "COMPLETELY_WITHIN", "clipRiverPoly")
+         c = countSelectedFeatures("splitPts")
          if c > 0:
             # Buffer points and use them to clip flowlines
             printMsg('Buffering split points...')
-            arcpy.Buffer_analysis("danglePts", bufferPts, "1 Meters")
+            arcpy.Buffer_analysis("splitPts", bufferPts, "1 Meters")
             printMsg('Clipping flowlines at split points...')
             CleanClip(nhdFlowline, bufferPts, clipLines)
             
@@ -487,21 +506,22 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
             arcpy.Merge_management ([perpLine1, perpLine2], perpLine)
             
             # Clip perpendicular lines to clipped StreamRiver
-            CleanClip(perpLine, "clipRiver", perpClip)
+            CleanClip(perpLine, "clipRiverPoly", perpClip)
             arcpy.MakeFeatureLayer_management (perpClip, "perpClip")
             
             # Select lines intersecting the point buffers
             arcpy.SelectLayerByLocation_management("perpClip", "INTERSECT", bufferPts, "", "NEW_SELECTION")
             
             # Select clipped StreamRiver polygons containing selected lines
-            arcpy.SelectLayerByLocation_management("clipRiver", "CONTAINS", "perpClip", "", "NEW_SELECTION")
+            arcpy.SelectLayerByLocation_management("clipRiverPoly", "CONTAINS", "perpClip", "", "NEW_SELECTION")
             
             # Use selected lines to split clipped StreamRiver polygons
             printMsg('Splitting river polygons with perpendiculars...')
-            arcpy.FeatureToPolygon_management("perpClip;clipRiver", splitPoly)
+            arcpy.FeatureToPolygon_management("perpClip;clipRiverPoly", splitPoly)
             arcpy.MakeFeatureLayer_management (splitPoly, "splitPoly")
             
             # Select split StreamRiver polygons containing scuLines
+            # Two selection criteria needed to capture all
             arcpy.SelectLayerByLocation_management("splitPoly", "CROSSED_BY_THE_OUTLINE_OF", shp, "", "NEW_SELECTION")
             arcpy.SelectLayerByLocation_management("splitPoly", "CONTAINS", shp, "", "ADD_TO_SELECTION")
             
