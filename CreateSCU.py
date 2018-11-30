@@ -440,7 +440,7 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
          # Buffer linear SCU by at least half of cell size in flow direction raster (5 m)
          printMsg('Buffering linear SCU...')
          arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "FLAT")
-         
+         git
          # Generate minimum convex polygon around linear SCU, and buffer
          # Use this to clip nhdArea and nhdFlowline
          printMsg('Generating minimum bounding rectangle and buffering...')
@@ -548,8 +548,11 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
 
    return out_Polys
    
-def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilDist = 'None', out_Scratch = 'in_memory'):
-   '''Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'''
+def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_Scratch = arcpy.env.scratchGDB):
+   '''Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)
+   
+   Note that scratchGDB is used rather than in_memory b/c process inexplicably yields incorrect output otherwise.
+   '''
    
    arcpy.CheckOutExtension("Spatial")
    
@@ -604,7 +607,7 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilD
    cleanRast = out_Scratch + os.sep + 'cleanRast'
    prePoly = out_Scratch + os.sep + 'prePoly'
    finPoly = out_Scratch + os.sep + 'finPoly'
-   coalescedPoly = out_Scratch + os.sep + 'coalPoly'
+   coalescedPoly = out_Scratch + os.sep + 'finPoly'
    multiPoly = out_Scratch + os.sep + 'multiPoly'
    
    # Create an empty list to store IDs of features that fail to get processed
@@ -670,37 +673,27 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilD
                   (Con((IsNull(srcRast)== 0),1,0)),
                   (Con((Raster(clp_FlowDist) <= num),1,0)))
          tmpRast.save(binRast)
-         printMsg('Boundary cleaning...')
-         tmpRast = BoundaryClean (binRast, 'NO_SORT', 'TWO_WAY')
-         tmpRast.save(cleanRast)
+         # printMsg('Boundary cleaning...')
+         # tmpRast = BoundaryClean (binRast, 'NO_SORT', 'TWO_WAY')
+         # tmpRast.save(cleanRast)
          printMsg('Setting zeros to nulls...')
-         tmpRast = SetNull (cleanRast, 1, 'Value = 0')
+         tmpRast = SetNull (binRast, 1, 'Value = 0')
          tmpRast.save(prePoly)
 
          # Convert raster to polygon
          printMsg('Converting flow distance raster to polygon...')
          arcpy.RasterToPolygon_conversion (prePoly, finPoly, "NO_SIMPLIFY")
-
-         # If user specifies, coalesce to smooth
-         if dilDist == 'None':
-            printMsg('Final shape will not be smoothed.')
-            coalPoly = finPoly
-         else:
-            printMsg('Smoothing final shape...')
-            coalPoly = coalescedPoly
-            Coalesce(finPoly, dilDist, coalPoly, 'in_memory')
-         
+     
          # Check the number of features at this point. 
-         # It should be just one. If more, the output is likely bad and should be flagged.
-         count = countFeatures(coalPoly)
+         # It should be just one. If more, need to remove orphan fragments.
+         arcpy.MakeFeatureLayer_management (finPoly, "finPoly")
+         count = countFeatures("finPoly")
          if count > 1:
-            printWrng('Output is suspect for feature %s' % str(myID))
-            flags.append(myID)
-            arcpy.Dissolve_management (coalPoly, multiPoly, "", "", "MULTI_PART")
-            coalPoly = multiPoly
+            printMsg('Removing orphan fragments...')
+            arcpy.SelectLayerByLocation_management("finPoly", "CONTAINS", tmpFeat, "", "NEW_SELECTION")
          
          # Use the flow distance buffer geometry as the final shape
-         myFinalShape = arcpy.SearchCursor(coalPoly).next().Shape
+         myFinalShape = arcpy.SearchCursor("finPoly").next().Shape
 
          # Update the feature with its final shape
          row[1] = myFinalShape
@@ -743,7 +736,9 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilD
       printWrng('These features may be incorrect: %s' % str(flags))
    if len(myFailList) > 0:
       printWrng('These features failed to process: %s' % str(myFailList))
-      
+   
+
+   
    arcpy.CheckInExtension("Spatial")
    
    return out_Polys

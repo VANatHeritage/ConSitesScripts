@@ -707,11 +707,10 @@ class FlowBuffers_scu(object):
       parm1 = defineParam("fld_ID", "Polygon ID field", "String", "Required", "Input", "OBJECTID")
       parm2 = defineParam("in_FlowDir", "Input Flow Direction Raster", "GPRasterLayer", "Required", "Input", "fdir_VA")
       parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
-      parm4 = defineParam("maxDist", "Maximum Buffer Distance", "GPLinearUnit", "Required", "Input", "1609 METERS")
-      parm5 = defineParam("dilDist", "Dilation Distance (for smoothing)", "GPLinearUnit", "Optional", "Input")
-      parm6 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+      parm4 = defineParam("maxDist", "Maximum Buffer Distance", "GPLinearUnit", "Required", "Input", "500 METERS")
+      parm5 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
-      parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6]
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5]
       return parms
 
    def isLicensed(self):
@@ -741,10 +740,10 @@ class FlowBuffers_scu(object):
       if out_Scratch != 'None':
          scratchParm = out_Scratch 
       else:
-         scratchParm = "in_memory" 
+         scratchParm = arcpy.env.scratchGDB 
          
       # Run the function
-      flowBuffs = CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, dilDist, scratchParm)
+      flowBuffs = CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, scratchParm)
       
       return
       
