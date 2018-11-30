@@ -54,7 +54,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, attribute_eo, score_eo, build_portfolio]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio]
 
 # Define the tools
 class coalesceFeats(object):
@@ -550,7 +550,7 @@ class NtwrkPts_scu(object):
       """Define parameters"""
       parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
       parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
-      parm2 = defineParam("out_Points", "Output Network Points", "DEFeatureClass", "Required", "Output")
+      parm2 = defineParam("out_Points", "Output Network Points", "DEFeatureClass", "Required", "Output", "scuPoints")
       parm3 = defineParam("fld_SFID", "Source Feature ID field", "String", "Required", "Input", "SFID")
       parm4 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
@@ -601,7 +601,7 @@ class Lines_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam("out_Lines", "Output Linear SCUs", "DEFeatureClass", "Required", "Output")
+      parm0 = defineParam("out_Lines", "Output Linear SCUs", "DEFeatureClass", "Required", "Output", "scuLines")
       parm1 = defineParam("in_Points", "Input SCU Points", "GPFeatureLayer", "Required", "Input", "scuPoints")
       parm2 = defineParam("in_downTrace", "Downstream Service Layer", "GPNALayer", "Required", "Input", "naDownTrace")
       parm3 = defineParam("in_upTrace", "Upstream Service Layer", "GPNALayer", "Required", "Input", "naUpTrace")
@@ -657,7 +657,7 @@ class Polys_scu(object):
       """Define parameters"""
       parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input", "scuLines")
       parm1 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
-      parm2 = defineParam('out_Polys', "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
+      parm2 = defineParam('out_Polys', "Output SCU Polygons", "DEFeatureClass", "Required", "Output", "scuPolys")
       parm3 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3]
@@ -706,7 +706,7 @@ class FlowBuffers_scu(object):
       parm0 = defineParam('in_Polys', "Input Polygon SCUs", "GPFeatureLayer", "Required", "Input", "scuPolys")
       parm1 = defineParam("fld_ID", "Polygon ID field", "String", "Required", "Input", "OBJECTID")
       parm2 = defineParam("in_FlowDir", "Input Flow Direction Raster", "GPRasterLayer", "Required", "Input", "fdir_VA")
-      parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
+      parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output", "scuFlowBuffers")
       parm4 = defineParam("maxDist", "Maximum Buffer Distance", "GPLinearUnit", "Required", "Input", "500 METERS")
       parm5 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
@@ -746,6 +746,60 @@ class FlowBuffers_scu(object):
       flowBuffs = CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, scratchParm)
       
       return
+
+class Finalize_scu(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "5: Finalize Stream Conservation Units"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Stream Conservation Unit Delineation Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_Feats", "Input buffered SCU polygons", "GPFeatureLayer", "Required", "Input", "scuFlowBuffers")
+      parm1 = defineParam("dil_Dist", "Dilation distance", "GPLinearUnit", "Required", "Input", "10 METERS")
+      parm2 = defineParam("out_Feats", "Output final SCU polygons", "DEFeatureClass", "Required", "Output", "scuFinal")
+      parm3 = defineParam("smthMulti", "Smoothing multiplier", "GPDouble", "Optional", "Input", 8)
+      parm4 = defineParam("scratch_GDB", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
+      
+      parm4.filter.list = ["Local Database"]
+      parms = [parm0, parm1, parm2, parm3, parm4]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      if scratch_GDB != 'None':
+         scratchParm = scratch_GDB 
+      else:
+         scratchParm = "in_memory" 
+         
+      if smthMulti != 'None':
+         multiParm = smthMulti
+      else:
+         multiParm = 8
+      
+      ShrinkWrap(in_Feats, dil_Dist, out_Feats, multiParm, scratchParm)
+
+      return out_Feats
       
 class attribute_eo(object):
    def __init__(self):

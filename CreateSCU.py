@@ -440,8 +440,8 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
          # Buffer linear SCU by at least half of cell size in flow direction raster (5 m)
          printMsg('Buffering linear SCU...')
          arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "FLAT")
-         git
-         # Generate minimum convex polygon around linear SCU, and buffer
+
+         # Generate minimum-width rectangle around linear SCU, and buffer
          # Use this to clip nhdArea and nhdFlowline
          printMsg('Generating minimum bounding rectangle and buffering...')
          arcpy.MinimumBoundingGeometry_management(shp, mbgRect, "RECTANGLE_BY_WIDTH")
