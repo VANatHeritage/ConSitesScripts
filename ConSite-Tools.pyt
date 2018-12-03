@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-11-27
+# Last Edit: 2018-12-03
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -751,7 +751,7 @@ class Finalize_scu(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
       self.label = "5: Finalize Stream Conservation Units"
-      self.description = ""
+      self.description = "Aggregates and smoothes Stream Conservation Units to produce final output polygons"
       self.canRunInBackground = True
       self.category = "Stream Conservation Unit Delineation Tools"
 

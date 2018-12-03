@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-11-30
+# Last Edit: 2018-12-03
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -28,9 +28,9 @@ from Helper import *
 from arcpy.sa import *
 
 def MakeServiceLayers_scu(in_hydroNet):
-   '''Make two service layers needed for analysis.
+   '''Creates two Network Analyst service layers needed for SCU delineation. This tool only needs to be run the first time you run the suite of SCU delineation tools. After that, the output layers can be reused repeatedly for the subsequent tools in the SCU delineation sequence.
    Parameters:
-   - in_hydroNet = The hydro network dataset
+   - in_hydroNet = Input hydrological network dataset
    '''
    arcpy.CheckOutExtension("Network")
    
@@ -102,13 +102,13 @@ def MakeServiceLayers_scu(in_hydroNet):
    return (lyrDownTrace, lyrUpTrace)
 
 def MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID = "SFID", out_Scratch = arcpy.env.scratchGDB):
-   '''Given SCU-worthy procedural features, creates points along the hydro network. 
+   '''Given a set of procedural features, creates points along the hydrological network. The user must ensure that the procedural features are "SCU-worthy."
    Parameters:
-   - in_hydroNet = The hydro network dataset
-   - in_PF = Input SCU-worthy procedural features
+   - in_hydroNet = Input hydrological network dataset
+   - in_PF = Input Procedural Features
    - out_Points = Output feature class containing points generated from procedural features
-   - fld_SFID = Field in in_PF containing unique ID
-   - out_Scratch = geodatabase to contain intermediate products'''
+   - fld_SFID = The field in the input Procedural Features containing the Source Feature ID
+   - out_Scratch = Geodatabase to contain intermediate outputs'''
    
    # timestamp
    t0 = datetime.now()
@@ -228,13 +228,13 @@ def MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID = "SFID", out_Sc
    return out_Points
    
 def CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, out_Scratch = arcpy.env.scratchGDB):
-   '''Loads SCU points, solves the upstream and downstream service layers, and combines segments to create linear SCUs
+   '''Loads SCU points derived from Procedural Features, solves the upstream and downstream service layers, and combines network segments to create linear SCUs.
    Parameters:
-   - out_Lines = Final output linear SCUs
+   - out_Lines = Output lines representing Stream Conservation Units
    - in_Points = Input feature class containing points generated from procedural features
-   - in_downTrace = Service layer set up to run downstream
-   - in_upTrace = Service layer set up to run upstream
-   - out_Scratch = geodatabase to contain intermediate products'''
+   - in_downTrace = Network Analyst service layer set up to run downstream
+   - in_upTrace = Network Analyst service layer set up to run upstream
+   - out_Scratch = Geodatabase to contain intermediate outputs'''
    
    arcpy.CheckOutExtension("Network")
    
@@ -380,10 +380,10 @@ def CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, out_Scratch 
 def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.scratchGDB):
    '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons
    Parameters:
-   - in_Lines = input linear SCUs, output from previous function
-   - in_hydroNet = The hydro network dataset
-   - out_Polys = output polygon SCUs
-   - out_Scratch = geodatabase to contain intermediate products
+   - in_Lines = Input line feature class representing Stream Conservation Units
+   - in_hydroNet = Input hydrological network dataset
+   - out_Polys = Output polygon feature class representing Stream Conservation Units (without catchment area)
+   - out_Scratch = Geodatabase to contain intermediate outputs
    '''
    
    # timestamp
@@ -549,7 +549,14 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
    return out_Polys
    
 def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_Scratch = arcpy.env.scratchGDB):
-   '''Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)
+   '''Delineates catchment buffers around polygon SCUs based on flow distance down to features (rather than straight distance)
+   Parameters:
+   - in_Polys = Input polygons representing unbuffered Stream Conservation Units
+   - fld_ID = The field in the input Procedural Features containing the Source Feature ID
+   - in_FlowDir = Input raster representing D8 flow direction
+   - out_Polys = Output polygon feature class representing Stream Conservation Units with catchment buffers
+   - maxDist = Maximum buffer distance (used to truncate catchments)
+   - out_Scratch = Geodatabase to contain intermediate outputs
    
    Note that scratchGDB is used rather than in_memory b/c process inexplicably yields incorrect output otherwise.
    '''
