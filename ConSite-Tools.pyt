@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-12-03
+# Last Edit: 2018-12-05
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -602,12 +602,13 @@ class Lines_scu(object):
    def getParameterInfo(self):
       """Define parameters"""
       parm0 = defineParam("out_Lines", "Output Linear SCUs", "DEFeatureClass", "Required", "Output", "scuLines")
-      parm1 = defineParam("in_Points", "Input SCU Points", "GPFeatureLayer", "Required", "Input", "scuPoints")
-      parm2 = defineParam("in_downTrace", "Downstream Service Layer", "GPNALayer", "Required", "Input", "naDownTrace")
-      parm3 = defineParam("in_upTrace", "Upstream Service Layer", "GPNALayer", "Required", "Input", "naUpTrace")
-      parm4 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
+      parm2 = defineParam("in_Points", "Input SCU Points", "GPFeatureLayer", "Required", "Input", "scuPoints")
+      parm3 = defineParam("in_downTrace", "Downstream Service Layer", "GPNALayer", "Required", "Input", "naDownTrace")
+      parm4 = defineParam("in_upTrace", "Upstream Service Layer", "GPNALayer", "Required", "Input", "naUpTrace")
+      parm5 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
-      parms = [parm0, parm1, parm2, parm3, parm4]
+      parms = [parm0, parm1, parm2, parm3, parm4, parm5]
       return parms
 
    def isLicensed(self):
@@ -636,12 +637,12 @@ class Lines_scu(object):
          scratchParm = arcpy.env.scratchGDB 
       
       # Run the function
-      (scuLines, lyrDownTrace, lyrUpTrace) = CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, scratchParm)
-      
+      (scuLines, lyrDownTrace, lyrUpTrace) = CreateLines_scu(out_Lines, in_PF, in_Points, in_downTrace, in_upTrace, scratchParm)
+          
       # Update the derived parameters.
       # This enables layers to be displayed automatically if running tool from ArcMap.
-      parameters[2].value = lyrDownTrace
-      parameters[3].value = lyrUpTrace
+      parameters[3].value = lyrDownTrace
+      parameters[4].value = lyrUpTrace
       
       return
 

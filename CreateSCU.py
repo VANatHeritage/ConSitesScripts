@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-12-03
+# Last Edit: 2018-12-05
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -14,7 +14,7 @@
 # Dependencies:
 # This set of functions will not work if the hydro network is not set up properly! The network geodatabase VA_HydroNet.gdb has been set up manually, not programmatically.
 
-# The Network Analyst extension is required for most functions, which will fail if the license is unavailable.
+# The Network Analyst extension is required for some functions, which will fail if the license is unavailable.
 
 # Note that the restrictions (contained in "r" variable below) for traversing the network must have been defined in the HydroNet itself (manually). If any additional restrictions are added, the HydroNet must be rebuilt or they will not take effect. I originally set a restriction of NoEphemeralOrIntermittent, but on testing I discovered that this eliminated some stream segments that actually contained EOs. I set the restriction to NoEphemeral instead. We may find that we need to remove the NoEphemeral restriction as well, or that users will need to edit attributes of the NHDFlowline segments on a case-by-case basis.
 
@@ -227,10 +227,11 @@ def MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID = "SFID", out_Sc
    
    return out_Points
    
-def CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, out_Scratch = arcpy.env.scratchGDB):
+def CreateLines_scu(out_Lines, in_PF, in_Points, in_downTrace, in_upTrace, out_Scratch = arcpy.env.scratchGDB):
    '''Loads SCU points derived from Procedural Features, solves the upstream and downstream service layers, and combines network segments to create linear SCUs.
    Parameters:
    - out_Lines = Output lines representing Stream Conservation Units
+   - in_PF = Input Procedural Features
    - in_Points = Input feature class containing points generated from procedural features
    - in_downTrace = Network Analyst service layer set up to run downstream
    - in_upTrace = Network Analyst service layer set up to run upstream
@@ -344,10 +345,17 @@ def CreateLines_scu(out_Lines, in_Points, in_downTrace, in_upTrace, out_Scratch 
       qry = "OBJECTID = -1"
    arcpy.MakeFeatureLayer_management (dissolvedLines, "extendLines", qry)
    
+   # Grab additional segments that may have been missed within large PFs in wide water areas
+   nhdFlowline = catPath + os.sep + "NHDFlowline"
+   clpLine = out_Scratch + os.sep + 'clpLine'
+   qry = "FType in (460, 558)" # StreamRiver and ArtificialPath only
+   arcpy.MakeFeatureLayer_management (nhdFlowline, "StreamRiver_Line", qry)
+   CleanClip("StreamRiver_Line", in_PF, clpLine)
+   
    # Merge and dissolve the connected segments; ESRI does not make this simple
    printMsg('Merging primary segments with selected extension segments...')
    comboLines = out_Scratch + os.sep + 'comboLines'
-   arcpy.Merge_management (["extendLines", mergedLines], comboLines)
+   arcpy.Merge_management (["extendLines", mergedLines, clpLine], comboLines)
    
    printMsg('Buffering segments...')
    buffLines = out_Scratch + os.sep + 'buffLines'
@@ -416,8 +424,8 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
    tmpPts = out_Scratch + os.sep + 'tmpPts'
    tmpPts2 = out_Scratch + os.sep + 'tmpPts2'
    bufferPts = out_Scratch + os.sep + 'bufferPts'
-   mbgRect = out_Scratch + os.sep + 'mbgRect'
-   bufferRect = out_Scratch + os.sep + 'bufferRect'
+   mbgPoly = out_Scratch + os.sep + 'mbgPoly'
+   mbgBuffer = out_Scratch + os.sep + 'mbgBuffer'
    clipRiverPoly = out_Scratch + os.sep + 'clipRiverPoly'
    clipRiverLine = out_Scratch + os.sep + 'clipRiverLine'
    clipLines = out_Scratch + os.sep + 'clipLines'
@@ -438,18 +446,18 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
          printMsg('Working on %s...' % str(id))
          
          # Buffer linear SCU by at least half of cell size in flow direction raster (5 m)
-         printMsg('Buffering linear SCU...')
-         arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "FLAT")
+         # This serves as the minimum polygon representing the SCU (in the absence of any nhdArea features)
+         printMsg('Creating minimum buffer around linear SCU...')
+         arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "ROUND", "ALL")
 
-         # Generate minimum-width rectangle around linear SCU, and buffer
+         # Generate large buffer polygon around linear SCU
          # Use this to clip nhdArea and nhdFlowline
-         printMsg('Generating minimum bounding rectangle and buffering...')
-         arcpy.MinimumBoundingGeometry_management(shp, mbgRect, "RECTANGLE_BY_WIDTH")
-         arcpy.Buffer_analysis(mbgRect, bufferRect, "20 Meters")
+         printMsg('Creating maximum buffer around linear SCU...')
+         arcpy.Buffer_analysis(shp, mbgBuffer, "5000 Meters", "", "ROUND", "ALL")
          printMsg('Clipping NHD to buffer...')
-         CleanClip("StreamRiver_Poly", bufferRect, clipRiverPoly)
+         CleanClip("StreamRiver_Poly", mbgBuffer, clipRiverPoly)
          arcpy.MakeFeatureLayer_management (clipRiverPoly, "clipRiverPoly")
-         CleanClip("StreamRiver_Line", bufferRect, clipRiverLine)
+         CleanClip("StreamRiver_Line", mbgBuffer, clipRiverLine)
          #arcpy.MakeFeatureLayer_management (clipRiverLine, "clipRiverLine")
          
          # Generate points at ends of linear SCU
@@ -495,14 +503,15 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
                return p'''
             arcpy.CalculateField_management(clipLines, "PERP_BEARING1", expression, "PYTHON_9.3", code_block1)
             arcpy.CalculateField_management(clipLines, "PERP_BEARING2", expression, "PYTHON_9.3", code_block2)
-            arcpy.CalculateField_management(clipLines, "DISTANCE", 500, "PYTHON_9.3")
+            arcpy.CalculateField_management(clipLines, "DISTANCE", 10, "PYTHON_9.3")
 
-            # Generate lines perpendicular to segment (is 500 m sufficient for all cases?)
+            # Generate lines perpendicular to segment
+            # These need to be really long to cut wide rivers near Chesapeake
             printMsg('Creating perpendicular lines at split points...')
             for l in [["PERP_BEARING1", perpLine1],["PERP_BEARING2", perpLine2]]:
                bearingFld = l[0]
                outLine = l[1]
-               arcpy.BearingDistanceToLine_management(clipLines, outLine, "CENTROID_X", "CENTROID_Y", "DISTANCE", "METERS", bearingFld, "DEGREES", "GEODESIC", "", sr)
+               arcpy.BearingDistanceToLine_management(clipLines, outLine, "CENTROID_X", "CENTROID_Y", "DISTANCE", "KILOMETERS", bearingFld, "DEGREES", "GEODESIC", "", sr)
             arcpy.Merge_management ([perpLine1, perpLine2], perpLine)
             
             # Clip perpendicular lines to clipped StreamRiver
@@ -560,6 +569,9 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_
    
    Note that scratchGDB is used rather than in_memory b/c process inexplicably yields incorrect output otherwise.
    '''
+   
+   # timestamp
+   t0 = datetime.now()
    
    arcpy.CheckOutExtension("Spatial")
    
@@ -644,8 +656,8 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_
          #printMsg('Extent: %s' %myExtent)
          printMsg('Clipping flow direction raster to processing buffer')
          arcpy.Clip_management (in_FlowDir, myExtent, clp_FlowDir, procBuff, "", "ClippingGeometry")
-         arcpy.env.extent = clp_FlowDir
-         arcpy.env.mask = clp_FlowDir
+         arcpy.env.extent = procBuff
+         arcpy.env.mask = procBuff
          
          # Convert feature to raster
          arcpy.PolygonToRaster_conversion (tmpFeat, 'rasterVal', srcRast, "MAXIMUM_COMBINED_AREA", 'rasterVal', cellSize)
@@ -653,7 +665,9 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_
          # Get the watershed for the SCU feature (truncated by processing buffer)
          printMsg('Creating truncated watershed from feature...')
          tmpRast = Watershed (clp_FlowDir, srcRast)
-         tmpRast.save(clp_Watershed)
+         tmpRast2 = CellStatistics([tmpRast, srcRast], "MAXIMUM", "DATA")
+         # Above step needed in situations with missing flow direction data (coastal)
+         tmpRast2.save(clp_Watershed)
          arcpy.env.mask = clp_Watershed # Processing now restricted to Watershed
          
          # Burn SCU feature into flow direction raster as sink
@@ -747,6 +761,11 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_
 
    
    arcpy.CheckInExtension("Spatial")
+   
+   # timestamp
+   t1 = datetime.now()
+   ds = GetElapsedTime (t0, t1)
+   printMsg('Completed function. Time elapsed: %s' % ds)
    
    return out_Polys
    
