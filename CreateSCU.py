@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2018-12-05
+# Last Edit: 2018-12-06
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -427,6 +427,7 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
    mbgPoly = out_Scratch + os.sep + 'mbgPoly'
    mbgBuffer = out_Scratch + os.sep + 'mbgBuffer'
    clipRiverPoly = out_Scratch + os.sep + 'clipRiverPoly'
+   noGapPoly = out_Scratch + os.sep + "noGapPoly"
    clipRiverLine = out_Scratch + os.sep + 'clipRiverLine'
    clipLines = out_Scratch + os.sep + 'clipLines'
    perpLine1 = out_Scratch + os.sep + 'perpLine1'
@@ -456,22 +457,19 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
          arcpy.Buffer_analysis(shp, mbgBuffer, "5000 Meters", "", "ROUND", "ALL")
          printMsg('Clipping NHD to buffer...')
          CleanClip("StreamRiver_Poly", mbgBuffer, clipRiverPoly)
-         arcpy.MakeFeatureLayer_management (clipRiverPoly, "clipRiverPoly")
+         # Also need to fill any holes in polygons to avoid aberrant results
+         arcpy. EliminatePolygonPart_management (clipRiverPoly, noGapPoly, "PERCENT", "", 99, "CONTAINED_ONLY")
+         arcpy.MakeFeatureLayer_management (noGapPoly, "clipRiverPoly")
          CleanClip("StreamRiver_Line", mbgBuffer, clipRiverLine)
-         #arcpy.MakeFeatureLayer_management (clipRiverLine, "clipRiverLine")
          
-         # Generate points at ends of linear SCU
-         printMsg('Generating split points at end of SCUs...')
-         arcpy.FeatureVerticesToPoints_management(shp, splitPts, "DANGLE") 
+         # # Generate points at ends of linear SCU
+         # printMsg('Generating split points at end of SCUs...')
+         # arcpy.FeatureVerticesToPoints_management(shp, splitPts, "DANGLE") 
                   
-         # Generate additional points where buffered linear SCU intersects Flowlines
-         printMsg('Generating additional split points...')
+         # Generate points where buffered linear SCU intersects Flowlines
+         printMsg('Generating split points...')
          arcpy.Intersect_analysis ([bufferLines, clipRiverLine], tmpPts, "", "", "POINT")
-         c = countFeatures(tmpPts) # Check for empty output
-         if c > 0: 
-            arcpy.MultipartToSinglepart_management (tmpPts, tmpPts2)
-            arcpy.Append_management (tmpPts2, splitPts, "NO_TEST")
-            # Replace a layer/table view name with a path to a dataset (which can be a layer file) or create the layer/table view within the script
+         arcpy.MultipartToSinglepart_management (tmpPts, splitPts)
 
          # Select only the points within clipped StreamRiver polygons
          arcpy.MakeFeatureLayer_management (splitPts, "splitPts")
@@ -520,6 +518,9 @@ def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.sc
             
             # Select lines intersecting the point buffers
             arcpy.SelectLayerByLocation_management("perpClip", "INTERSECT", bufferPts, "", "NEW_SELECTION")
+            
+            # Remove from selection any lines < 5m from scuLine
+            arcpy.SelectLayerByLocation_management("perpClip", "WITHIN_A_DISTANCE", shp, "4.9 Meters", "REMOVE_FROM_SELECTION")
             
             # Select clipped StreamRiver polygons containing selected lines
             arcpy.SelectLayerByLocation_management("clipRiverPoly", "CONTAINS", "perpClip", "", "NEW_SELECTION")
