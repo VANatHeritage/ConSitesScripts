@@ -315,7 +315,7 @@ def CreateLines_scu(out_Lines, in_PF, in_Points, in_downTrace, in_upTrace, out_S
    erasedLines = out_Scratch + os.sep + 'erasedLines'
    arcpy.Erase_analysis ("downGTbreak", mergedLines, erasedLines)
    
-   # Dissolve (on Facility ID, allowing multiparts) the remaining downstream segments > 1609
+   # Dissolve (on Facility ID) the remaining downstream segments > 1609
    printMsg('Dissolving remaining downstream extension segments...')
    dissolvedLines = out_Scratch + os.sep + 'dissolvedLines'
    arcpy.Dissolve_management(erasedLines, dissolvedLines, "FacilityID", "", "SINGLE_PART", "DISSOLVE_LINES")

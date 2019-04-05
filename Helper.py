@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-11-30
+# Last Edit: 2018-12-12
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -362,3 +362,29 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
       
    return outFeats
    
+def ProjectToMatch(in_Feats, in_Template, out_Feats):
+   '''Check if input features and template data have same spatial reference.
+   If so, make a copy. If not, reproject features to match template.
+   Parameters:
+   in_Feats = input features to be reprojected or copied
+   in_Template = dataset used to determine desired spatial reference
+   out_Feats = output features resulting from copy or reprojection
+   '''
+   
+   srFeats = arcpy.Describe(in_Feats).spatialReference
+   srTemplate = arcpy.Describe(in_Template).spatialReference
+   
+   if srFeats.Name == srTemplate.Name:
+      printMsg('Coordinate systems for features and template data are the same. Copying...')
+      arcpy.CopyFeatures_management (in_Feats, out_Feats)
+   else:
+      printMsg('Reprojecting features to match template...')
+      # Check if geographic transformation is needed, and handle accordingly.
+      if srFeats.GCS.Name == srTemplate.GCS.Name:
+         geoTrans = ""
+         printMsg('No geographic transformation needed...')
+      else:
+         transList = arcpy.ListTransformations(srFeats,srTemplate)
+         geoTrans = transList[0]
+      arcpy.Project_management (in_Feats, out_Feats, srTemplate, geoTrans)
+   return out_Feats
