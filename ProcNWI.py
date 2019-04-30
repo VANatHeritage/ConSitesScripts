@@ -355,9 +355,6 @@ def SubsetNWI(inNWI, inTab, inGDB):
    '''
    
    # Set up some variables
-   rule5_Select = "in_memory" + os.sep + 'rule5_Select'
-   rule67_Select = "in_memory" + os.sep + 'rule67_Select'
-   rule9_Select = "in_memory" + os.sep + 'rule9_Select'
    nwi_rule5 = inGDB + os.sep + 'VA_Wetlands_Rule5'
    nwi_rule67 = inGDB + os.sep + 'VA_Wetlands_Rule67'
    nwi_rule9 = inGDB + os.sep + 'VA_Wetlands_Rule9'
