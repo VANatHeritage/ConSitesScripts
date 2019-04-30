@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2018-12-05
+# Last Edit: 2019-04-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -20,6 +20,7 @@ from CreateConSites import *
 from ReviewConSites import *
 from CreateSCU import *
 from EssentialConSites import *
+from ProcNWI import *
 
 # First define some handy functions
 def defineParam(p_name, p_displayName, p_datatype, p_parameterType, p_direction, defaultVal = None):
@@ -54,7 +55,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, tabparse_nwi, sbb2nwi, subset_nwi]
 
 # Define the tools
 class coalesceFeats(object):
@@ -75,8 +76,6 @@ class coalesceFeats(object):
       parm3.filter.list = ["Local Database"]
       parms = [parm0, parm1, parm2, parm3]
       return parms
-
-      return 
 
    def isLicensed(self):
       """Set whether tool is licensed to execute."""
@@ -164,11 +163,11 @@ class shrinkwrapFeats(object):
 class extract_biotics(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "0: Extract Biotics data"
+      self.label = "Extract Biotics data"
       self.description = ""
       self.canRunInBackground = False
       # For some reason, this tool fails if run in the background.
-      self.category = "Standard Site Delineation Tools"
+      self.category = "Preparation and Review Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -208,7 +207,7 @@ class create_sbb(object):
       self.label = "1: Create Site Building Blocks (SBBs)"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Standard Site Delineation Tools"
+      self.category = "Site Delineation Tools: TCS/AHZ"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -266,7 +265,7 @@ class expand_sbb(object):
       self.label = "2: Expand SBBs with Core Area"
       self.description = "Expands SBBs by adding core area."
       self.canRunInBackground = True
-      self.category = "Standard Site Delineation Tools"
+      self.category = "Site Delineation Tools: TCS/AHZ"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -320,7 +319,7 @@ class parse_sbb(object):
       self.label = "3: Parse SBBs by Type"
       self.description = "Splits SBB feature class into AHZ and non-AHZ features."
       self.canRunInBackground = True
-      self.category = "Standard Site Delineation Tools"
+      self.category = "Site Delineation Tools: TCS/AHZ"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -363,7 +362,7 @@ class create_consite(object):
       self.label = "4: Create Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Standard Site Delineation Tools"
+      self.category = "Site Delineation Tools: TCS/AHZ"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -441,10 +440,10 @@ class create_consite(object):
 class review_consite(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "5: Review Conservation Sites"
+      self.label = "Review Conservation Sites"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Standard Site Delineation Tools"
+      self.category = "Preparation and Review Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -494,10 +493,10 @@ class review_consite(object):
 class ServLyrs_scu(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "0: Make Network Analyst Service Layers"
+      self.label = "Make Network Analyst Service Layers"
       self.description = 'Make two service layers needed for distance analysis along hydro network.'
       self.canRunInBackground = False
-      self.category = "Stream Conservation Unit Delineation Tools"
+      self.category = "Preparation and Review Tools"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -544,7 +543,7 @@ class NtwrkPts_scu(object):
       self.label = "1: Make Network Points from Procedural Features"
       self.description = 'Given SCU-worthy procedural features, creates points along the hydro network, then loads them into service layers.'
       self.canRunInBackground = True
-      self.category = "Stream Conservation Unit Delineation Tools"
+      self.category = "Site Delineation Tools: SCU"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -597,7 +596,7 @@ class Lines_scu(object):
       self.label = "2: Generate Linear SCUs"
       self.description = 'Solves the upstream and downstream service layers, and combines segments to create linear SCUs'
       self.canRunInBackground = True
-      self.category = "Stream Conservation Unit Delineation Tools"
+      self.category = "Site Delineation Tools: SCU"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -652,7 +651,7 @@ class Polys_scu(object):
       self.label = "3: Generate SCU Polygons"
       self.description = 'Given input linear SCUs, and NHD data, generates SCU polygons'
       self.canRunInBackground = True
-      self.category = "Stream Conservation Unit Delineation Tools"
+      self.category = "Site Delineation Tools: SCU"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -700,7 +699,7 @@ class FlowBuffers_scu(object):
       self.label = "4: Buffer SCU Polygons"
       self.description = 'Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'
       self.canRunInBackground = True
-      self.category = "Stream Conservation Unit Delineation Tools"
+      self.category = "Site Delineation Tools: SCU"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -754,7 +753,7 @@ class Finalize_scu(object):
       self.label = "5: Finalize Stream Conservation Units"
       self.description = "Aggregates and smoothes Stream Conservation Units to produce final output polygons"
       self.canRunInBackground = True
-      self.category = "Stream Conservation Unit Delineation Tools"
+      self.category = "Site Delineation Tools: SCU"
 
    def getParameterInfo(self):
       """Define parameters"""
@@ -936,3 +935,122 @@ class build_portfolio(object):
       BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, build)
       
       return (out_sortedEOs, out_sumTab, out_ConSites)      
+      
+class tabparse_nwi(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "1: Parse NWI codes"
+      self.description = 'Tabulates unique NWI codes, then parses them into user-friendly attribute fields.'
+      self.canRunInBackground = True
+      self.category = "NWI Processing Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_NWI", "Input NWI polygons", "GPFeatureLayer", "Required", "Input", "VA_Wetlands")
+      parm1 = defineParam("out_Tab", "Output code table", "DETable", "Required", "Output", "[yourpath]\VA_Wetlands_Codes")
+      parms = [parm0, parm1]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      TabParseNWI(in_NWI, out_Tab)
+      
+      return out_Tab
+      
+class sbb2nwi(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "2: Assign SBB rules to NWI"
+      self.description = 'Assigns SBB rules 5, 6, 7, and 9 to applicable NWI codes'
+      self.canRunInBackground = True
+      self.category = "NWI Processing Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_Tab", "Input NWI code table", "GPTableView", "Required", "Input", "VA_Wetlands_Codes")
+      parms = [parm0]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      SbbToNWI(in_Tab)
+      
+      return in_Tab      
+      
+class subset_nwi(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "3: Create NWI subsets"
+      self.description = 'Creates NWI subsets applicable to SBB rules 5, 6, 7, and 9'
+      self.canRunInBackground = True
+      self.category = "NWI Processing Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_NWI", "Input NWI polygons", "GPFeatureLayer", "Required", "Input", "VA_Wetlands")
+      parm1 = defineParam("in_Tab", "Input NWI code table", "GPTableView", "Required", "Input", "VA_Wetlands_Codes")
+      parm2 = defineParam('in_GDB', "Geodatabase for storing outputs", "DEWorkspace", "Required", "Input")
+      parm2.filter.list = ["Local Database"]
+      
+      parms = [parm0, parm1, parm2]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      (in_NWI, in_Tab, in_GDB)
+      
+      return in_Tab  
