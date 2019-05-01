@@ -7,6 +7,9 @@
 
 # Summary:
 # A toolbox for automatic delineation and prioritization of Natural Heritage Conservation Sites
+
+### Version Notes:
+# Version 1.0: This is the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018.
 # ----------------------------------------------------------------------------------------
 
 import libConSiteFx
