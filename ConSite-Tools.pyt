@@ -1,6 +1,8 @@
 # ----------------------------------------------------------------------------------------
 # ConSite-Tools.pyt
-# Version:  ArcGIS 10.3.1 / Python 2.7.8
+# Toolbox version: 1.1
+# ArcGIS version: 10.3.1
+# Python version: 2.7.8
 # Creation Date: 2017-08-11
 # Last Edit: 2019-05-01
 # Creator:  Kirsten R. Hazler
@@ -10,6 +12,16 @@
 
 # Usage Notes:
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
+
+### Toolbox Version Notes:
+# Version 1.1: Delineation process for Terrestrial Conservation Sites and Anthropogenic Habitat Zones remains unchanged from previous version. This version incorporates the following changes:
+# - Added tools for delineating Stream Conservation Units
+# - Added tools for processing NWI data (ported over from another old toolbox)
+# - Changed some toolset names
+# - Moved some tools from one toolset to another (without change in functionality)
+# - Modified some tool parameter defaults, in part to fix a bug that manifests when a layer's link to its data source is broken
+
+# Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018.
 # ----------------------------------------------------------------------------------------
 
 import Helper
