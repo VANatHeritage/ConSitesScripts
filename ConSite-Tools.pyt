@@ -2,7 +2,7 @@
 # ConSite-Tools.pyt
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-04-30
+# Last Edit: 2019-05-01
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -171,8 +171,16 @@ class extract_biotics(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('BioticsPF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "BIOTICS_DLINK.ProcFeats")
-      parm1 = defineParam('BioticsCS', "Input Conservation Sites", "GPFeatureLayer", "Required", "Input", "BIOTICS_DLINK.all_consite_types")
+      parm0 = defineParam('BioticsPF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm0.value = "BIOTICS_DLINK.ProcFeats"
+      except:
+         pass
+      parm1 = defineParam('BioticsCS', "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm1.value = "BIOTICS_DLINK.ConSites"
+      except:
+         pass
       parm2 = defineParam('outGDB', "Output Geodatabase", "DEWorkspace", "Required", "Input")
 
       parms = [parm0, parm1, parm2]
@@ -211,13 +219,29 @@ class create_sbb(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
+      parm0 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm0.value = "Biotics_ProcFeats"
+      except:
+         pass
       parm1 = defineParam('fld_SFID', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm2 = defineParam('fld_Rule', "SBB Rule field", "String", "Required", "Input", 'RULE')
       parm3 = defineParam('fld_Buff', "SBB Buffer field", "String", "Required", "Input", 'BUFFER')
-      parm4 = defineParam('in_nwi5', "Input Rule 5 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule5")
-      parm5 = defineParam('in_nwi67', "Input Rule 67 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule67")
-      parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input", "VA_Wetlands_Rule9")
+      parm4 = defineParam('in_nwi5', "Input Rule 5 NWI Features", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm4.value = "VA_Wetlands_Rule5"
+      except:
+         pass
+      parm5 = defineParam('in_nwi67', "Input Rule 67 NWI Features", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm5.value = "VA_Wetlands_Rule67"
+      except:
+         pass
+      parm6 = defineParam('in_nwi9', "Input Rule 9 NWI Features", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm6.value = "VA_Wetlands_Rule9"
+      except:
+         pass
       parm7 = defineParam('out_SBB', "Output Site Building Blocks (SBBs)", "DEFeatureClass", "Required", "Output")
       parm8 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
@@ -269,9 +293,17 @@ class expand_sbb(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input", "Cores123\Cores123")
+      parm0 = defineParam('in_Cores', "Input Cores", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm0.value = "Cores123\Cores123"
+      except:
+         pass
       parm1 = defineParam('in_SBB', "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
-      parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
+      parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm2.value = "Biotics_ProcFeats"
+      except:
+         pass
       parm3 = defineParam('joinFld', "Source Feature ID field", "String", "Required", "Input", 'SFID')
       parm4 = defineParam('out_SBB', "Output Expanded Site Building Blocks", "DEFeatureClass", "Required", "Output")
       parm5 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
@@ -368,18 +400,37 @@ class create_consite(object):
       """Define parameter definitions"""
       parm00 = defineParam("in_SBB", "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
       parm01 = defineParam("ysn_Expand", "Expand SBB Selection?", "GPBoolean", "Required", "Input", "false")
-      parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "Biotics_ProcFeats")
+      parm02 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm02.value = "Biotics_ProcFeats"
+      except:
+         pass
       parm03 = defineParam("joinFld", "Source Feature ID field", "String", "Required", "Input", "SFID")
-      parm04 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input", "Biotics_ConSites")
+      parm04 = defineParam("in_ConSites", "Input Current Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm04.value = "Biotics_ConSites"
+      except:
+         pass
       parm05 = defineParam("out_ConSites", "Output Updated Conservation Sites", "DEFeatureClass", "Required", "Output")
       parm06 = defineParam("site_Type", "Site Type", "String", "Required", "Input")
       parm06.filter.list = ["TERRESTRIAL", "AHZ"]
-      parm07 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input", "HydrographicFeatures")
+      parm07 = defineParam("in_Hydro", "Input Hydro Features", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm07.value = "HydrographicFeatures"
+      except:
+         pass
       parm08 = defineParam("in_TranSurf", "Input Transportation Surfaces", "GPValueTable", "Optional", "Input")
       parm08.columns = [["GPFeatureLayer","Transportation Layers"]]
-      parm08.values = [["VirginiaRailSurfaces"], ["VirginiaRoadSurfaces"]]
+      try:
+         parm08.values = [["VirginiaRailSurfaces"], ["VirginiaRoadSurfaces"]]
+      except:
+         pass
       parm08.enabled = False
-      parm09 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Optional", "Input", "ExclusionFeatures")
+      parm09 = defineParam("in_Exclude", "Input Exclusion Features", "GPFeatureLayer", "Optional", "Input")
+      try:
+         parm09.value = "ExclusionFeatures"
+      except:
+         pass
       parm09.enabled = False
       parm10 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
       
