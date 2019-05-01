@@ -242,7 +242,7 @@ class create_sbb(object):
          parm6.value = "VA_Wetlands_Rule9"
       except:
          pass
-      parm7 = defineParam('out_SBB', "Output Site Building Blocks (SBBs)", "DEFeatureClass", "Required", "Output")
+      parm7 = defineParam('out_SBB', "Output Site Building Blocks (SBBs)", "DEFeatureClass", "Required", "Output", "sbb")
       parm8 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8]
@@ -299,13 +299,17 @@ class expand_sbb(object):
       except:
          pass
       parm1 = defineParam('in_SBB', "Input Site Building Blocks (SBBs)", "GPFeatureLayer", "Required", "Input")
+      try: 
+         parm1.value = "sbb"
+      except:
+         pass
       parm2 = defineParam('in_PF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       try:
          parm2.value = "Biotics_ProcFeats"
       except:
          pass
       parm3 = defineParam('joinFld', "Source Feature ID field", "String", "Required", "Input", 'SFID')
-      parm4 = defineParam('out_SBB', "Output Expanded Site Building Blocks", "DEFeatureClass", "Required", "Output")
+      parm4 = defineParam('out_SBB', "Output Expanded Site Building Blocks", "DEFeatureClass", "Required", "Output", "expanded_sbb")
       parm5 = defineParam('scratch_GDB', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5]
@@ -356,8 +360,12 @@ class parse_sbb(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm0 = defineParam('in_SBB', "Input Site Building Blocks", "GPFeatureLayer", "Required", "Input")
-      parm1 = defineParam('out_terrSBB', "Output Standard Terrestrial Site Building Blocks", "DEFeatureClass", "Required", "Output")
-      parm2 = defineParam('out_ahzSBB', "Output Anthropogenic Habitat Zone Site Building Blocks", "DEFeatureClass", "Required", "Output")
+      try:
+         parm0.value = "sbb"
+      except:
+         pass
+      parm1 = defineParam('out_terrSBB', "Output Standard Terrestrial Site Building Blocks", "DEFeatureClass", "Required", "Output", "tcs_sbb")
+      parm2 = defineParam('out_ahzSBB', "Output Anthropogenic Habitat Zone Site Building Blocks", "DEFeatureClass", "Required", "Output", "ahz_sbb")
 
       parms = [parm0, parm1, parm2]
       return parms
@@ -501,7 +509,7 @@ class review_consite(object):
       parm00 = defineParam("auto_CS", "Input NEW Conservation Sites", "GPFeatureLayer", "Required", "Input")
       parm01 = defineParam("orig_CS", "Input OLD Conservation Sites", "GPFeatureLayer", "Required", "Input")
       parm02 = defineParam("cutVal", "Cutoff value (percent)", "GPDouble", "Required", "Input")
-      parm03 = defineParam("out_Sites", "Output new Conservation Sites feature class with QC fields", "GPFeatureLayer", "Required", "Output")
+      parm03 = defineParam("out_Sites", "Output new Conservation Sites feature class with QC fields", "GPFeatureLayer", "Required", "Output", "ConSites_QC")
       parm04 = defineParam("fld_SiteID", "Conservation Site ID field", "String", "Required", "Input", "SITEID")
       parm05 = defineParam("scratch_GDB", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
@@ -551,7 +559,11 @@ class ServLyrs_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
+      parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input")
+      try:
+         parm0.value = "HydroNet_ND"
+      except:
+         pass
       parm1 = defineParam("out_lyrDown", "Output Downstream Layer", "DELayer", "Derived", "Output")
       parm2 = defineParam("out_lyrUp", "Output Upstream Layer", "DELayer", "Derived", "Output")
       
@@ -598,8 +610,16 @@ class NtwrkPts_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
-      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
+      parm0 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input")
+      try:
+         parm0.value = "HydroNet_ND"
+      except:
+         pass
+      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm1.value = "Biotics_ProcFeats"
+      except:
+         pass
       parm2 = defineParam("out_Points", "Output Network Points", "DEFeatureClass", "Required", "Output", "scuPoints")
       parm3 = defineParam("fld_SFID", "Source Feature ID field", "String", "Required", "Input", "SFID")
       parm4 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
@@ -652,10 +672,26 @@ class Lines_scu(object):
    def getParameterInfo(self):
       """Define parameters"""
       parm0 = defineParam("out_Lines", "Output Linear SCUs", "DEFeatureClass", "Required", "Output", "scuLines")
-      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input", "scuPFs")
-      parm2 = defineParam("in_Points", "Input SCU Points", "GPFeatureLayer", "Required", "Input", "scuPoints")
-      parm3 = defineParam("in_downTrace", "Downstream Service Layer", "GPNALayer", "Required", "Input", "naDownTrace")
-      parm4 = defineParam("in_upTrace", "Upstream Service Layer", "GPNALayer", "Required", "Input", "naUpTrace")
+      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm1.value = "Biotics_ProcFeats"
+      except:
+         pass
+      parm2 = defineParam("in_Points", "Input SCU Points", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm2.value = "scuPoints"
+      except:
+         pass
+      parm3 = defineParam("in_downTrace", "Downstream Service Layer", "GPNALayer", "Required", "Input")
+      try:
+         parm3.value = "naDownTrace"
+      except:
+         pass
+      parm4 = defineParam("in_upTrace", "Upstream Service Layer", "GPNALayer", "Required", "Input")
+      try:
+         parm4.value = "naUpTrace"
+      except:
+         pass
       parm5 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
       parms = [parm0, parm1, parm2, parm3, parm4, parm5]
@@ -706,8 +742,16 @@ class Polys_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input", "scuLines")
-      parm1 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input", "HydroNet_ND")
+      parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm0.value = "scuLines"
+      except:
+         pass
+      parm1 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input")
+      try:
+         parm1.value = "HydroNet_ND"
+      except:   
+         pass
       parm2 = defineParam('out_Polys', "Output SCU Polygons", "DEFeatureClass", "Required", "Output", "scuPolys")
       parm3 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
@@ -754,10 +798,22 @@ class FlowBuffers_scu(object):
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam('in_Polys', "Input Polygon SCUs", "GPFeatureLayer", "Required", "Input", "scuPolys")
+      parm0 = defineParam('in_Polys', "Input Polygon SCUs", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm0.value = "scuPolys"
+      except:
+         pass
       parm1 = defineParam("fld_ID", "Polygon ID field", "String", "Required", "Input", "OBJECTID")
-      parm2 = defineParam("in_FlowDir", "Input Flow Direction Raster", "GPRasterLayer", "Required", "Input", "fdir_VA")
-      parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output", "scuFlowBuffers")
+      parm2 = defineParam("in_FlowDir", "Input Flow Direction Raster", "GPRasterLayer", "Required", "Input")
+      try:
+         parm2.value = "fdir_VA"
+      except:
+         pass
+      parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
+      try:
+         parm3.value = "scuFlowBuffers"
+      except:
+         pass
       parm4 = defineParam("maxDist", "Maximum Buffer Distance", "GPLinearUnit", "Required", "Input", "500 METERS")
       parm5 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
 
@@ -801,20 +857,24 @@ class FlowBuffers_scu(object):
 class Finalize_scu(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "5: Finalize Stream Conservation Units"
-      self.description = "Aggregates and smoothes Stream Conservation Units to produce final output polygons"
+      self.label = "5: Finalize Stream Conservation Sites"
+      self.description = "Aggregates and smoothes buffered Stream Conservation Units to produce final output Stream Conservation Sites"
       self.canRunInBackground = True
       self.category = "Site Delineation Tools: SCU"
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam("in_Feats", "Input buffered SCU polygons", "GPFeatureLayer", "Required", "Input", "scuFlowBuffers")
+      parm0 = defineParam("in_Feats", "Input buffered SCU polygons", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm0.value = "scuFlowBuffers"
+      except: 
+         pass
       parm1 = defineParam("dil_Dist", "Dilation distance", "GPLinearUnit", "Required", "Input", "10 METERS")
-      parm2 = defineParam("out_Feats", "Output final SCU polygons", "DEFeatureClass", "Required", "Output", "scuFinal")
+      parm2 = defineParam("out_Feats", "Output final Stream Conservation Sites", "DEFeatureClass", "Required", "Output")
       parm3 = defineParam("smthMulti", "Smoothing multiplier", "GPDouble", "Optional", "Input", 8)
       parm4 = defineParam("scratch_GDB", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
-      
       parm4.filter.list = ["Local Database"]
+      
       parms = [parm0, parm1, parm2, parm3, parm4]
       return parms
 
