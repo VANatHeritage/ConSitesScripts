@@ -14,6 +14,11 @@ arcpy.env.overwriteOutput = True
 
 def bmiFlatten(inConsLands, outConsLands, scratchGDB = None):
    '''Eliminates overlaps in the Conservation Lands feature class. The BMI field is used for consolidation; better BMI ranks (lower numeric values) take precedence over worse ones.
+   
+   Parameters:
+   - inConsLands: Input polygon feature class representing Conservation Lands. Must include a field called 'BMI', with permissible values "1", "2", "3", "4", "5", or "U".
+   - outConsLands: Output feature class with "flattened" Conservation Lands and updated BMI field.
+   - scratchGDB: Geodatabase for storing scratch products
    '''
    
    arcpy.env.extent = 'MAXOF'
