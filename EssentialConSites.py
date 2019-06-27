@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2018-05-24
+# Last Edit: 2019-06-21
 # Creator:  Kirsten R. Hazler and Roy Gilb
 # ---------------------------------------------------------------------------
 
@@ -223,7 +223,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    
    # Dissolve procedural features on EO_ID
    printMsg("Dissolving procedural features by EO...")
-   arcpy.Dissolve_management(in_ProcFeats, out_procEOs, ["SF_EOID", "ELCODE", "SNAME"], [["SFID", "COUNT"]], "MULTI_PART")
+   arcpy.Dissolve_management(in_ProcFeats, out_procEOs, ["SF_EOID", "ELCODE", "SNAME", "BIODIV_GRANK", "SRANK", "BIODIV_EORANK", "FEDSTAT", "SPROT"], [["SFID", "COUNT"]], "MULTI_PART")
    
    # Make EO_ID into string to match EO reps - FFS why do I have to do this??
    arcpy.AddField_management(out_procEOs, "EO_ID", "TEXT", "", "", 20)
@@ -540,9 +540,9 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       arcpy.AddField_management(in_sortedEOs, "EO_CONSVALUE", "SHORT")
       codeblock = '''def calcConsVal(tier):
          if tier == "Irreplaceable":
-            return 100
+            return 125
          elif tier == "Essential":
-            return 20
+            return 25
          elif tier == "Priority":
             return 5
          elif tier == "Choice":
@@ -650,29 +650,27 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       
    printMsg('Conservation sites prioritized and portfolio summary updated.')
    
-   return(out_sortedEOs, out_sumTab, out_ConSites)
+   return (out_sortedEOs, out_sumTab, out_ConSites)
    
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\TerrProcFeats_20180510'
-   #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ProcFeats_20180222_191353'
-   #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\PF_TestSubset2'
-   in_eoReps = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\EO_reps20180222'
+   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\EssentialConSites\Biotics\biotics_extract.gdb\ProcFeats_20190619_175628'
+   in_eoReps = r'C:\Users\xch43889\Documents\Working\EssentialConSites\Biotics\biotics_extract.gdb\EOs_20190620'
    in_sppExcl= r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ExcludeSpecies'
    in_eoSelOrder = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\EO_RankNum'
-   in_consLands = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\MAs'
-   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\MngAreas_flat'
-   in_ConSites = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\TerrConSites_20180510'   #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ConSites_TestSubset2'
-   out_procEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs.gdb' + os.sep + 'terr_procEOs_0521'
-   out_sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs.gdb' + os.sep + 'terr_eoSumTab_0521'
-   out_sortedEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs.gdb' + os.sep + 'terr_procSortedEOs_0521'
+   in_consLands = r'C:\Users\xch43889\Documents\Working\EssentialConSites\Biotics\bioticsdata6132019.gdb\ManagedAreas6172019'
+   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\flatConsLands'
+   in_ConSites = r'C:\Users\xch43889\Documents\Working\EssentialConSites\Biotics\biotics_extract.gdb\ConSites_20190619_175628'   #r'C:\Users\xch43889\Documents\Working\ConSites\Essential_ConSites\ECS_Inputs.gdb\ConSites_TestSubset2'
+   out_procEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20190620.gdb\tcs_attribEOs'
+   out_sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20190620.gdb\tcs_elementSumTab'
+   out_sortedEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20190620.gdb\tcs_sortedEOs'
    # End of variable input
 
    # Specify function(s) to run below
    AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab)
-   ScoreEOs(out_procEOs, out_sumTab, out_sortedEOs)
-   BuildPortfolio(out_sortedEOs, out_sumTab, in_ConSites, 'NEW')
+   # ScoreEOs(out_procEOs, out_sumTab, out_sortedEOs)
+   # BuildPortfolio(out_sortedEOs, out_sumTab, in_ConSites, 'NEW')
    
 if __name__ == '__main__':
    main()

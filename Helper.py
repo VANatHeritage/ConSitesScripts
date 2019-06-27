@@ -16,8 +16,8 @@ try:
    arcpy
    print "Arcpy is already loaded"
 except:
+   print "Initiating arcpy, which takes longer than it should..."
    import arcpy   
-   print "Initiating arcpy..."
 
 from datetime import datetime as datetime   
    
