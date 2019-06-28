@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-06-21
+# Last Edit: 2019-06-27
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -21,6 +21,8 @@
 # - Moved some tools from one toolset to another (without change in functionality)
 # - Modified some tool parameter defaults, in part to fix a bug that manifests when a layer's link to its data source is broken
 # - Added tool for flattening Conservation Lands (prep for Essential ConSites input)
+# - Added tool to dissolve procedural features to create "site-worthy" EOs
+# - Added tool to automate B-ranking of sites
 
 # Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018.
 # ----------------------------------------------------------------------------------------
@@ -32,7 +34,7 @@ from CreateSBBs import *
 from CreateConSites import *
 from ReviewConSites import *
 from CreateSCU import *
-from EssentialConSites import *
+from PrioritizeConSites import *
 from ProcNWI import *
 from ProcConsLands import *
 
@@ -69,7 +71,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands]
 
 # Define the tools
 class coalesceFeats(object):
@@ -187,12 +189,12 @@ class extract_biotics(object):
       """Define parameter definitions"""
       parm0 = defineParam('BioticsPF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       try:
-         parm0.value = "BIOTICS_DLINK.ProcFeats"
+         parm0.value = "BIOTICS_DLINK.procfeatRanks"
       except:
          pass
       parm1 = defineParam('BioticsCS', "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
       try:
-         parm1.value = "BIOTICS_DLINK.ConSites"
+         parm1.value = "BIOTICS_DLINK.all_consite_types"
       except:
          pass
       parm2 = defineParam('outGDB', "Output Geodatabase", "DEWorkspace", "Required", "Input")
@@ -223,6 +225,47 @@ class extract_biotics(object):
 
       return
 
+class dissolve_procfeats(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Dissolve Procedural Features by EO ID"
+      self.description = "Dissolves input procedural features on EO-specific fields to create 'site-worthy' EOs for the purpose of ConSite prioritization, where EOs rather than PFs are needed."
+      self.canRunInBackground = True
+      self.category = "Preparation and Review Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm0 = defineParam("procFeats", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("procEOs", "Output Site-worthy EOs", "DEFeatureClass", "Required", "Output")
+      parm2 = defineParam("site_Type", "Site Type Association", "String", "Required", "Input")
+      parm2.filter.list = ["TCS", "AHZ", "SCU", "KCS", "MACS"]
+      
+      parms = [parm0, parm1, parm2]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      dissolvePF (procFeats, procEOs, site_Type)
+
+      return
+      
 class create_sbb(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
@@ -562,6 +605,47 @@ class review_consite(object):
       ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID, scratchParm)
 
       return out_Sites
+
+class assign_brank(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Assign B-ranks"
+      self.description = ""
+      self.canRunInBackground = False
+      # Must run in foreground, otherwise table attribute fields don't refresh
+      self.category = "Preparation and Review Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_EO", "Input site-worthy EOs", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("in_CS", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
+
+      parms = [parm0, parm1]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      
+      getBRANK(in_EO, in_CS)
+
+      return (in_EO, in_CS)
       
 class ServLyrs_scu(object):
    def __init__(self):

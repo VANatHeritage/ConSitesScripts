@@ -14,6 +14,7 @@ def getBRANK(in_EOs, in_ConSites):
    '''Automates the assignment of B-ranks to conservation sites
    
    '''
+
    ### For the EOs, calculate the IBR (individual B-rank)
    printMsg('Creating and calculating IBR fields for EOs...')
    arcpy.AddField_management(in_EOs, "IBR_1", "TEXT", 2)

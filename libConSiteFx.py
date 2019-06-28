@@ -2,7 +2,7 @@
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-11-30
+# Last Edit: 2019-06-26
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -298,7 +298,7 @@ def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    inCoordSyst = "PROJCS['WGS_1984_Web_Mercator_Auxiliary_Sphere',GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Mercator_Auxiliary_Sphere'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',0.0],PARAMETER['Standard_Parallel_1',0.0],PARAMETER['Auxiliary_Sphere_Type',0.0],UNIT['Meter',1.0]]"
    arcpy.Project_management(unprjPF, outPF, outCoordSyst, transformMethod, inCoordSyst, "PRESERVE_SHAPE", "")
    printMsg('Procedural Features successfully exported to %s' %outPF)
-
+   
    # # Add layers to map after removing existing layers, if present
    # printMsg('Adding layers to map document')
    # mxd = arcpy.mapping.MapDocument("CURRENT")
@@ -322,6 +322,30 @@ def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    # addProcFeats.name = "Biotics_ProcFeats"
    # addProcFeats.definitionQuery = "RULE NOT IN ( 'CAVE' , 'SCU' )"
    # arcpy.mapping.AddLayer(dataFrame, addProcFeats)
+
+def dissolvePF (in_ProcFeats, out_procEOs, site_type):
+   '''Dissolves input procedural features on EO-specific fields to create "site-worthy" EOs for the purpose of ConSite prioritization, where EOs rather than PFs are needed. Creates subset depending on the site type under consideration.
+   '''
+   # Dissolve procedural features on EO_ID
+   printMsg("Dissolving procedural features by EO...")
+   if site_type == "TCS":
+      qry = "RULE not in ('SCU', 'KCS', 'AHZ')"
+   elif site_type == "AHZ":
+      qry = "RULE = 'AHZ'"
+   elif site_type == "SCU":
+      qry = "RULE = 'SCU'"
+   elif site_type == "KCS":
+      qry = "RULE = 'KCS'"
+   elif site_type == "MACS":
+      qry = "RULE = 'MACS'"
+   else:
+      sys.exit("Not a valid site type. Exiting.")
+   arcpy.MakeFeatureLayer_management(in_ProcFeats, "filtPF_lyr", qry)
+   dissFlds = ["SF_EOID", "ELCODE", "SNAME", "BIODIV_GRANK", "RNDGRNK", "BIODIV_SRANK", "EORANK", "BIODIV_EORANK","EOLASTOBS", "FEDSTAT", "SPROT"]
+   arcpy.Dissolve_management("filtPF_lyr", out_procEOs, dissFlds, [["SFID", "COUNT"]], "MULTI_PART")   
+   
+   return out_procEOs
+   
    
 def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
    '''Selects features within specified distance of selection features, and copies to output.
