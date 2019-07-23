@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-06-27
+# Last Edit: 2019-07-01
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -1016,7 +1016,7 @@ class attribute_eo(object):
       self.label = "1: Attribute Element Occurrences"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Prioritization Tools"
+      self.category = "Conservation Portfolio Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -1062,7 +1062,7 @@ class score_eo(object):
       self.label = "2: Score Element Occurrences"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Prioritization Tools"
+      self.category = "Conservation Portfolio Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
@@ -1104,7 +1104,7 @@ class build_portfolio(object):
       self.label = "3: Build Conservation Portfolio"
       self.description = ""
       self.canRunInBackground = True
-      self.category = "Site Prioritization Tools"
+      self.category = "Conservation Portfolio Tools"
 
    def getParameterInfo(self):
       """Define parameter definitions"""
