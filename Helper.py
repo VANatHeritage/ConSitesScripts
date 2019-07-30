@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2018-12-12
+# Last Edit: 2019-07-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -228,7 +228,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process: Buffer
    Buff1 = scratchGDB + os.sep + "Buff1"
-   arcpy.Buffer_analysis(inFeats, Buff1, meas, "FULL", "ROUND", dissolve1, "", "PLANAR")
+   arcpy.Buffer_analysis(inFeats, Buff1, meas, "FULL", "ROUND", dissolve1, "", "GEODESIC")
 
    # Process: Clean Features
    Clean_Buff1 = scratchGDB + os.sep + "CleanBuff1"
@@ -236,7 +236,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process:  Generalize Features
    # This should prevent random processing failures on features with many vertices, and also speed processing in general
-   arcpy.Generalize_edit(Clean_Buff1, "0.1 Meters")
+   #arcpy.Generalize_edit(Clean_Buff1, "0.1 Meters")
    
    # Eliminate gaps
    # Added step due to weird behavior on some buffers
@@ -245,7 +245,7 @@ def Coalesce(inFeats, dilDist, outFeats, scratchGDB = "in_memory"):
 
    # Process: Buffer
    Buff2 = scratchGDB + os.sep + "NegativeBuffer"
-   arcpy.Buffer_analysis(Clean_Buff1_ng, Buff2, negMeas, "FULL", "ROUND", dissolve2, "", "PLANAR")
+   arcpy.Buffer_analysis(Clean_Buff1_ng, Buff2, negMeas, "FULL", "ROUND", dissolve2, "", "GEODESIC")
 
    # Process: Clean Features to get final dilated features
    CleanFeatures(Buff2, outFeats)
@@ -342,8 +342,13 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
          # Process:  Coalesce features (expand)
          coalFeats = scratchGDB + os.sep + 'coalFeats'
          Coalesce("dissFeatsLyr", smthMeas, coalFeats, scratchGDB)
-         # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect.
+         # Increasing the dilation distance improves smoothing and reduces the "dumbbell" effect. However, it can also cause some wonkiness which needs to be corrected in the next steps.
          trashList.append(coalFeats)
+         
+         # Merge coalesced feature with original features, and coalesce again.
+         mergeFeats = scratchGDB + os.sep + 'mergeFeats'
+         arcpy.Merge_management([coalFeats, "dissFeatsLyr"], mergeFeats, "")
+         Coalesce(mergeFeats, "5 METERS", coalFeats, scratchGDB)
          
          # Eliminate gaps
          noGapFeats = scratchGDB + os.sep + "noGapFeats"

@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-07-01
+# Last Edit: 2019-07-24
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -189,12 +189,12 @@ class extract_biotics(object):
       """Define parameter definitions"""
       parm0 = defineParam('BioticsPF', "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       try:
-         parm0.value = "BIOTICS_DLINK.procfeatRanks"
+         parm0.value = "BIOTICS_DLINK.ProcFeats"
       except:
          pass
       parm1 = defineParam('BioticsCS', "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
       try:
-         parm1.value = "BIOTICS_DLINK.all_consite_types"
+         parm1.value = "BIOTICS_DLINK.ConSites"
       except:
          pass
       parm2 = defineParam('outGDB', "Output Geodatabase", "DEWorkspace", "Required", "Input")
@@ -609,7 +609,7 @@ class review_consite(object):
 class assign_brank(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "Assign B-ranks"
+      self.label = "Calculate biodiversity rank"
       self.description = ""
       self.canRunInBackground = False
       # Must run in foreground, otherwise table attribute fields don't refresh
