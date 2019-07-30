@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-07-24
+# Last Edit: 2019-07-30
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -14,7 +14,7 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
-# Version 1.1: Delineation process for Terrestrial Conservation Sites and Anthropogenic Habitat Zones remains unchanged from previous version. This version incorporates the following changes:
+# Version 1.1: Delineation process for Terrestrial Conservation Sites and Anthropogenic Habitat Zones remains unchanged from previous version, except for a slight modification of the shrinkwrap function to correct an anomaly that can arise when the SBB is the same as the PF. In addition to that change, this version incorporates the following changes:
 # - Added tools for delineating Stream Conservation Units
 # - Added tools for processing NWI data (ported over from another old toolbox)
 # - Changed some toolset names
