@@ -1,4 +1,4 @@
-# Conservation Site Tools
+# ConSite Toolbox
 ArcGIS toolbox and associated scripts for automated delineation of Virginia Natural Heritage Conservation Sites. Additional tools for prioritization.
 
 ### Toolbox Version Notes:
