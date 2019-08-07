@@ -14,7 +14,7 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
-# Version 1.1a (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
+# Version 1.1.2 (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
 # - Attribute Element Occurrences tool: 
 # --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
 # --- Eliminated need for SelOrder table by hard-coding the selection order values
