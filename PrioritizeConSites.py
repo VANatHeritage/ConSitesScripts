@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-06-28
+# Last Edit: 2019-08-07
 # Creator:  Kirsten R. Hazler and Roy Gilb
 # ---------------------------------------------------------------------------
 
@@ -22,14 +22,14 @@ def TabulateBMI(procEOs, conslands, bmiValue, fldName):
    - fldName: The output field name to be used to store percent of EO covered by selected conservation lands
    '''
    scratchGDB = arcpy.env.scratchGDB
-   printMsg("Tabulating intersection of EOs with conservation lands of specified BMI...")
+   #printMsg("Tabulating intersection of EOs with conservation lands of specified BMI...")
    where_clause = '"BMI" = \'%s\'' %bmiValue
    arcpy.MakeFeatureLayer_management (conslands, "lyr_bmi", where_clause)
    TabInter_bmi = scratchGDB + os.sep + "TabInter_bmi"
-   arcpy.TabulateIntersection_analysis(procEOs, "EO_ID", "lyr_bmi", TabInter_bmi)
+   arcpy.TabulateIntersection_analysis(procEOs, "SF_EOID", "lyr_bmi", TabInter_bmi)
    arcpy.AddField_management(TabInter_bmi, fldName, "DOUBLE")
    arcpy.CalculateField_management(TabInter_bmi, fldName, "!PERCENTAGE!", "PYTHON")
-   arcpy.JoinField_management(procEOs, "EO_ID", TabInter_bmi, "EO_ID", fldName)
+   arcpy.JoinField_management(procEOs, "SF_EOID", TabInter_bmi, "SF_EOID", fldName)
 
 def addRanks(table, sort_field, order = 'ASCENDING', rank_field='RANK', thresh = 5, threshtype = 'ABS', rounding = None):
    '''A helper function called by ScoreEOs and BuildPortfolio functions; ranks records by one specified sorting field.
@@ -376,7 +376,7 @@ def getBRANK(in_EOs, in_ConSites):
    return (in_EOs, in_ConSites)
    printMsg('Finished.')
    
-def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab):
+def AttributeEOs(in_ProcFeats, in_sppExcl, in_consLands, in_consLands_flat, out_procEOs, out_sumTab):
    '''Attaches various attributes to EOs, creating a new output attributed feature class as well as a summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
    Parameters:
    - in_ProcFeats: Input feature class with "site-worthy" procedural features
@@ -390,20 +390,48 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    
    scratchGDB = arcpy.env.scratchGDB
    
-   # Dissolve procedural features on EO_ID
+   # Dissolve procedural features on SF_EOID
    printMsg("Dissolving procedural features by EO...")
-   arcpy.Dissolve_management(in_ProcFeats, out_procEOs, ["SF_EOID", "ELCODE", "SNAME", "BIODIV_GRANK", "SRANK", "BIODIV_EORANK", "FEDSTAT", "SPROT"], [["SFID", "COUNT"]], "MULTI_PART")
+   arcpy.Dissolve_management(in_ProcFeats, out_procEOs, ["SF_EOID", "ELCODE", "SNAME", "BIODIV_GRANK", "BIODIV_SRANK", "RNDGRNK", "EORANK", "EOLASTOBS", "FEDSTAT", "SPROT"], [["SFID", "COUNT"]], "MULTI_PART")
    
-   # Make EO_ID into string to match EO reps - FFS why do I have to do this??
-   arcpy.AddField_management(out_procEOs, "EO_ID", "TEXT", "", "", 20)
-   arcpy.CalculateField_management(out_procEOs, "EO_ID", "!SF_EOID!", "PYTHON")
+   # # Make SF_EOID into string to match EO reps - FFS why do I have to do this??
+   # arcpy.AddField_management(out_procEOs, "SF_EOID", "TEXT", "", "", 20)
+   # arcpy.CalculateField_management(out_procEOs, "SF_EOID", "!SF_EOID!", "PYTHON")
    
-   # Join some fields
-   printMsg("Joining fields from EO reps...")
-   arcpy.JoinField_management(out_procEOs, "EO_ID", in_eoReps, "EO_ID", ["EORANK", "RND_GRANK", "LASTOBS"])
-   arcpy.JoinField_management(out_procEOs, "EORANK", in_eoSelOrder, "EORANK", "SEL_ORDER")
+   # # Join some fields
+   # printMsg("Joining fields from EO reps...")
+   # arcpy.JoinField_management(out_procEOs, "SF_EOID", in_eoReps, "SF_EOID", ["EORANK", "RNDGRNK", "EOLASTOBS"])
+   # arcpy.JoinField_management(out_procEOs, "EORANK", in_eoSelOrder, "EORANK", "SEL_ORDER")
       
    # Add and calculate some fields
+   
+   # Field: SEL_ORDER
+   printMsg("Calculating SEL_ORDER field")
+   arcpy.AddField_management(out_procEOs, "SEL_ORDER", "SHORT")
+   codeblock = '''def selOrder(eorank):
+      if eorank == "A":
+         return 1
+      elif eorank == "A?":
+         return 2
+      elif eorank == "AB":
+         return 3
+      elif eorank in ("AC", "B"):
+         return 4
+      elif eorank == "B?":
+         return 5
+      elif eorank == "BC":
+         return 6
+      elif eorank in ("C", "E"):
+         return 7
+      elif eorank == "C?":
+         return 8
+      elif eorank == "CD":
+         return 9
+      else:
+         return -1
+      '''
+   expression = "selOrder(!EORANK!)"
+   arcpy.CalculateField_management(out_procEOs, "SEL_ORDER", expression, "PYTHON_9.3", codeblock)
    
    # Field: OBSYEAR
    printMsg("Calculating OBSYEAR field...")
@@ -414,7 +442,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
       except:
          year = 0
       return year'''
-   expression = "truncDate(!LASTOBS!)"
+   expression = "truncDate(!EOLASTOBS!)"
    arcpy.CalculateField_management(out_procEOs, "OBSYEAR", expression, "PYTHON_9.3", codeblock)
    
    # Field: NEW_GRANK
@@ -433,7 +461,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
          return "G5"
       else:
          return granks'''
-   expression = "reclass(!RND_GRANK!)"
+   expression = "reclass(!RNDGRNK!)"
    arcpy.CalculateField_management(out_procEOs, "NEW_GRANK", expression, "PYTHON_9.3", codeblock)
    
    # Field: EXCLUSION
@@ -441,7 +469,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    
    # Set EXCLUSION value for low EO ranks
    codeblock = '''def reclass(order):
-      if order == 0 or order == None:
+      if order == -1 or order == None:
          return "Low EO Rank"
       else:
          return "Keep"'''
@@ -459,17 +487,17 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    where_clause = '"MATYPE" IN (\'Military Installation\', \'Military Recreation Area\', \'NASA Facility\', \'sold - Military Installation\', \'surplus - Military Installation\') AND "BMI" > \'2\''
    arcpy.MakeFeatureLayer_management (in_consLands, "lyr_Military", where_clause)
    TabInter_mil = scratchGDB + os.sep + "TabInter_mil"
-   arcpy.TabulateIntersection_analysis (out_procEOs, "EO_ID", "lyr_Military", TabInter_mil)
+   arcpy.TabulateIntersection_analysis (out_procEOs, "SF_EOID", "lyr_Military", TabInter_mil)
    
    # Field: PERCENT_MIL
    arcpy.AddField_management(TabInter_mil, "PERCENT_MIL", "DOUBLE")
    arcpy.CalculateField_management(TabInter_mil, "PERCENT_MIL", "!PERCENTAGE!", "PYTHON")
-   arcpy.JoinField_management(out_procEOs, "EO_ID", TabInter_mil, "EO_ID", "PERCENT_MIL")
+   arcpy.JoinField_management(out_procEOs, "SF_EOID", TabInter_mil, "SF_EOID", "PERCENT_MIL")
    
-   # Set EXCLUSION value for Military exclusions
-   where_clause = '"EXCLUSION" = \'Keep\' and "PERCENT_MIL" > 25'
-   arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO", where_clause)
-   arcpy.CalculateField_management("lyr_EO", "EXCLUSION", "'Military Exclusion'", "PYTHON")
+   # # Set EXCLUSION value for Military exclusions
+   # where_clause = '"EXCLUSION" = \'Keep\' and "PERCENT_MIL" > 25'
+   # arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO", where_clause)
+   # arcpy.CalculateField_management("lyr_EO", "EXCLUSION", "'Military Exclusion'", "PYTHON")
    
    # Tabulate Intersection of EOs with conservation lands of specified BMI values
    printMsg("Tabulating intersection of EOs with BMI-1 lands...")
@@ -513,13 +541,15 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
       
    # Summarize to get count of EOs per element
    printMsg("Summarizing...")
-   arcpy.Statistics_analysis("lyr_EO", out_sumTab, [["EO_ID", "COUNT"]], ["ELCODE", "NEW_GRANK"])
+   arcpy.Statistics_analysis("lyr_EO", out_sumTab, [["SF_EOID", "COUNT"]], ["ELCODE", "SNAME", "NEW_GRANK"])
    
    # Add more info to summary table
    # Field: TARGET
    arcpy.AddField_management(out_sumTab, "TARGET", "SHORT")
    codeblock = '''def target(grank, count):
-      if grank in ('G1', 'G2'):
+      if grank == 'G1':
+         initTarget = 10
+      elif grank == 'G2':
          initTarget = 5
       else:
          initTarget = 2
@@ -528,7 +558,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
       else:
          target = initTarget
       return target'''
-   expression =  "target(!NEW_GRANK!, !COUNT_EO_ID!)" 
+   expression =  "target(!NEW_GRANK!, !COUNT_SF_EOID!)" 
    arcpy.CalculateField_management(out_sumTab, "TARGET", expression, "PYTHON_9.3", codeblock)
    
    # Field: TIER
@@ -537,11 +567,15 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    codeblock = '''def calcTier(grank, count):
       if count == 1:
          return "Irreplaceable"
-      elif ((grank in ("G1","G2")) and (count <= 5)) or ((grank in ("G3","G4","G5")) and (count <= 2)) :
+      elif grank == 'G1' and count <= 10:
+         return "Essential"
+      elif grank == 'G2' and count <= 5:
+         return "Essential"
+      elif grank in ('G3', 'G4', 'G5') and count <= 2:
          return "Essential"
       else:
          return "Choice"'''
-   expression = "calcTier(!NEW_GRANK!, !COUNT_EO_ID!)"
+   expression = "calcTier(!NEW_GRANK!, !COUNT_SF_EOID!)"
    arcpy.CalculateField_management(out_sumTab, "TIER", expression, "PYTHON_9.3", codeblock)
    
    # Join the TIER field to the EO table
@@ -549,7 +583,7 @@ def AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLand
    
    printMsg("EO attribution complete")
    return (out_procEOs, out_sumTab)
-
+   
 def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    '''Ranks EOs within an element based on a variety of attributes. This function must follow, and requires inputs from, the outputs of the AttributeEOs function. 
    Parameters:
@@ -564,7 +598,7 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    in_procEOs = tmpEOs
    
    # Add ranking fields
-   for fld in ['RANK_eo', 'RANK_nap', 'RANK_bmi', 'RANK_year']:
+   for fld in ['RANK_eo', 'RANK_year', 'RANK_nap', 'RANK_bmi']:
       arcpy.AddField_management(in_procEOs, fld, "SHORT")
    
    # Get subset of choice elements
@@ -593,26 +627,6 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
          availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_eo")
          Slots = availSlots
       
-         # Rank by presence on NAP
-         if Slots == 0:
-            pass
-         else:
-            printMsg('Updating tiers based on presence on NAP...')
-            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            addRanks("lyr_EO", "ysnNAP", "DESC", rank_field='RANK_nap', thresh = 0.5, threshtype = "ABS")
-            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_nap")
-            Slots = availSlots
-         
-         # Rank by BMI score
-         if Slots == 0:
-            pass
-         else:
-            printMsg('Updating tiers based on BMI score...')
-            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            addRanks("lyr_EO", "BMI_score", "DESC", rank_field='RANK_bmi', thresh = 5, threshtype = "ABS")
-            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_bmi")
-            Slots = availSlots
-         
          # Rank by last observation year
          if Slots == 0:
             pass
@@ -622,8 +636,29 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
             addRanks("lyr_EO", "OBSYEAR", "DESC", rank_field='RANK_year', thresh = 3, threshtype = "ABS")
             availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_year")
             Slots = availSlots
+         
+         # Rank by presence on NAP
+         if Slots == 0:
+            pass
+         else:
+            printMsg('Updating tiers based on presence on NAP...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "ysnNAP", "DESC", rank_field='RANK_nap', thresh = 0.5, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_nap")
+            Slots = availSlots
+                           
+         # Rank by BMI score
+         if Slots == 0:
+            pass
+         else:
+            printMsg('Updating tiers based on BMI score...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "BMI_score", "DESC", rank_field='RANK_bmi', thresh = 5, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_bmi")
+            Slots = availSlots
             if Slots > 0:
                printMsg('No more criteria available for differentiation; Choice ties remain.')
+         
       except:
          printWrng('There was a problem processing elcode %s.' %elcode)
          tback()
@@ -647,11 +682,11 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    expression = "calcRank(!TIER!)"
    arcpy.CalculateField_management(in_procEOs, "ChoiceRANK", expression, "PYTHON_9.3", codeblock)
    
-   arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"],["RANK_eo", "ASCENDING"], ["RANK_nap", "ASCENDING"], ["RANK_bmi", "ASCENDING"], ["RANK_year", "ASCENDING"]])
+   arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"],["RANK_eo", "ASCENDING"], ["RANK_year", "ASCENDING"], ["RANK_nap", "ASCENDING"], ["RANK_bmi", "ASCENDING"]])
 
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
-
+   
 def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, build = 'NEW'):
    '''Builds a portfolio of EOs and Conservation Sites of highest conservation priority.
    Parameters:
@@ -668,12 +703,12 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites
    '''
    
+   scratchGDB = arcpy.env.scratchGDB 
+   
    # Make copies of inputs
-   tmpEOs = "in_memory" + os.sep + "tmpEOs"
+   tmpEOs = scratchGDB + os.sep + "tmpEOs"
    arcpy.CopyFeatures_management(in_sortedEOs, tmpEOs)
    in_sortedEOs = tmpEOs
-   
-   scratchGDB = arcpy.env.scratchGDB 
    
    tmpTab = scratchGDB + os.sep + "tmpTab"
    arcpy.CopyRows_management(in_sumTab, tmpTab)
@@ -709,15 +744,15 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       arcpy.AddField_management(in_sortedEOs, "EO_CONSVALUE", "SHORT")
       codeblock = '''def calcConsVal(tier):
          if tier == "Irreplaceable":
-            return 125
+            return 100
          elif tier == "Essential":
-            return 25
+            return 50
          elif tier == "Priority":
-            return 5
+            return 25
          elif tier == "Choice":
-            return 1
+            return 5
          else:
-            return 0'''
+            return 1'''
       expression = "calcConsVal(!TIER!)"
       arcpy.CalculateField_management(in_sortedEOs, "EO_CONSVALUE", expression, "PYTHON_9.3", codeblock)
       printMsg('EO_CONSVALUE field set')
@@ -755,7 +790,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       except:
          pass
    joinFeats = in_sortedEOs + '_csJoin'
-   fldmap1 = 'EO_ID "EO_ID" true true false 20 Text 0 0 ,First,#,%s,EO_ID,-1,-1'%in_sortedEOs
+   fldmap1 = 'SF_EOID "SF_EOID" true true false 20 Double 0 0 ,First,#,%s,SF_EOID,-1,-1'%in_sortedEOs
    fldmap2 = 'CS_CONSVALUE "CS_CONSVALUE" true true false 2 Short 0 0 ,Max,#,%s,CS_CONSVALUE,-1,-1' %in_ConSites
    fldmap3 = 'CS_AREA_HA "CS_AREA_HA" true true false 4 Double 0 0 ,Max,#,%s,CS_AREA_HA,-1,-1' %in_ConSites
    field_mapping="""%s;%s;%s""" %(fldmap1,fldmap2,fldmap3)
@@ -763,7 +798,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
    printMsg('Performing spatial join between EOs and ConSites...')
    arcpy.SpatialJoin_analysis(in_sortedEOs, in_ConSites, joinFeats, "JOIN_ONE_TO_ONE", "KEEP_ALL", field_mapping, "INTERSECT")
    for fld in ["CS_CONSVALUE", "CS_AREA_HA"]:
-      arcpy.JoinField_management (in_sortedEOs, "EO_ID", joinFeats, "EO_ID", fld)
+      arcpy.JoinField_management (in_sortedEOs, "SF_EOID", joinFeats, "SF_EOID", fld)
    #printMsg('Field "CS_CONSVALUE" joined to table %s.' %in_sortedEOs)
 
    # Make a data dictionary relating ELCODE to available slots, where portfolio still not filled 
@@ -778,6 +813,8 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
          portfolio = row[2]
          slots = target - portfolio
          slotDict[elcode] = slots
+   count = countFeatures("vw_EOsum")
+   printMsg("There are %s Elements with remaining slots to fill."%count)
    
    # Loop through dictionary and rank remaining choices to fill remaining slots
    for elcode in slotDict:

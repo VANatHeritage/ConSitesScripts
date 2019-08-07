@@ -1,10 +1,10 @@
 # ----------------------------------------------------------------------------------------
 # ConSite-Tools.pyt
-# Toolbox version: 1.1
+# Toolbox version: 1.1a
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-07-30
+# Last Edit: 2019-08-07
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -14,6 +14,17 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
+# Version 1.1a (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
+# - Attribute Element Occurrences tool: 
+# --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
+# --- Eliminated need for SelOrder table by hard-coding the selection order values
+# --- Eliminated military exclusion
+# --- Upgraded protection target for G1 Elements from 5 to 10
+# - Score Element Occurrences tool:
+# --- Changed order of EO ranking criteria to EO-rank/Year-rank/NAP-rank/BMI-rank (previously, year was last criterion)
+# - Build Portfolio tool:
+# --- Changed point system for assigning site conservation value
+
 # Version 1.1: Delineation process for Terrestrial Conservation Sites and Anthropogenic Habitat Zones remains unchanged from previous version, except for a slight modification of the shrinkwrap function to correct an anomaly that can arise when the SBB is the same as the PF. In addition to that change, this version incorporates the following changes:
 # - Added tools for delineating Stream Conservation Units
 # - Added tools for processing NWI data (ported over from another old toolbox)
@@ -1021,15 +1032,13 @@ class attribute_eo(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm00 = defineParam("in_ProcFeats", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
-      parm01 = defineParam("in_eoReps", "Input Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
-      parm02 = defineParam("in_sppExcl", "Input Species Exclusion Table", "GPTableView", "Required", "Input")
-      parm03 = defineParam("in_eoSelOrder", "Input EO Selection Order Table", "GPTableView", "Required", "Input")
-      parm04 = defineParam("in_consLands", "Input Conservation Lands", "GPFeatureLayer", "Required", "Input")
-      parm05 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
-      parm06 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output")
-      parm07 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output")
+      parm01 = defineParam("in_sppExcl", "Input Species Exclusion Table", "GPTableView", "Required", "Input")
+      parm02 = defineParam("in_consLands", "Input Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm03 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm04 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output")
+      parm05 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output")
 
-      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07]
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05]
       return parms
 
    def isLicensed(self):
@@ -1052,7 +1061,7 @@ class attribute_eo(object):
       # Set up parameter names and values
       declareParams(parameters)
 
-      AttributeEOs(in_ProcFeats, in_eoReps, in_sppExcl, in_eoSelOrder, in_consLands, in_consLands_flat, out_procEOs, out_sumTab)
+      AttributeEOs(in_ProcFeats, in_sppExcl, in_consLands, in_consLands_flat, out_procEOs, out_sumTab)
 
       return (out_procEOs, out_sumTab)
       
