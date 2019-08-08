@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-07
+# Last Edit: 2019-08-08
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -14,7 +14,26 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
-# Version 1.1.2a (= ECS version 2a): A development branch for updating ECS; started from Version 1.1.2
+# Version 1.1.2b (= ECS version 2b): A development branch for updating ECS
+# Started with Version 1.1.2a as baseline. Modified as follows:
+# - Added new function to produce BMI score, and generalized to work with any polygon feature class
+# - Attribute Element Occurrences tool:
+# --- For intersection with military land, selects ALL military lands, not just those with BMI > 2 
+# --- Incorporates new ScoreBMI function
+# --- Selection order changed so that E ranks equally with C?, rather than with C
+# - Score Element Occurrences tool:
+# --- Set "fuzz" factor for observation year to 5 instead of 3
+# --- Makes use of military land for ranking an option the user can select (default) or unselect
+# --- Initial scoring based on [military]/eo rank/last obs year/number of PFs
+# - Build Portfolio tool:
+# --- added BMI tabulation and scoring to ConSites
+# --- Sequence:
+# ---- * Initial portfolio update and bycatch
+# ---- * Rank on conservation site value; update slots, update portfolio and bycatch
+# ---- * Rank on NAP and BMI; update slots, update portfolio and bycatch
+# ---- * Rank on EO size to fill remaining slots.
+
+# Version 1.1.2a (= ECS version 2a): A development branch for updating ECS
 # Started with Version 1.1.2 as baseline. Modified as follows:
 # - Score Element Occurrences tool:
 # --- Initial scoring based on EO-rank, military land, last obs, and number of PFs
@@ -1087,9 +1106,10 @@ class score_eo(object):
       """Define parameter definitions"""
       parm00 = defineParam("in_procEOs", "Input Attributed Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
       parm01 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
-      parm02 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output")
+      parm02 = defineParam("ysnMil", "Use military land as ranking factor?", "GPBoolean", "Required", "Input", "true")
+      parm03 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output")
 
-      parms = [parm00, parm01, parm02]
+      parms = [parm00, parm01, parm02, parm03]
       return parms
 
    def isLicensed(self):
@@ -1113,7 +1133,7 @@ class score_eo(object):
       declareParams(parameters)
       
       # Run function
-      ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs)
+      ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs)
 
       return (out_sortedEOs)
       
@@ -1128,15 +1148,17 @@ class build_portfolio(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm00 = defineParam("in_sortedEOs", "Input Scored Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
-      parm01 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Output")
+      parm01 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output")
       parm02 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
-      parm03 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "GPTableView", "Required", "Output")
+      parm03 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output")
       parm04 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
-      parm05 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "GPFeatureLayer", "Required", "Output")
-      parm06 = defineParam("build", "Portfolio Build Option", "String", "Required", "Input", "NEW")
-      parm06.filter.list = ["NEW", "NEW_EO", "NEW_CS", "UPDATE"]
+      parm05 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output")
+      parm06 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm07 = defineParam("build", "Portfolio Build Option", "String", "Required", "Input", "NEW")
+      parm07.filter.list = ["NEW", "NEW_EO", "NEW_CS", "UPDATE"]
+      
 
-      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06]
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07]
       return parms
 
    def isLicensed(self):
@@ -1160,7 +1182,7 @@ class build_portfolio(object):
       declareParams(parameters)
 
       # Run function
-      BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, build)
+      BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, in_consLands_flat, build)
       
       return (out_sortedEOs, out_sumTab, out_ConSites)      
       
