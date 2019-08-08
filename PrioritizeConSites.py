@@ -205,7 +205,23 @@ def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
    arcpy.JoinField_management (in_sumTab, "ELCODE", portfolioTab, "ELCODE", "PORTFOLIO")
    #printMsg('Field "PORTFOLIO" joined to table %s.' %in_sumTab)
 
-
+def buildSlotDict(in_sumTab):
+   '''Creates a data dictionary relating ELCODE to available slots, for elements where portfolio targets are still not met''' 
+   printMsg('Finding ELCODES for which portfolio is still not filled...')
+   slotDict = {}
+   where_clause = '"PORTFOLIO" < "TARGET"'
+   arcpy.MakeTableView_management (in_sumTab, "vw_EOsum", where_clause)
+   with arcpy.da.SearchCursor("vw_EOsum", ["ELCODE", "TARGET", "PORTFOLIO"]) as cursor:
+      for row in cursor:
+         elcode = row[0]
+         target = row[1]
+         portfolio = row[2]
+         slots = target - portfolio
+         slotDict[elcode] = slots
+   count = countFeatures("vw_EOsum")
+   printMsg("There are %s Elements with remaining slots to fill."%count)
+   return slotDict
+   
 ### MAIN FUNCTIONS ###   
 
 def getBRANK(in_EOs, in_ConSites):
@@ -598,8 +614,18 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
    in_procEOs = tmpEOs
    
    # Add ranking fields
-   for fld in ['RANK_eo', 'RANK_year', 'RANK_nap', 'RANK_bmi']:
+   for fld in ['RANK_eo', 'RANK_mil', 'RANK_year', 'RANK_numPF', 'RANK_nap', 'RANK_bmi', 'RANK_csVal', 'RANK_csArea', 'RANK_eoArea']:
       arcpy.AddField_management(in_procEOs, fld, "SHORT")
+      
+   # Update Field: PERCENT_MIL
+   printMsg("Updating military field...")
+   codeblock = '''def updateMil(mil):
+      if mil == None:
+         return 0
+      else:
+         return mil'''
+   expression = "updateMil(!PERCENT_MIL!)"
+   arcpy.CalculateField_management(in_procEOs, "PERCENT_MIL", expression, "PYTHON_9.3", codeblock)
    
    # Get subset of choice elements
    where_clause = '"TIER" = \'Choice\''
@@ -621,13 +647,23 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
          currentCount = countFeatures("lyr_EO")
          print 'There are %s "Choice" features with this elcode' % str(currentCount)
                
-         # Rank by EO-rank (selection order)
+         # Rank by EO-rank (selection order) - prefer highest-ranked EOs
          printMsg('Updating tiers based on EO-rank...')
          addRanks("lyr_EO", "SEL_ORDER", "", rank_field='RANK_eo', thresh = 0.5, threshtype = "ABS")
          availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_eo")
          Slots = availSlots
       
-         # Rank by last observation year
+         # Rank by military land - prefer EOs not on military land
+         if Slots == 0:
+            pass
+         else: 
+            printMsg('Updating tiers based on proportion of EO on military land...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "PERCENT_MIL", "", rank_field='RANK_mil', thresh = 5, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_mil")
+            Slots = availSlots
+         
+         # Rank by last observation year - prefer more recently observed EOs
          if Slots == 0:
             pass
          else:
@@ -637,27 +673,17 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs):
             availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_year")
             Slots = availSlots
          
-         # Rank by presence on NAP
+         # Rank by number of procedural features - prefer EOs with more of them
          if Slots == 0:
             pass
          else:
-            printMsg('Updating tiers based on presence on NAP...')
+            printMsg('Updating tiers based on number of procedural features...')
             arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            addRanks("lyr_EO", "ysnNAP", "DESC", rank_field='RANK_nap', thresh = 0.5, threshtype = "ABS")
-            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_nap")
+            addRanks("lyr_EO", "COUNT_SFID", "DESC", rank_field='RANK_numPF', thresh = 1, threshtype = "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_numPF")
             Slots = availSlots
-                           
-         # Rank by BMI score
-         if Slots == 0:
-            pass
-         else:
-            printMsg('Updating tiers based on BMI score...')
-            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            addRanks("lyr_EO", "BMI_score", "DESC", rank_field='RANK_bmi', thresh = 5, threshtype = "ABS")
-            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_bmi")
-            Slots = availSlots
-            if Slots > 0:
-               printMsg('No more criteria available for differentiation; Choice ties remain.')
+         if Slots > 0:
+            printMsg('No more criteria available for differentiation; Choice ties remain.')         
          
       except:
          printWrng('There was a problem processing elcode %s.' %elcode)
@@ -722,10 +748,6 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
    for tab in [in_sortedEOs, in_ConSites]:
       arcpy.AddField_management(tab, "PORTFOLIO", "SHORT")
       # This command should be ignored if field already exists
-      
-   # Add ranking fields
-   for fld in ['RANK_csVal', 'RANK_area']:
-      arcpy.AddField_management(in_sortedEOs, fld, "SHORT")
       
    if build == 'NEW' or build == 'NEW_EO':
       arcpy.CalculateField_management(in_sortedEOs, "PORTFOLIO", 0, "PYTHON_9.3")
@@ -801,54 +823,107 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       arcpy.JoinField_management (in_sortedEOs, "SF_EOID", joinFeats, "SF_EOID", fld)
    #printMsg('Field "CS_CONSVALUE" joined to table %s.' %in_sortedEOs)
 
-   # Make a data dictionary relating ELCODE to available slots, where portfolio still not filled 
-   printMsg('Finding ELCODES for which portfolio is still not filled...')
-   slotDict = {}
-   where_clause = '"PORTFOLIO" < "TARGET"'
-   arcpy.MakeTableView_management (in_sumTab, "vw_EOsum", where_clause)
-   with arcpy.da.SearchCursor("vw_EOsum", ["ELCODE", "TARGET", "PORTFOLIO"]) as cursor:
-      for row in cursor:
-         elcode = row[0]
-         target = row[1]
-         portfolio = row[2]
-         slots = target - portfolio
-         slotDict[elcode] = slots
-   count = countFeatures("vw_EOsum")
-   printMsg("There are %s Elements with remaining slots to fill."%count)
-   
-   # Loop through dictionary and rank remaining choices to fill remaining slots
-   for elcode in slotDict:
-      printMsg('Working on %s...' %elcode)
-      try:
-         Slots = slotDict[elcode]
-         printMsg('There are still %s slots to fill.' %str(int(Slots)))
+   slotDict = buildSlotDict(in_sumTab)
+      
+   if len(slotDict) > 0:
+      printMsg('Trying to fill remaining slots based on land protection status...')
+      for elcode in slotDict:
+         printMsg('Working on %s...' %elcode)
          where_clause = '"ELCODE" = \'%s\' and "TIER" = \'Choice\' and "PORTFOLIO" = 0' %elcode
-         arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
-         c = countFeatures("lyr_EO")
-         printMsg('There are %s features where %s.' %(str(int(c)), where_clause))
+         try:
+            Slots = slotDict[elcode]
+            printMsg('There are still %s slots to fill.' %str(int(Slots)))
+            arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
+            c = countFeatures("lyr_EO")
+            printMsg('There are %s features where %s.' %(str(int(c)), where_clause))
 
-         # Rank by CS_CONSVALUE
-         printMsg('Filling slots based on CS_CONSVALUE...')
-         addRanks("lyr_EO", "CS_CONSVALUE", "DESC", rank_field='RANK_csVal', thresh = 0.5, threshtype = "ABS")
-         availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_csVal")
-         Slots = availSlots
-         
-         # Rank by CS_AREA_HA
-         printMsg('Filling slots based on CS_AREA_HA...')
-         addRanks("lyr_EO", "CS_AREA_HA", "DESC", rank_field='RANK_area', thresh = 0.5, threshtype = "ABS", rounding = 1)
-         availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_area")
-         Slots = availSlots
-         if Slots > 0:
-            printMsg('No more criteria available for differentiation; Choice ties remain.')
-         
-      except:
-         printWrng('There was a problem processing elcode %s.' %elcode)  
-         tback()        
+            # Rank by presence on NAP - prefer EOs that intersect a Natural Area Preserve
+            printMsg('Filling slots based on presence on NAP...')
+            arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "ysnNAP", "DESC", rank_field='RANK_nap', thresh = 0.5, threshtype = "ABS")
+            availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_nap")
+            Slots = availSlots
+                              
+            # Rank by BMI score
+            if Slots == 0:
+               pass
+            else:
+               printMsg('Filling slots based on BMI score...')
+               arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
+               addRanks("lyr_EO", "BMI_score", "DESC", rank_field='RANK_bmi', thresh = 5, threshtype = "ABS")
+               availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_bmi")
+               Slots = availSlots
+            
+         except:
+            printWrng('There was a problem processing elcode %s.' %elcode)  
+            tback()        
 
-   UpdatePortfolio(in_sortedEOs,in_ConSites,in_sumTab)
+      UpdatePortfolio(in_sortedEOs,in_ConSites,in_sumTab)
+      slotDict = buildSlotDict(in_sumTab)
+   else:
+      pass
+      
+   if len(slotDict) > 0:
+      printMsg('Trying to fill remaining slots based on ConSite characteristics...')    
+      for elcode in slotDict:
+         printMsg('Working on %s...' %elcode)
+         where_clause = '"ELCODE" = \'%s\' and "TIER" = \'Choice\' and "PORTFOLIO" = 0' %elcode
+         try:
+            Slots = slotDict[elcode]
+            printMsg('There are still %s slots to fill.' %str(int(Slots)))
+            arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
+            c = countFeatures("lyr_EO")
+            printMsg('There are %s features where %s.' %(str(int(c)), where_clause))
+            
+            # Rank by site conservation value
+            printMsg('Filling slots based on overall site conservation value...')
+            addRanks("lyr_EO", "CS_CONSVALUE", "DESC", rank_field='RANK_csVal', thresh = 0.5, threshtype = "ABS")
+            availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_csVal")
+            Slots = availSlots
+            
+            # Rank by CS_AREA_HA
+            if Slots == 0:
+               pass
+            else:
+               printMsg('Filling slots based on site size...')
+               addRanks("lyr_EO", "CS_AREA_HA", "DESC", rank_field='RANK_csArea', thresh = 0.5, threshtype = "ABS", rounding = 1)
+               availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_csArea")
+               Slots = availSlots
+         except:
+            printWrng('There was a problem processing elcode %s.' %elcode)  
+            tback()        
+
+      UpdatePortfolio(in_sortedEOs,in_ConSites,in_sumTab)
+      slotDict = buildSlotDict(in_sumTab)
+   else:
+      pass
    
+   if len(slotDict) > 0:
+      printMsg('Filling remaining slots based on EO size...')    
+      for elcode in slotDict:
+         printMsg('Working on %s...' %elcode)
+         where_clause = '"ELCODE" = \'%s\' and "TIER" = \'Choice\' and "PORTFOLIO" = 0' %elcode
+         try:
+            Slots = slotDict[elcode]
+            printMsg('There are still %s slots to fill.' %str(int(Slots)))
+            arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
+            c = countFeatures("lyr_EO")
+            printMsg('There are %s features where %s.' %(str(int(c)), where_clause))   
+   
+            # Rank by SHAPE_Area
+            printMsg('Filling slots based on EO size...')
+            addRanks("lyr_EO", "SHAPE_Area", "DESC", rank_field='RANK_eoArea', thresh = 0.1, threshtype = "ABS", rounding = 2)
+            availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_eoArea")
+            Slots = availSlots
+         except:
+            printWrng('There was a problem processing elcode %s.' %elcode)  
+            tback()  
+      UpdatePortfolio(in_sortedEOs,in_ConSites,in_sumTab)
+   else:
+      pass
+      
    # Create final outputs
-   arcpy.Sort_management(in_sortedEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"], ["RANK_eo", "ASCENDING"], ["RANK_nap", "ASCENDING"], ["RANK_bmi", "ASCENDING"], ["RANK_year", "ASCENDING"], ["RANK_csVal", "ASCENDING"], ["RANK_area", "ASCENDING"], ["PORTFOLIO", "DESCENDING"]])
+   arcpy.Sort_management(in_sortedEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"], ["RANK_eo", "ASCENDING"], ["RANK_mil", "ASCENDING"], ["RANK_year", "ASCENDING"], ["RANK_numPF", "ASCENDING"], ["RANK_nap", "ASCENDING"], ["RANK_bmi", "ASCENDING"], ["RANK_csVal", "ASCENDING"], ["RANK_csArea", "ASCENDING"], ["RANK_eoArea", "ASCENDING"], ["PORTFOLIO", "DESCENDING"]])
    
    arcpy.Sort_management(in_ConSites, out_ConSites, [["CS_CONSVALUE", "DESCENDING"]])
    

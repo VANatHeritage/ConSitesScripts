@@ -14,6 +14,16 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
+# Version 1.1.2a (= ECS version 2a): A development branch for updating ECS; started from Version 1.1.2
+# Started with Version 1.1.2 as baseline. Modified as follows:
+# - Score Element Occurrences tool:
+# --- Initial scoring based on EO-rank, military land, last obs, and number of PFs
+# - Build Portfolio tool:
+# --- Sequence:
+# ---- * Initial portfolio update and bycatch
+# ---- * Rank on NAP and BMI; update slots, update portfolio and bycatch
+# ---- * Rank on site conservation value and site size; update slots, update portfolio and bycatch
+# ---- * Rank on EO size to fill remaining slots.
 # Version 1.1.2 (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
 # - Attribute Element Occurrences tool: 
 # --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
