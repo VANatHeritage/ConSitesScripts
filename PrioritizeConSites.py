@@ -619,7 +619,7 @@ def ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs):
    in_procEOs = tmpEOs
    
    # Add ranking fields
-   for fld in ['RANK_mil', 'RANK_eo', 'RANK_year', 'RANK_numPF', 'RANK_csVal', 'RANK_nap', 'RANK_bmi', 'RANK_eoArea']:
+   for fld in ['RANK_mil', 'RANK_eo', 'RANK_year', 'RANK_csVal', 'RANK_nap', 'RANK_bmi', 'RANK_numPF', 'RANK_eoArea']:
       arcpy.AddField_management(in_procEOs, fld, "SHORT")
       
    # Get subset of choice elements
@@ -657,6 +657,7 @@ def ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs):
             pass
          else:
             printMsg('Updating tiers based on EO-rank...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
             addRanks("lyr_EO", "SEL_ORDER", "", rank_field='RANK_eo', thresh = 0.5, threshtype = "ABS")
             availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_eo")
             Slots = availSlots
@@ -671,15 +672,6 @@ def ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs):
             availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_year")
             Slots = availSlots
          
-         # Rank by number of procedural features - prefer EOs with more of them
-         if Slots == 0:
-            pass
-         else:
-            printMsg('Updating tiers based on number of procedural features...')
-            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            addRanks("lyr_EO", "COUNT_SFID", "DESC", rank_field='RANK_numPF', thresh = 1, threshtype = "ABS")
-            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_numPF")
-            Slots = availSlots
          if Slots > 0:
             printMsg('No more criteria available for differentiation; Choice ties remain.')         
          
@@ -706,7 +698,7 @@ def ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs):
    expression = "calcRank(!TIER!)"
    arcpy.CalculateField_management(in_procEOs, "ChoiceRANK", expression, "PYTHON_9.3", codeblock)
    
-   arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"], ["RANK_mil", "ASCENDING"], ["RANK_eo", "ASCENDING"], ["RANK_year", "ASCENDING"], ["RANK_numPF", "ASCENDING"]])
+   arcpy.Sort_management(in_procEOs, out_sortedEOs, [["ELCODE", "ASCENDING"], ["ChoiceRANK", "ASCENDING"], ["RANK_mil", "ASCENDING"], ["RANK_eo", "ASCENDING"], ["RANK_year", "ASCENDING"]])
 
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
@@ -867,7 +859,6 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
 
             # Rank by presence on NAP - prefer EOs that intersect a Natural Area Preserve
             printMsg('Filling slots based on presence on NAP...')
-            arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
             addRanks("lyr_EO", "ysnNAP", "DESC", rank_field='RANK_nap', thresh = 0.5, threshtype = "ABS")
             availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_nap")
             Slots = availSlots
@@ -892,7 +883,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       pass
    
    if len(slotDict) > 0:
-      printMsg('Filling remaining slots based on EO size...')    
+      printMsg('Filling remaining slots based on PF number and EO size...')    
       for elcode in slotDict:
          printMsg('Working on %s...' %elcode)
          where_clause = '"ELCODE" = \'%s\' and "TIER" = \'Choice\' and "PORTFOLIO" = 0' %elcode
@@ -903,11 +894,21 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
             c = countFeatures("lyr_EO")
             printMsg('There are %s features where %s.' %(str(int(c)), where_clause))   
    
-            # Rank by SHAPE_Area
-            printMsg('Filling slots based on EO size...')
-            addRanks("lyr_EO", "SHAPE_Area", "DESC", rank_field='RANK_eoArea', thresh = 0.1, threshtype = "ABS", rounding = 2)
-            availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_eoArea")
+            # Rank by number of procedural features - prefer EOs with more of them
+            printMsg('Filling slots based on number of procedural features...')
+            addRanks("lyr_EO", "COUNT_SFID", "DESC", rank_field='RANK_numPF', thresh = 1, threshtype = "ABS")
+            availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_numPF")
             Slots = availSlots
+   
+            # Rank by SHAPE_Area
+            if Slots == 0:
+               pass
+            else:
+               printMsg('Filling slots based on EO size...')
+               arcpy.MakeFeatureLayer_management (in_sortedEOs, "lyr_EO", where_clause)
+               addRanks("lyr_EO", "SHAPE_Area", "DESC", rank_field='RANK_eoArea', thresh = 0.1, threshtype = "ABS", rounding = 2)
+               availSlots = updateSlots("lyr_EO", elcode, Slots, "RANK_eoArea")
+               Slots = availSlots
          except:
             printWrng('There was a problem processing elcode %s.' %elcode)  
             tback()  
