@@ -1,10 +1,10 @@
 # ----------------------------------------------------------------------------------------
 # ConSite-Tools.pyt
-# Toolbox version: 1.1a
+# Toolbox version: 1.1.1a
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-08
+# Last Edit: 2019-08-16
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -14,45 +14,29 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
-# Version 1.1.2b (= ECS version 2b): A development branch for updating ECS
-# Started with Version 1.1.2a as baseline. Modified as follows:
-# - Added new function to produce BMI score, and generalized to work with any polygon feature class
-# - Attribute Element Occurrences tool:
-# --- For intersection with military land, selects ALL military lands, not just those with BMI > 2 
-# --- Incorporates new ScoreBMI function
-# --- Selection order changed so that E ranks equally with C?, rather than with C
-# - Score Element Occurrences tool:
-# --- Set "fuzz" factor for observation year to 5 instead of 3
-# --- Makes use of military land for ranking an option the user can select (default) or unselect
-# --- Initial scoring based on [military]/eo rank/last obs year/number of PFs
-# - Build Portfolio tool:
-# --- added BMI tabulation and scoring to ConSites
-# --- Sequence:
-# ---- * Initial portfolio update and bycatch
-# ---- * Rank on conservation site value; update slots, update portfolio and bycatch
-# ---- * Rank on NAP and BMI; update slots, update portfolio and bycatch
-# ---- * Rank on EO size to fill remaining slots.
-
-# Version 1.1.2a (= ECS version 2a): A development branch for updating ECS
-# Started with Version 1.1.2 as baseline. Modified as follows:
-# - Score Element Occurrences tool:
-# --- Initial scoring based on EO-rank, military land, last obs, and number of PFs
-# - Build Portfolio tool:
-# --- Sequence:
-# ---- * Initial portfolio update and bycatch
-# ---- * Rank on NAP and BMI; update slots, update portfolio and bycatch
-# ---- * Rank on site conservation value and site size; update slots, update portfolio and bycatch
-# ---- * Rank on EO size to fill remaining slots.
 # Version 1.1.2 (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
+# - Added new function to produce BMI score, and generalized to work with any polygon feature class
 # - Attribute Element Occurrences tool: 
 # --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
 # --- Eliminated need for SelOrder table by hard-coding the selection order values
+# --- Selection order changed so that E ranks equally with C?, rather than with C
 # --- Eliminated military exclusion
+# --- For calculating intersection with military land, selects ALL military lands, not just those with BMI > 2 
 # --- Upgraded protection target for G1 Elements from 5 to 10
+# --- Incorporates new ScoreBMI function
 # - Score Element Occurrences tool:
-# --- Changed order of EO ranking criteria to EO-rank/Year-rank/NAP-rank/BMI-rank (previously, year was last criterion)
+# --- Initial scoring based on [military]/eo rank/last obs year/[number of PFs]
+# --- Set "fuzz" factor for last obs year to 5 instead of 3
+# --- Makes use of military land for ranking an option the user can select (default) or not
+# --- Makes use of number of PFs for ranking an option the user can select (default) or not
 # - Build Portfolio tool:
-# --- Changed point system for assigning site conservation value
+# --- Changed point system for assigning site conservation value, incorporating values for both representation status (irreplaceable, essential, priority, choice, surplus) and rarity (G-ranks).
+# --- added BMI tabulation and scoring to ConSites
+# --- Sequence:
+# ---- * Initial portfolio update: All Irreplaceable, Essential, and Priority EOs added to Portfolio, along with their sites; and bycatch Choice EOs also added to portfolio
+# ---- * Rank remaining Choice EOs on conservation site value; update slots, portfolio, and bycatch
+# ---- * Rank remaining Choice EOs on NAP and BMI; update slots, portfolio, and bycatch
+# ---- * Rank remaining Choice EOs on EO size to fill remaining slots.
 
 # Version 1.1: Delineation process for Terrestrial Conservation Sites and Anthropogenic Habitat Zones remains unchanged from previous version, except for a slight modification of the shrinkwrap function to correct an anomaly that can arise when the SBB is the same as the PF. In addition to that change, this version incorporates the following changes:
 # - Added tools for delineating Stream Conservation Units
@@ -64,7 +48,7 @@
 # - Added tool to dissolve procedural features to create "site-worthy" EOs
 # - Added tool to automate B-ranking of sites
 
-# Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018.
+# Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018. Also includes tools for Essential Conservation Sites protocol, version 1.
 # ----------------------------------------------------------------------------------------
 
 import Helper
@@ -1064,8 +1048,8 @@ class attribute_eo(object):
       parm01 = defineParam("in_sppExcl", "Input Species Exclusion Table", "GPTableView", "Required", "Input")
       parm02 = defineParam("in_consLands", "Input Conservation Lands", "GPFeatureLayer", "Required", "Input")
       parm03 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
-      parm04 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output")
-      parm05 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output")
+      parm04 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output", "attribEOs")
+      parm05 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab")
 
       parms = [parm00, parm01, parm02, parm03, parm04, parm05]
       return parms
@@ -1105,10 +1089,21 @@ class score_eo(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm00 = defineParam("in_procEOs", "Input Attributed Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
+      try:
+         parm00.value = "attribEOs"
+      except:
+         pass
       parm01 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      try:  
+         parm01.value = "sumTab"
+      except:
+         pass
       parm02 = defineParam("ysnMil", "Use military land as ranking factor?", "GPBoolean", "Required", "Input", "true")
-      parm03 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output")
+      parm03 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output", "scoredEOs")
+      # parm04 = defineParam("option", "Ranking Option", "String", "Required", "Input", "Option B")
+      # parm04.filter.list = ["Option A", "Option B"]
 
+      # parms = [parm00, parm01, parm02, parm03, parm04]
       parms = [parm00, parm01, parm02, parm03]
       return parms
 
@@ -1133,6 +1128,7 @@ class score_eo(object):
       declareParams(parameters)
       
       # Run function
+      # ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs, option)
       ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs)
 
       return (out_sortedEOs)
@@ -1148,15 +1144,22 @@ class build_portfolio(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm00 = defineParam("in_sortedEOs", "Input Scored Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
-      parm01 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output")
+      try:
+         parm00.value = "scoredEOs"
+      except:
+         pass
+      parm01 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output", "priorEOs")
       parm02 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
-      parm03 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output")
+      try:
+         parm02.value = "sumTab"
+      except:
+         pass
+      parm03 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab_upd")
       parm04 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
-      parm05 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output")
+      parm05 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output", "priorConSites")
       parm06 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
       parm07 = defineParam("build", "Portfolio Build Option", "String", "Required", "Input", "NEW")
       parm07.filter.list = ["NEW", "NEW_EO", "NEW_CS", "UPDATE"]
-      
 
       parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07]
       return parms
