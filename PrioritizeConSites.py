@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-08-19
+# Last Edit: 2019-08-20
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -30,28 +30,32 @@ def TabulateBMI(inFeats, uniqueID, conslands, bmiValue, fldName):
    arcpy.TabulateIntersection_analysis(inFeats, uniqueID, "lyr_bmi", TabInter_bmi)
    arcpy.AddField_management(TabInter_bmi, fldName, "DOUBLE")
    arcpy.CalculateField_management(TabInter_bmi, fldName, "!PERCENTAGE!", "PYTHON")
+   if len(arcpy.ListFields(inFeats,fldName))>0:  
+      arcpy.DeleteField_management(inFeats,fldName)
+   else:  
+      pass
    arcpy.JoinField_management(inFeats, uniqueID, TabInter_bmi, uniqueID, fldName)
    
    return inFeats
 
-def ScoreBMI(inFeats, uniqueID, conslands, fldBasename = "PERCENT_BMI_"):
+def ScoreBMI(in_Feats, fld_ID, in_BMI, fld_Basename = "PERCENT_BMI_"):
    '''A helper function that tabulates the percentage of each input polygon covered by conservation lands with specified BMI value. Called by the AttributeEOs function to tabulate for EOs.
    Parameters:
-   - inFeats: Feature class with polygons for which BMI should be tabulated
-   - uniqueID: Field in input feature class serving as unique ID
-   - conslands: Feature class with conservation lands, flattened by BMI level
-   - fldBasename: The baseline of the field name to be used to store percent of polygon covered by selected conservation lands of specified BMI
+   - in_Feats: Feature class with polygons for which BMI should be tabulated
+   - fld_ID: Field in input feature class serving as unique ID
+   - in_BMI: Feature class with conservation lands, flattened by BMI level
+   - fld_Basename: The baseline of the field name to be used to store percent of polygon covered by selected conservation lands of specified BMI
    '''
    fldNames = {}
    
    for val in [1,2,3,4]:
-      fldName = fldBasename + str(val)
+      fldName = fld_Basename + str(val)
       printMsg("Tabulating intersection with BMI %s"%str(val))
-      TabulateBMI(inFeats, uniqueID, conslands, str(val), fldName)
+      TabulateBMI(in_Feats, fld_ID, in_BMI, str(val), fldName)
       fldNames[val] = fldName
       
    printMsg("Calculating BMI score...")
-   arcpy.AddField_management(inFeats, "BMI_score", "DOUBLE")
+   arcpy.AddField_management(in_Feats, "BMI_score", "SHORT")
    codeblock = '''def score(bmi1, bmi2, bmi3, bmi4):
       parmVals = {1:bmi1, 2:bmi2, 3:bmi3, 4:bmi4}
       for key in parmVals:
@@ -60,9 +64,9 @@ def ScoreBMI(inFeats, uniqueID, conslands, fldBasename = "PERCENT_BMI_"):
       score = int((8*parmVals[1] + 4*parmVals[2] + 2*parmVals[3] + 1*parmVals[4])/8)
       return score'''
    expression = 'score(!%s!, !%s!, !%s!, !%s!)'%(fldNames[1], fldNames[2], fldNames[3], fldNames[4])
-   arcpy.CalculateField_management(inFeats, "BMI_score", expression, "PYTHON_9.3", codeblock)
+   arcpy.CalculateField_management(in_Feats, "BMI_score", expression, "PYTHON_9.3", codeblock)
    
-   return inFeats
+   return in_Feats
    
 def addRanks(table, sort_field, order = 'ASCENDING', rank_field='RANK', thresh = 5, threshtype = 'ABS', rounding = None):
    '''A helper function called by ScoreEOs and BuildPortfolio functions; ranks records by one specified sorting field.

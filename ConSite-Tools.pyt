@@ -1,6 +1,6 @@
 # ----------------------------------------------------------------------------------------
 # ConSite-Tools.pyt
-# Toolbox version: 1.1.1a
+# Toolbox version: 1.1.2
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
@@ -16,7 +16,7 @@
 ### Toolbox Version Notes:
 # Version 1.1.2 (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
 # - Added new tool: Build Element Lists
-# - Added new function to produce BMI score, and generalized to work with any polygon feature class
+# - Added new function and tool to produce BMI score, and generalized to work with any polygon feature class
 # - Attribute Element Occurrences tool: 
 # --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
 # --- Eliminated need for SelOrder table by hard-coding the selection order values
@@ -96,7 +96,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands, calc_bmi]
 
 # Define the tools
 class coalesceFeats(object):
@@ -1410,3 +1410,49 @@ class flat_conslands(object):
       bmiFlatten(in_CL, out_CL, scratchParm)
       
       return out_CL  
+      
+class calc_bmi(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Calculate BMI Score"
+      self.description = 'For any input polygons, calculates a score for Biological Management Intent'
+      self.canRunInBackground = False
+      self.category = "Preparation and Review Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_Feats", "Input polygon features", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("fld_ID", "Polygon ID field", "String", "Required", "Input")
+      parm2 = defineParam("in_BMI", "Input BMI Polygons", "GPFeatureLayer", "Required", "Input")
+      parm3 = defineParam("fld_Basename", "Base name for output fields", "String", "Required", "Input", "PERCENT_BMI_")
+      
+      parms = [parm0, parm1, parm2, parm3]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      if parameters[0].altered:
+         fc = parameters[0].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[1].filter.list = field_names
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      
+      ScoreBMI(in_Feats, fld_ID, in_BMI, fld_Basename)
+      
+      return in_Feats  
