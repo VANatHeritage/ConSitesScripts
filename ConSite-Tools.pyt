@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-19
+# Last Edit: 2019-08-20
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -1209,7 +1209,6 @@ class build_element_lists(object):
          pass
       parm03 = defineParam("out_Tab", "Output Element Summary", "DETable", "Required", "Output")
       parm04 = defineParam("out_Excel", "Output Excel File", "DEFile", "Optional", "Output")
-      # I want to force the output to be an XLS file, but I haven't figured out how to do this.
 
       parms = [parm00, parm01, parm02, parm03, parm04]
       return parms
@@ -1226,7 +1225,9 @@ class build_element_lists(object):
          fc = parameters[0].valueAsText
          field_names = [f.name for f in arcpy.ListFields(fc)]
          parameters[1].filter.list = field_names
-      
+      if parameters[4].valueAsText is not None:
+         if not parameters[4].valueAsText.endswith('xls'):
+            parameters[4].value = parameters[4].valueAsText.split('.')[0] + '.xls'
       return
 
    def updateMessages(self, parameters):
@@ -1244,7 +1245,6 @@ class build_element_lists(object):
       
       return (out_Tab)      
  
-      
 class tabparse_nwi(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
