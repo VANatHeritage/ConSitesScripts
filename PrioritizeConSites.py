@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-08-16
+# Last Edit: 2019-08-19
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -1019,6 +1019,72 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
    printMsg('Conservation sites prioritized and portfolio summary updated.')
    
    return (out_sortedEOs, out_sumTab, out_ConSites)
+
+def BuildElementLists(in_Bounds, fld_ID, in_procEOs, out_Tab, out_Excel):
+   '''Creates a master list relating a summary of processed EOs to a set of boundary polygons, which could be Conservation Sites, Natural Area Preserves, parcels, or any other boundaries. The output table is sorted by polygon ID, Element, tier, and G-rank. Optionally, the output table can be exported to an excel spreadsheet.
+   Parameters:
+   - in_Bounds: Input polygon feature class for which Elements will be summarized
+   - fld_ID: Field in in_Bounds used to identify polygons
+   - in_procEOs: Input processed EOs, resulting from the BuildPortfolio function
+   - out_Tab: Output table summarizing Elements by boundaries
+   - out_Excel: Output table converted to Excel spreadsheet. Specify "None" if none is desired.
+   '''
+   scratchGDB = arcpy.env.scratchGDB
+   
+   # Dissolve boundaries on the specified ID field, retaining only that field.
+   printMsg("Dissolving...")
+   dissBnds = scratchGDB + os.sep + "dissBnds"
+   arcpy.Dissolve_management(in_Bounds, dissBnds, fld_ID, "", "MULTI_PART")
+   
+   # Perform spatial join between EOs and boundaries
+   printMsg("Spatial joining...")
+   sjEOs = scratchGDB + os.sep + "sjEOs"
+   arcpy.SpatialJoin_analysis(in_procEOs, in_Bounds, sjEOs, "JOIN_ONE_TO_MANY", "KEEP_COMMON", "", "INTERSECT")
+   
+   # Export the table from the spatial join. This appears to be necessary for summary statistics to work. Why?
+   printMsg("Exporting spatial join table...")
+   sjTab = scratchGDB + os.sep + "sjTab"
+   arcpy.TableToTable_conversion (sjEOs, scratchGDB, "sjTab")
+   
+   # Compute the summary stats
+   printMsg("Computing summary statistics...")
+   sumTab = scratchGDB + os.sep + "sumTab"
+   caseFields = "%s;ELCODE;SNAME;RNDGRNK"%fld_ID
+   arcpy.Statistics_analysis(sjTab, sumTab, "ChoiceRANK MIN", caseFields)
+   
+   # Add and calculate a TIER field
+   printMsg("Calculating TIER field...")
+   arcpy.AddField_management(sumTab, "TIER", "TEXT", "", "", "15")
+   codeblock = '''def calcTier(rank):
+      if rank == 1:
+         return "Irreplaceable"
+      elif rank == 2:
+         return "Essential"
+      elif rank == 3:
+         return "Priority"
+      elif rank == 4:
+         return "Choice"
+      elif rank == 5:
+         return "Surplus"
+      else:
+         return "NA"
+      '''
+   expression = "calcTier( !MIN_ChoiceRANK!)"
+   arcpy.CalculateField_management(sumTab, "TIER", expression, "PYTHON_9.3", codeblock)
+
+   # Sort to create final output table
+   printMsg("Sorting...")
+   sortFlds ="%s ASCENDING;MIN_ChoiceRANK ASCENDING;RNDGRNK ASCENDING"%fld_ID
+   arcpy.Sort_management(sumTab, out_Tab, sortFlds)
+   
+   # Export to Excel
+   if out_Excel == "None":
+      pass
+   else:
+      printMsg("Exporting to Excel...")
+      arcpy.TableToExcel_conversion(out_Tab, out_Excel)
+   
+   return out_Tab
    
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():

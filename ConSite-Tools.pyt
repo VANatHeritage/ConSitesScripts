@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-16
+# Last Edit: 2019-08-19
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -15,6 +15,7 @@
 
 ### Toolbox Version Notes:
 # Version 1.1.2 (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
+# - Added new tool: Build Element Lists
 # - Added new function to produce BMI score, and generalized to work with any polygon feature class
 # - Attribute Element Occurrences tool: 
 # --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
@@ -95,7 +96,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands]
 
 # Define the tools
 class coalesceFeats(object):
@@ -1188,6 +1189,61 @@ class build_portfolio(object):
       BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, in_consLands_flat, build)
       
       return (out_sortedEOs, out_sumTab, out_ConSites)      
+      
+class build_element_lists(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "4: Build Element Lists"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Conservation Portfolio Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("in_Bounds", "Input Boundary Polygons", "GPFeatureLayer", "Required", "Input")
+      parm01 = defineParam("fld_ID", "Boundary ID field", "String", "Required", "Input")
+      parm02 = defineParam("in_procEOs", "Input Prioritized EOs", "GPTableView", "Required", "Input")
+      try:
+         parm02.value = "priorEOs"
+      except:
+         pass
+      parm03 = defineParam("out_Tab", "Output Element Summary", "DETable", "Required", "Output")
+      parm04 = defineParam("out_Excel", "Output Excel File", "DEFile", "Optional", "Output")
+      # I want to force the output to be an XLS file, but I haven't figured out how to do this.
+
+      parms = [parm00, parm01, parm02, parm03, parm04]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      if parameters[0].altered:
+         fc = parameters[0].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[1].filter.list = field_names
+      
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      # Run function
+      BuildElementLists(in_Bounds, fld_ID, in_procEOs, out_Tab, out_Excel)
+      
+      return (out_Tab)      
+ 
       
 class tabparse_nwi(object):
    def __init__(self):
