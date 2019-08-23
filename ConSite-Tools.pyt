@@ -1,10 +1,10 @@
 # ----------------------------------------------------------------------------------------
 # ConSite-Tools.pyt
-# Toolbox version: 1.1.2
+# Toolbox version: 1.1.1
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-20
+# Last Edit: 2019-08-23
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -14,7 +14,7 @@
 # Some tools for SCU delineation are set to run in foreground only, otherwise service layers would not update in map. 
 
 ### Toolbox Version Notes:
-# Version 1.1.2 (= ECS version 2): Site delineation process is the same as Version 1.1. Essential ConSites process is changed as follows:
+# Version 1.1.1 (= ECS version 1): Site delineation process is the same as Version 1.1. Essential ConSites process is changed from original as follows:
 # - Added new tool: Build Element Lists
 # - Added new function and tool to produce BMI score, and generalized to work with any polygon feature class
 # - Attribute Element Occurrences tool: 
