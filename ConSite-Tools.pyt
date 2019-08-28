@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-23
+# Last Edit: 2019-08-28
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -1046,13 +1046,16 @@ class attribute_eo(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm00 = defineParam("in_ProcFeats", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
-      parm01 = defineParam("in_sppExcl", "Input Species Exclusion Table", "GPTableView", "Required", "Input")
+      parm01 = defineParam("in_sppExcl", "Input Elements Exclusion Table", "GPTableView", "Required", "Input")
       parm02 = defineParam("in_consLands", "Input Conservation Lands", "GPFeatureLayer", "Required", "Input")
       parm03 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
-      parm04 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output", "attribEOs")
-      parm05 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab")
+      parm04 = defineParam("in_ecoReg", "Input Ecoregions", "GPFeatureLayer", "Required", "Input")
+      parm05 = defineParam("fld_RegCode", "Ecoregion ID field", "String", "Required", "Input")
+      parm06 = defineParam("cutYear", "Cutoff observation year", "GPLong", "Required", "Input", "1994")
+      parm07 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output", "attribEOs")
+      parm08 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab")
 
-      parms = [parm00, parm01, parm02, parm03, parm04, parm05]
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08]
       return parms
 
    def isLicensed(self):
@@ -1063,6 +1066,10 @@ class attribute_eo(object):
       """Modify the values and properties of parameters before internal
       validation is performed.  This method is called whenever a parameter
       has been changed."""
+      if parameters[4].altered:
+         fc = parameters[4].valueAsText
+         field_names = [f.name for f in arcpy.ListFields(fc)]
+         parameters[5].filter.list = field_names
       return
 
    def updateMessages(self, parameters):
@@ -1075,7 +1082,7 @@ class attribute_eo(object):
       # Set up parameter names and values
       declareParams(parameters)
 
-      AttributeEOs(in_ProcFeats, in_sppExcl, in_consLands, in_consLands_flat, out_procEOs, out_sumTab)
+      AttributeEOs(in_ProcFeats, in_sppExcl, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, out_procEOs, out_sumTab)
 
       return (out_procEOs, out_sumTab)
       
@@ -1099,13 +1106,11 @@ class score_eo(object):
          parm01.value = "sumTab"
       except:
          pass
-      parm02 = defineParam("ysnMil", "Use military land as ranking factor?", "GPBoolean", "Required", "Input", "true")
-      parm03 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output", "scoredEOs")
-      # parm04 = defineParam("option", "Ranking Option", "String", "Required", "Input", "Option B")
-      # parm04.filter.list = ["Option A", "Option B"]
+      parm02 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output", "scoredEOs")
+      parm03 = defineParam("ysnMil", "Use military land as ranking factor?", "GPBoolean", "Required", "Input", "true")
+      parm04 = defineParam("ysnYear", "Use observation year as ranking factor?", "GPBoolean", "Required", "Input", "false")
 
-      # parms = [parm00, parm01, parm02, parm03, parm04]
-      parms = [parm00, parm01, parm02, parm03]
+      parms = [parm00, parm01, parm02, parm03, parm04]
       return parms
 
    def isLicensed(self):
@@ -1129,8 +1134,7 @@ class score_eo(object):
       declareParams(parameters)
       
       # Run function
-      # ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs, option)
-      ScoreEOs(in_procEOs, in_sumTab, ysnMil, out_sortedEOs)
+      ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil, ysnYear)
 
       return (out_sortedEOs)
       
@@ -1144,23 +1148,23 @@ class build_portfolio(object):
 
    def getParameterInfo(self):
       """Define parameter definitions"""
-      parm00 = defineParam("in_sortedEOs", "Input Scored Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
+      parm00 = defineParam("build", "Portfolio Build Option", "String", "Required", "Input", "NEW")
+      parm00.filter.list = ["NEW", "NEW_EO", "NEW_CS", "UPDATE"]
+      parm01 = defineParam("in_sortedEOs", "Input Scored Element Occurrences (EOs)", "GPFeatureLayer", "Required", "Input")
       try:
-         parm00.value = "scoredEOs"
+         parm01.value = "scoredEOs"
       except:
          pass
-      parm01 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output", "priorEOs")
-      parm02 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      parm02 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output", "priorEOs")
+      parm03 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
       try:
-         parm02.value = "sumTab"
+         parm03.value = "sumTab"
       except:
          pass
-      parm03 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab_upd")
-      parm04 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
-      parm05 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output", "priorConSites")
-      parm06 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
-      parm07 = defineParam("build", "Portfolio Build Option", "String", "Required", "Input", "NEW")
-      parm07.filter.list = ["NEW", "NEW_EO", "NEW_CS", "UPDATE"]
+      parm04 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab_upd")
+      parm05 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm06 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output", "priorConSites")
+      parm07 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
 
       parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07]
       return parms
@@ -1202,15 +1206,20 @@ class build_element_lists(object):
       """Define parameter definitions"""
       parm00 = defineParam("in_Bounds", "Input Boundary Polygons", "GPFeatureLayer", "Required", "Input")
       parm01 = defineParam("fld_ID", "Boundary ID field", "String", "Required", "Input")
-      parm02 = defineParam("in_procEOs", "Input Prioritized EOs", "GPTableView", "Required", "Input")
+      parm02 = defineParam("in_procEOs", "Input Prioritized EOs", "GPFeatureLayer", "Required", "Input")
       try:
          parm02.value = "priorEOs"
       except:
          pass
-      parm03 = defineParam("out_Tab", "Output Element Summary", "DETable", "Required", "Output")
-      parm04 = defineParam("out_Excel", "Output Excel File", "DEFile", "Optional", "Output")
+      parm03 = defineParam("in_elementTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      try:
+         parm03.value = "sumTab_upd"
+      except:
+         pass
+      parm04 = defineParam("out_Tab", "Output Element-Boundary Summary", "DETable", "Required", "Output")
+      parm05 = defineParam("out_Excel", "Output Excel File", "DEFile", "Optional", "Output")
 
-      parms = [parm00, parm01, parm02, parm03, parm04]
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05]
       return parms
 
    def isLicensed(self):
@@ -1225,9 +1234,9 @@ class build_element_lists(object):
          fc = parameters[0].valueAsText
          field_names = [f.name for f in arcpy.ListFields(fc)]
          parameters[1].filter.list = field_names
-      if parameters[4].valueAsText is not None:
-         if not parameters[4].valueAsText.endswith('xls'):
-            parameters[4].value = parameters[4].valueAsText.split('.')[0] + '.xls'
+      if parameters[5].valueAsText is not None:
+         if not parameters[5].valueAsText.endswith('xls'):
+            parameters[5].value = parameters[5].valueAsText.split('.')[0] + '.xls'
       return
 
    def updateMessages(self, parameters):
@@ -1241,7 +1250,7 @@ class build_element_lists(object):
       declareParams(parameters)
 
       # Run function
-      BuildElementLists(in_Bounds, fld_ID, in_procEOs, out_Tab, out_Excel)
+      BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out_Excel)
       
       return (out_Tab)      
  
