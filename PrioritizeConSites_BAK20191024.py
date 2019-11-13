@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-10-30
+# Last Edit: 2019-08-28
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -471,17 +471,16 @@ def getBRANK(in_EOs, in_ConSites):
    return (in_EOs, in_ConSites)
    printMsg('Finished.')
    
-def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, out_procEOs, out_sumTab):
+def AttributeEOs(in_ProcFeats, in_sppExcl, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, out_procEOs, out_sumTab):
    '''Dissolves Procedural Features by EO-ID, then attaches numerous attributes to the EOs, creating a new output EO layer as well as an Element summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
    Parameters:
    - in_ProcFeats: Input feature class with "site-worthy" procedural features
-   - in_elExclude: Input table containing list of elements to be excluded from the process, e.g., EO_Exclusions.dbf
+   - in_sppExcl: Input table containing list of elements to be excluded from the process, e.g., EO_Exclusions.dbf
    - in_consLands: Input feature class with conservation lands (managed areas), e.g., MAs.shp
    - in_consLands_flat: A "flattened" version of in_ConsLands, based on level of Biodiversity Management Intent (BMI). (This is needed due to stupid overlapping polygons in our database. Sigh.)
    - in_ecoReg: A polygon feature class representing ecoregions
    - fld_RegCode: Field in in_ecoReg with short, unique region codes
-   - cutYear: Integer value indicating year before which observations should be excluded
-   - flagYear: Integer value indicating year before which observations should be flagged for updating
+   - cutYear: Integer value indicating year before which observations should be de-prioritized
    - out_procEOs: Output EOs with TIER scores and other attributes.
    - out_sumTab: Output table summarizing number of included EOs per element'''
    
@@ -538,14 +537,12 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
    # Field: RECENT
    printMsg("Calculating RECENT field...")
    arcpy.AddField_management(out_procEOs, "RECENT", "SHORT")
-   codeblock = '''def thresh(obsYear, cutYear, flagYear):
+   codeblock = '''def thresh(obsYear, cutYear):
       if obsYear < cutYear:
          return 0
-      elif obsYear < flagYear:
-         return 1
       else:
-         return 2'''
-   expression = "thresh(!OBSYEAR!, %s, %s)"%(str(cutYear), str(flagYear))
+         return 1'''
+   expression = "thresh(!OBSYEAR!, %s)"%str(cutYear)
    arcpy.CalculateField_management(out_procEOs, "RECENT", expression, "PYTHON_9.3", codeblock)
    
    # Field: NEW_GRANK
@@ -582,19 +579,12 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
          return "Keep"'''
    expression = "reclass(!EORANK_NUM!)"
    arcpy.CalculateField_management(out_procEOs, "EXCLUSION", expression, "PYTHON_9.3", codeblock)
-   
-   # Set EXCLUSION value for old observations
-   printMsg("Excluding old observations...")
-   where_clause = '"RECENT" = 0'
-   arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO", where_clause)
-   expression = "'Old Observation'"
-   arcpy.CalculateField_management("lyr_EO", "EXCLUSION", expression, "PYTHON_9.3")
 
-   # Set EXCLUSION value for elements exclusions
-   printMsg("Excluding certain elements...")
+   # Set EXCLUSION value for species exclusions
+   printMsg("Excluding certain species...")
    arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO")
-   arcpy.AddJoin_management ("lyr_EO", "ELCODE", in_elExclude, "ELCODE", "KEEP_COMMON")
-   arcpy.CalculateField_management("lyr_EO", "EXCLUSION", "'Excluded Element'", "PYTHON")
+   arcpy.AddJoin_management ("lyr_EO", "ELCODE", in_sppExcl, "ELCODE", "KEEP_COMMON")
+   arcpy.CalculateField_management("lyr_EO", "EXCLUSION", "'Species Exclusion'", "PYTHON")
 
    # Tabulate intersection of EOs with military land
    printMsg("Tabulating intersection of EOs with military lands...")
@@ -641,11 +631,11 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
       arcpy.SelectLayerByLocation_management("lyr_EO", "INTERSECT", "lyr_ecoReg", "", "NEW_SELECTION", "INVERT")
       arcpy.CalculateField_management("lyr_EO", code, 0, "PYTHON")
    
-   # Get subset of EOs meeting criteria, based on EXCLUSION field
+   # Get subset of viable EOs based on EXCLUSION field
    where_clause = '"EXCLUSION" = \'Keep\''
    arcpy.MakeFeatureLayer_management (out_procEOs, "lyr_EO", where_clause)
       
-   # Summarize to get count of included EOs per element, and counts in ecoregions
+   # Summarize to get count of viable EOs per element, and counts in ecoregions
    printMsg("Summarizing...")
    statsList = [["SF_EOID", "COUNT"]]
    for code in ecoregions:
@@ -712,7 +702,7 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
    arcpy.JoinField_management("lyr_EO", "ELCODE", out_sumTab, "ELCODE", "TIER")
    
    # Field: EO_MODRANK
-   printMsg("Calculating modified competition ranks based on EO-ranks...")
+   printMsg("Calculating modified competion ranks based on EO-ranks...")
    elcodes = unique_values("lyr_EO", "ELCODE")
    for code in elcodes:
       #printMsg('Working on %s...' %code)
@@ -724,7 +714,7 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
    printMsg("EO attribution complete")
    return (out_procEOs, out_sumTab)
    
-def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "true"):
+def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "false"):
    '''Ranks EOs within an element based on a variety of attributes. This function must follow, and requires inputs from, the outputs of the AttributeEOs function. 
    Parameters:
    - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function)
@@ -741,7 +731,7 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "t
    in_procEOs = tmpEOs
    
    # Add ranking fields
-   for fld in ['RANK_mil', 'RANK_eo', 'RANK_year', 'RANK_bmi', 'RANK_nap', 'RANK_csVal', 'RANK_numPF', 'RANK_eoArea']:
+   for fld in ['RANK_mil', 'RANK_year', 'RANK_eo', 'RANK_bmi', 'RANK_nap', 'RANK_csVal', 'RANK_numPF', 'RANK_eoArea']:
       arcpy.AddField_management(in_procEOs, fld, "SHORT")
       
    # Get subset of choice elements
@@ -774,6 +764,16 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "t
             availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_mil")
             Slots = availSlots
          
+         # Rank by cutoff observation year - prefer more recently observed EOs
+         if Slots == 0 or ysnYear == "false":
+            arcpy.CalculateField_management(in_procEOs, "RANK_year", 0, "PYTHON_9.3")
+         else:
+            printMsg('Updating tiers based on year cutoff...')
+            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
+            addRanks("lyr_EO", "RECENT", "DESC", "RANK_year", 0.5, "ABS")
+            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_year")
+            Slots = availSlots
+         
          # Rank by EO-rank (selection order) - prefer highest-ranked EOs
          if Slots == 0:
             arcpy.CalculateField_management(in_procEOs, "RANK_eo", 0, "PYTHON_9.3")
@@ -788,16 +788,6 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "t
             printMsg('Choice ties remain.')
          else:
             printMsg('All slots filled.')
-         
-         # Rank by observation year - prefer more recently observed EOs
-         if Slots == 0 or ysnYear == "false":
-            arcpy.CalculateField_management(in_procEOs, "RANK_year", 0, "PYTHON_9.3")
-         else:
-            printMsg('Updating tiers based on observation year...')
-            arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
-            addRanks("lyr_EO", "OBSYEAR", "DESC", "RANK_year", 3, "ABS")
-            availSlots = updateTiers("lyr_EO", elcode, Slots, "RANK_year")
-            Slots = availSlots
          
       except:
          printWrng('There was a problem processing elcode %s.' %elcode)
@@ -894,8 +884,8 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "t
    ["ELCODE", "ASCENDING"], 
    ["ChoiceRANK", "ASCENDING"], 
    ["RANK_mil", "ASCENDING"], 
-   ["RANK_eo", "ASCENDING"], 
    ["RANK_year", "ASCENDING"],
+   ["RANK_eo", "ASCENDING"], 
    ["EORANK_NUM", "ASCENDING"],
    ]
    arcpy.Sort_management(in_procEOs, out_sortedEOs, fldList)
@@ -1123,25 +1113,32 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
    arcpy.AddField_management(in_sortedEOs, "EXT_TIER", "TEXT", "", "", 50)
    codeblock = '''def extTier(exclusion, tier, eoModRank, eoRankNum, recent, portfolio):
       if tier == None:
-         if exclusion in ("Excluded Element", "Old Observation"):
-            t = exclusion
+         if exclusion == "Species Exclusion":
+            t = "Excluded Species"
          elif eoRankNum == 10:
             t = "Restoration Potential"
          else:
             t = "Error Check Needed"
-      elif tier in ("Irreplaceable", "Critical", "Surplus"):
-         t = tier
+      elif tier == "Irreplaceable":
+         t = "Irreplaceable"
+      elif tier == "Critical":
+         t = "Critical"
       elif tier == "Priority":
-         t = "Priority - Top %s" %eoModRank
+         if eoModRank == None:
+            t = "Priority"
+         else:
+            t = "Priority - Top %s" %eoModRank
       elif tier == "Choice":
          if portfolio == 1:
             t = "Choice - In Portfolio"
          else:
             t = "Choice - Swap Option"
+      elif tier == "Surplus":
+         t = "Surplus"
       else:
          t = "Error Check Needed"
          
-      if recent < 2:
+      if recent == 0 and t != None:
          t += " (Update Needed)"
       else:
          pass
@@ -1155,9 +1152,9 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
    ["ELCODE", "ASCENDING"], 
    ["ChoiceRANK", "ASCENDING"], 
    ["RANK_mil", "ASCENDING"], 
+   ["RANK_year", "ASCENDING"], 
    ["RANK_eo", "ASCENDING"], 
    ["EORANK_NUM", "ASCENDING"],
-   ["RANK_year", "ASCENDING"], 
    ["RANK_bmi", "ASCENDING"], 
    ["RANK_nap", "ASCENDING"], 
    ["RANK_csVal", "ASCENDING"], 
@@ -1270,48 +1267,11 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
-   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\tcs_ProcFeats_20190816'
-   in_elExclude = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ExcludeSpecies_tcs'
-   in_consLands = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ManagedAreas_20190819'
-   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ManagedAreas_20190819_flat'
-   in_ecoReg = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\tncEcoRegions_lam'
-   fld_RegCode = 'GEN_REG'
-   cutYear = 1994
-   flagYear = 1999
-   in_ConSites = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\tcs_ConSites_20190816'
-   
-   y = str(datetime.now().year)
-   m = str(datetime.now().month).zfill(2)
-   d = str(datetime.now().day).zfill(2)
-   dateTag = '_' + y + m + d
-   
-   out_Dir = 
-   out_GDB = out_Dir + os.sep + ECS_Outputs + dateTag + '.gdb'
-   # Create GDB if it doesn't already exist
-   
-   
-   
-   attribEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\attribEOs'
-   sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\sumTab'
-  
-   scoredEOs_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\scoredEOs_Mil'
-   priorEOs_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\priorEOs_Mil'
-   sumTab_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\sumTab_Mil'
-   priorConSites_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\priorConSites_Mil'
-   
-   fld_siteID = "SITENAME"
-   cs_sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\csSummary'
-   out_Excel = r'C:\Users\xch43889\Documents\Working\EssentialConSites\Spreadsheets\ConSite_summary.xls'
+
    # End of variable input
 
    # Specify function(s) to run below
-   AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs, sumTab)
-   
-   ScoreEOs(attribEOs, sumTab, scoredEOs_Mil, ysnMil = "true", ysnYear = "true")
-   
-   BuildPortfolio(scoredEOs_Mil, priorEOs_Mil, sumTab, sumTab_Mil, in_ConSites, priorConSites_Mil, in_consLands_flat, build = 'NEW')
-   
-   BuildElementLists(in_ConSites, fld_siteID, priorEOs_Mil, sumTab_Mil, cs_sumTab, out_Excel)
+   pass
    
 if __name__ == '__main__':
    main()
