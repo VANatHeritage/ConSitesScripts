@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-10-30
+# Last Edit: 2019-11-13
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -1285,33 +1285,34 @@ def main():
    d = str(datetime.now().day).zfill(2)
    dateTag = '_' + y + m + d
    
-   out_Dir = 
-   out_GDB = out_Dir + os.sep + ECS_Outputs + dateTag + '.gdb'
+   out_Dir = r'C:\Users\xch43889\Documents\Working\EssentialConSites'
+   gdb_Name = ECS_Outputs + dateTag + '.gdb'
+   out_GDB = out_Dir + os.sep + out_GDB
    # Create GDB if it doesn't already exist
-   
-   
-   
-   attribEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\attribEOs'
-   sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\sumTab'
+   if not arcpy.Exists(out_GDB):
+      arcpy.CreateFileGDB_management (out_Dir, gdb_Name, "CURRENT")
+      
+   attribEOs = out_GDB + os.sep + 'attribEOs'
+   sumTab = out_GDB + os.sep + 'sumTab'
   
-   scoredEOs_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\scoredEOs_Mil'
-   priorEOs_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\priorEOs_Mil'
-   sumTab_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\sumTab_Mil'
-   priorConSites_Mil = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\priorConSites_Mil'
+   scoredEOs = out_GDB + os.sep + 'scoredEOs'
+   priorEOs = out_GDB + os.sep + 'priorEOs'
+   sumTab = out_GDB + os.sep + 'sumTab'
+   priorConSites = outGDB + os.sep + 'priorConSites'
    
    fld_siteID = "SITENAME"
-   cs_sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191024.gdb\csSummary'
-   out_Excel = r'C:\Users\xch43889\Documents\Working\EssentialConSites\Spreadsheets\ConSite_summary.xls'
+   cs_sumTab = out_GDB + os.sep + 'csSummary'
+   out_Excel = out_Dir + os.sep + ConSite_summary_%s.xls' %dateTag
    # End of variable input
 
    # Specify function(s) to run below
    AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs, sumTab)
    
-   ScoreEOs(attribEOs, sumTab, scoredEOs_Mil, ysnMil = "true", ysnYear = "true")
+   ScoreEOs(attribEOs, sumTab, scoredEOs, ysnMil = "true", ysnYear = "true")
    
-   BuildPortfolio(scoredEOs_Mil, priorEOs_Mil, sumTab, sumTab_Mil, in_ConSites, priorConSites_Mil, in_consLands_flat, build = 'NEW')
+   BuildPortfolio(scoredEOs, priorEOs, sumTab, sumTab, in_ConSites, priorConSites, in_consLands_flat, build = 'NEW')
    
-   BuildElementLists(in_ConSites, fld_siteID, priorEOs_Mil, sumTab_Mil, cs_sumTab, out_Excel)
+   BuildElementLists(in_ConSites, fld_siteID, priorEOs, sumTab, cs_sumTab, out_Excel)
    
 if __name__ == '__main__':
    main()
