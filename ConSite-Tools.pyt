@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-08-28
+# Last Edit: 2019-12-06
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -96,7 +96,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands, calc_bmi]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, tabulate_exclusions, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands, calc_bmi]
 
 # Define the tools
 class coalesceFeats(object):
@@ -1034,6 +1034,48 @@ class Finalize_scu(object):
       ShrinkWrap(in_Feats, dil_Dist, out_Feats, multiParm, scratchParm)
 
       return out_Feats
+
+class tabulate_exclusions(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Create Element Exclusion List"
+      self.description = ""
+      self.canRunInBackground = True
+      self.category = "Preparation and Review Tools"
+
+   def getParameterInfo(self):
+      """Define parameter definitions"""
+      parm00 = defineParam("in_Tabs", "Input Exclusion Tables (CSV)", "DEFile", "GPValueTable", "Input")
+      parm00.columns = [["DEFile","CSV Files"]]
+      parm00.filters[0].list = ["csv"]
+      parm01 = defineParam("out_Tab", "Output Element Exclusion Table", "DETable", "Required", "Output")
+
+      parms = [parm00, parm01]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+
+      MakeExclusionList(in_Tabs, out_Tab)
+
+      return (out_Tab)
       
 class attribute_eo(object):
    def __init__(self):

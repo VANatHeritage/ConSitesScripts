@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-11-13
+# Last Edit: 2019-12-06
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -66,8 +66,7 @@ def ScoreBMI(in_Feats, fld_ID, in_BMI, fld_Basename = "PERCENT_BMI_"):
    printMsg("Calculating BMI score...")
    arcpy.AddField_management(in_Feats, "BMI_score", "SHORT")
    codeblock = '''def score(bmi1, bmi2, bmi3, bmi4):
-      score = int(bmi1 + 0.8*bmi2 + 0.4*bmi3 + 0.2*bmi4)
-      #score = int((8*bmi1 + 4*bmi2 + 2*bmi3 + 1*bmi4)/8)
+      score = int(1.00*bmi1 + 0.75*bmi2 + 0.50*bmi3 + 0.25*bmi4)
       return score'''
    expression = 'score(!%s!, !%s!, !%s!, !%s!)'%(fldNames[1], fldNames[2], fldNames[3], fldNames[4])
    arcpy.CalculateField_management(in_Feats, "BMI_score", expression, "PYTHON_9.3", codeblock)
@@ -470,7 +469,46 @@ def getBRANK(in_EOs, in_ConSites):
       printMsg("Processing incomplete for some sites %s"%failList)
    return (in_EOs, in_ConSites)
    printMsg('Finished.')
+
+def MakeExclusionList(in_Tabs, out_Tab):
+   '''Creates a list of elements to exclude from ECS processing, from a set of input spreadsheets which have standardized fields and have been converted to CSV format. 
+   Parameters:
+   - in_Tabs: spreadsheet(s) in CSV format (full paths) [If multiple, this is a list OR a string with items separated by ';']
+   - out_Tab: output compiled table in a geodatabase
+   '''
+   # Create the output table
+   printMsg('Creating Element Exclusion table...')
+   out_path = os.path.dirname(out_Tab)
+   out_name = os.path.basename(out_Tab)
+   arcpy.CreateTable_management (out_path, out_name)
    
+   # Add the standard fields
+   printMsg('Adding standard fields to table...')
+   fldList = [['ELCODE', 'TEXT', 10],
+               ['EXCLUDE', 'SHORT', ''],
+               ['DATADEF', 'SHORT', ''],
+               ['TAXRES', 'SHORT', ''],
+               ['WATCH', 'SHORT', ''],
+               ['EXTIRP', 'SHORT', ''],
+               ['ECOSYST', 'SHORT', ''],
+               ['OTHER', 'TEXT', 50],
+               ['NOTES', 'TEXT', 50]]
+   for fld in fldList:
+      field_name = fld[0]
+      field_type = fld[1]
+      field_length = fld[2]
+      arcpy.AddField_management (out_Tab, field_name, field_type, '', '', field_length)
+         
+   # Append each of the input tables
+   printMsg('Appending lists to master table...')
+   # First convert string to list if necessary
+   if type(in_Tabs) == str:
+      in_Tabs = in_Tabs.split(';')
+   for tab in in_Tabs:
+      arcpy.Append_management (tab, out_Tab, 'NO_TEST')
+      
+   printMsg('Finished creating Element Exclusion table.')
+  
 def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, out_procEOs, out_sumTab):
    '''Dissolves Procedural Features by EO-ID, then attaches numerous attributes to the EOs, creating a new output EO layer as well as an Element summary table. The outputs from this function are subsequently used in the function ScoreEOs. 
    Parameters:
@@ -539,9 +577,9 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
    printMsg("Calculating RECENT field...")
    arcpy.AddField_management(out_procEOs, "RECENT", "SHORT")
    codeblock = '''def thresh(obsYear, cutYear, flagYear):
-      if obsYear < cutYear:
+      if obsYear <= cutYear:
          return 0
-      elif obsYear < flagYear:
+      elif obsYear <= flagYear:
          return 1
       else:
          return 2'''
@@ -724,13 +762,13 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
    printMsg("EO attribution complete")
    return (out_procEOs, out_sumTab)
    
-def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "true"):
+def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "false", ysnYear = "true"):
    '''Ranks EOs within an element based on a variety of attributes. This function must follow, and requires inputs from, the outputs of the AttributeEOs function. 
    Parameters:
    - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function)
    - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
-   - ysnMil: determines whether to consider military land as a ranking factor ("true"; default) or not ("false")
-   - ysnYear: determines whether to use observation year as a ranking factor ("true") or not ("false"; default)
+   - ysnMil: determines whether to consider military land as a ranking factor ("true") or not ("false"; default)
+   - ysnYear: determines whether to use observation year as a ranking factor ("true"; default) or not ("false")
    - out_sortedEOs: output feature class of processed EOs, sorted by element code and rankings.
    '''
          
@@ -829,59 +867,59 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "true", ysnYear = "t
    codeblock = '''def calcConsVal(tier, grank):
       if tier == "Irreplaceable":
          if grank == "G1":
-            consval = 75
+            consval = 100
          elif grank == "G2":
-            consval = 75
+            consval = 95
          elif grank == "G3":
-            consval = 70
+            consval = 85
          elif grank == "G4":
-            consval = 60
+            consval = 75
          else:
-            consval = 50
+            consval = 70
       elif tier == "Critical":
          if grank == "G1":
-            consval = 70
+            consval = 95
          elif grank == "G2":
-            consval = 65
+            consval = 90
          elif grank == "G3":
-            consval = 50
+            consval = 80
          elif grank == "G4":
-            consval = 45
+            consval = 70
          else:
-            consval = 40
+            consval = 65
       elif tier == "Priority":
          if grank == "G1":
             consval = 60
          elif grank == "G2":
-            consval = 50
+            consval = 55
          elif grank == "G3":
-            consval = 40
+            consval = 45
          elif grank == "G4":
-            consval = 30
+            consval = 35
          else:
             consval = 30
       elif tier == "Choice":
          if grank == "G1":
-            consval = 45
-         elif grank == "G2":
-            consval = 30
-         elif grank == "G3":
             consval = 25
-         elif grank == "G4":
-            consval = 15
-         else:
+         elif grank == "G2":
+            consval = 20
+         elif grank == "G3":
             consval = 10
+         elif grank == "G4":
+            consval = 5
+         else:
+            consval = 5
       elif tier == "Surplus":
          if grank == "G1":
-            consval = 30
+            consval = 5
          elif grank == "G2":
-            consval = 15
+            consval = 5
          elif grank == "G3":
-            consval = 10
+            consval = 0
          elif grank == "G4":
-            consval = 5
+            consval = 0
          else:
-            consval = 5
+            consval = 0
       else:
          consval = 0
       return consval
@@ -1270,6 +1308,10 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
    # Set up variables
+   botanyList = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ElementExclusions\ExclusionList_Botany_20191118.csv'
+   zoologyList = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ElementExclusions\ExclusionList_Zoology_20191118.csv'
+   ecologyList = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ElementExclusions\ExclusionList_Ecology_20191118.csv'
+   in_Sheets = [botanyList, zoologyList, ecologyList]
    in_ProcFeats = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\tcs_ProcFeats_20190816'
    in_elExclude = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ExcludeSpecies_tcs'
    in_consLands = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs.gdb\ManagedAreas_20190819'
@@ -1286,8 +1328,9 @@ def main():
    dateTag = '_' + y + m + d
    
    out_Dir = r'C:\Users\xch43889\Documents\Working\EssentialConSites'
-   gdb_Name = ECS_Outputs + dateTag + '.gdb'
-   out_GDB = out_Dir + os.sep + out_GDB
+   gdb_Name = 'ECS_Outputs_' + dateTag + '.gdb'
+   out_GDB = out_Dir + os.sep + gdb_Name
+   out_Tab = out_GDB + os.sep + 'ElementExclusions'
    # Create GDB if it doesn't already exist
    if not arcpy.Exists(out_GDB):
       arcpy.CreateFileGDB_management (out_Dir, gdb_Name, "CURRENT")
@@ -1298,21 +1341,23 @@ def main():
    scoredEOs = out_GDB + os.sep + 'scoredEOs'
    priorEOs = out_GDB + os.sep + 'priorEOs'
    sumTab = out_GDB + os.sep + 'sumTab'
-   priorConSites = outGDB + os.sep + 'priorConSites'
+   priorConSites = out_GDB + os.sep + 'priorConSites'
    
    fld_siteID = "SITENAME"
    cs_sumTab = out_GDB + os.sep + 'csSummary'
-   out_Excel = out_Dir + os.sep + ConSite_summary_%s.xls' %dateTag
+   out_Excel = out_Dir + os.sep + 'ConSite_summary%s.xls' %dateTag
    # End of variable input
 
    # Specify function(s) to run below
-   AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs, sumTab)
+   MakeExclusionList(in_Sheets, out_Tab)
    
-   ScoreEOs(attribEOs, sumTab, scoredEOs, ysnMil = "true", ysnYear = "true")
+   #AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs, sumTab)
    
-   BuildPortfolio(scoredEOs, priorEOs, sumTab, sumTab, in_ConSites, priorConSites, in_consLands_flat, build = 'NEW')
+   #ScoreEOs(attribEOs, sumTab, scoredEOs, ysnMil = "true", ysnYear = "true")
    
-   BuildElementLists(in_ConSites, fld_siteID, priorEOs, sumTab, cs_sumTab, out_Excel)
+   #BuildPortfolio(scoredEOs, priorEOs, sumTab, sumTab, in_ConSites, priorConSites, in_consLands_flat, build = 'NEW')
+   
+   #BuildElementLists(in_ConSites, fld_siteID, priorEOs, sumTab, cs_sumTab, out_Excel)
    
 if __name__ == '__main__':
    main()
