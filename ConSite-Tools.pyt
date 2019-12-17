@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-12-13
+# Last Edit: 2019-12-17
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -15,7 +15,8 @@
 
 ### Toolbox Version Notes:
 # Version 1.1.1 (= ECS version 1): Site delineation process is the same as Version 1.1. Essential ConSites process is changed from original as follows:
-# - Added new tool: Build Element Lists
+# - Added new function and tool: Build Element Lists
+# - Added new function and tool: Create Element Exclusion List
 # - Added new function and tool to produce BMI score, and generalized to work with any polygon feature class
 # - Attribute Element Occurrences tool: 
 # --- Eliminated need for EO_reps feature class by using input ProcFeats that include necessary EO-level attributes
@@ -26,18 +27,18 @@
 # --- Upgraded protection target for G1 Elements from 5 to 10
 # --- Incorporates new ScoreBMI function
 # - Score Element Occurrences tool:
-# --- Initial scoring based on [military]/eo rank/last obs year/[number of PFs]
+# --- Initial scoring based on [military]/eo rank/last obs year
 # --- Set "fuzz" factor for last obs year to 5 instead of 3
-# --- Makes use of military land for ranking an option the user can select (default) or not
-# --- Makes use of number of PFs for ranking an option the user can select (default) or not
+# --- Makes use of military land for ranking an option the user can select or not (default) 
+# --- Makes use of last obs year for ranking an option the user can select (default) or not
 # - Build Portfolio tool:
-# --- Changed point system for assigning site conservation value, incorporating values for both representation status (irreplaceable, essential, priority, choice, surplus) and rarity (G-ranks).
+# --- Changed point system for assigning site conservation value, incorporating values for both representation status (irreplaceable, critical, priority, choice, surplus) and rarity (G-ranks).
 # --- added BMI tabulation and scoring to ConSites
 # --- Sequence:
-# ---- * Initial portfolio update: All Irreplaceable, Essential, and Priority EOs added to Portfolio, along with their sites; and bycatch Choice EOs also added to portfolio
-# ---- * Rank remaining Choice EOs on conservation site value; update slots, portfolio, and bycatch
-# ---- * Rank remaining Choice EOs on NAP and BMI; update slots, portfolio, and bycatch
-# ---- * Rank remaining Choice EOs on EO size to fill remaining slots.
+# ---- * Initial portfolio update: All Irreplaceable, Critical, and Priority EOs added to Portfolio, along with their sites; and bycatch Choice EOs also added to portfolio
+# ---- * Rank remaining Choice EOs on BMI and NAP; update slots, portfolio, and bycatch
+# ---- * Rank remaining Choice EOs on site conservation value; update slots, portfolio, and bycatch
+# ---- * Rank remaining Choice EOs on PF number and EO size to fill remaining slots.
 
 # Version 1.1: Delineation process for Terrestrial Conservation Sites and Anthropogenic Habitat Zones remains unchanged from previous version, except for a slight modification of the shrinkwrap function to correct an anomaly that can arise when the SBB is the same as the PF. In addition to that change, this version incorporates the following changes:
 # - Added tools for delineating Stream Conservation Units
@@ -49,7 +50,7 @@
 # - Added tool to dissolve procedural features to create "site-worthy" EOs
 # - Added tool to automate B-ranking of sites
 
-# Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018. Also includes tools for Essential Conservation Sites protocol, version 1.
+# Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018. Also includes beta version of tools for Essential Conservation Sites protocol.
 # ----------------------------------------------------------------------------------------
 
 import Helper
