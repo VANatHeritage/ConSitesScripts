@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-12-06
+# Last Edit: 2019-12-13
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -1088,16 +1088,17 @@ class attribute_eo(object):
    def getParameterInfo(self):
       """Define parameter definitions"""
       parm00 = defineParam("in_ProcFeats", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
-      parm01 = defineParam("in_sppExcl", "Input Elements Exclusion Table", "GPTableView", "Required", "Input")
+      parm01 = defineParam("in_elExclude", "Input Elements Exclusion Table", "GPTableView", "Required", "Input")
       parm02 = defineParam("in_consLands", "Input Conservation Lands", "GPFeatureLayer", "Required", "Input")
       parm03 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
       parm04 = defineParam("in_ecoReg", "Input Ecoregions", "GPFeatureLayer", "Required", "Input")
       parm05 = defineParam("fld_RegCode", "Ecoregion ID field", "String", "Required", "Input")
-      parm06 = defineParam("cutYear", "Cutoff observation year", "GPLong", "Required", "Input", "1994")
-      parm07 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output", "attribEOs")
-      parm08 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab")
+      parm06 = defineParam("cutYear", "Cutoff observation year", "GPLong", "Required", "Input")
+      parm07 = defineParam("flagYear", "Flag observation year", "GPLong", "Required", "Input")
+      parm08 = defineParam("out_procEOs", "Output Attributed EOs", "DEFeatureClass", "Required", "Output", "attribEOs")
+      parm09 = defineParam("out_sumTab", "Output Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab")
 
-      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08]
+      parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07, parm08, parm09]
       return parms
 
    def isLicensed(self):
@@ -1123,8 +1124,8 @@ class attribute_eo(object):
       """The source code of the tool."""
       # Set up parameter names and values
       declareParams(parameters)
-
-      AttributeEOs(in_ProcFeats, in_sppExcl, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, out_procEOs, out_sumTab)
+      
+      AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, out_procEOs, out_sumTab)
 
       return (out_procEOs, out_sumTab)
       
@@ -1149,8 +1150,8 @@ class score_eo(object):
       except:
          pass
       parm02 = defineParam("out_sortedEOs", "Output Scored EOs", "DEFeatureClass", "Required", "Output", "scoredEOs")
-      parm03 = defineParam("ysnMil", "Use military land as ranking factor?", "GPBoolean", "Required", "Input", "true")
-      parm04 = defineParam("ysnYear", "Use observation year as ranking factor?", "GPBoolean", "Required", "Input", "false")
+      parm03 = defineParam("ysnMil", "Use military land as ranking factor?", "GPBoolean", "Required", "Input", "false")
+      parm04 = defineParam("ysnYear", "Use observation year as ranking factor?", "GPBoolean", "Required", "Input", "true")
 
       parms = [parm00, parm01, parm02, parm03, parm04]
       return parms
