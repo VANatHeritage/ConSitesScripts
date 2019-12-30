@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-12-06
+# Last Edit: 2019-12-30
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -302,6 +302,50 @@ def buildSlotDict(in_sumTab):
    
 
 ### MAIN FUNCTIONS ###
+def ParseSiteTypes(in_ProcFeats, in_ConSites, out_GDB):
+   '''Splits input Procedural Features and Conservation Sites into 3 feature classes each, one for each of site types subject to ECS process.
+   Parameters:
+   - in_ProcFeats: input feature class representing Procedural Features
+   - in_ConSites: input feature class representing Conservation Sites
+   - out_GDB: geodatabase in which outputs will be stored   
+   '''
+   
+   # Define some queries
+   qry_pfTCS = "RULE NOT IN ('SCU','MACS','KCS','AHZ')"
+   qry_pfKCS = "RULE = 'KCS'"
+   qry_pfSCU = "RULE = 'SCU'"
+   qry_csTCS = "SITE_TYPE = 'Conservation Site'"
+   qry_csKCS = "SITE_TYPE = 'Cave Site'"
+   qry_csSCU = "SITE_TYPE = 'SCU'"
+   
+   # Define some outputs
+   pfTCS = out_GDB + os.sep + 'pfTerrestrial'
+   pfKCS = out_GDB + os.sep + 'pfKarst'
+   pfSCU = out_GDB + os.sep + 'pfStream'
+   csTCS = out_GDB + os.sep + 'csTerrestrial'
+   csKCS = out_GDB + os.sep + 'csKarst'
+   csSCU = out_GDB + os.sep + 'csStream'
+   
+   # Make a list of input/query/output triplets
+   procList = [[in_ProcFeats, qry_pfTCS, pfTCS],
+               [in_ProcFeats, qry_pfKCS, pfKCS],
+               [in_ProcFeats, qry_pfSCU, pfSCU],
+               [in_ConSites, qry_csTCS, csTCS],
+               [in_ConSites, qry_csKCS, csKCS],
+               [in_ConSites, qry_csSCU, csSCU]]
+               
+   # Process the data
+   fcList = []
+   for item in procList:
+      input = item[0]
+      query = item[1]
+      output = item[2]
+      printMsg("Creating feature class %s" %output)
+      arcpy.Select_analysis (input, output, query)
+      fcList.append(output)
+   
+   return fcList
+
 def getBRANK(in_EOs, in_ConSites):
    '''Automates the assignment of B-ranks to conservation sites
    NOTE: Should only be run on one site type at a time, with type-specific inputs. Needs to run in foreground so tables update attributes. Best to close attribute tables prior to running.

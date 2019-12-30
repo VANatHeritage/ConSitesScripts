@@ -97,7 +97,7 @@ class Toolbox(object):
       self.alias = "ConSite-Toolbox"
 
       # List of tool classes associated with this toolbox
-      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, tabulate_exclusions, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands, calc_bmi]
+      self.tools = [coalesceFeats, shrinkwrapFeats, extract_biotics, dissolve_procfeats, create_sbb, expand_sbb, parse_sbb, create_consite, review_consite, parse_siteTypes, assign_brank, ServLyrs_scu, NtwrkPts_scu, Lines_scu, Polys_scu, FlowBuffers_scu, Finalize_scu, tabulate_exclusions, attribute_eo, score_eo, build_portfolio, build_element_lists, tabparse_nwi, sbb2nwi, subset_nwi, flat_conslands, calc_bmi]
 
 # Define the tools
 class coalesceFeats(object):
@@ -632,6 +632,58 @@ class review_consite(object):
 
       return out_Sites
 
+class parse_siteTypes(object):
+   def __init__(self):
+      """Define the tool (tool name is the name of the class)."""
+      self.label = "Parse site types"
+      self.description = ""
+      self.canRunInBackground = False
+      self.category = "Preparation and Review Tools"
+
+   def getParameterInfo(self):
+      """Define parameters"""
+      parm0 = defineParam("in_PF", "Input Procedural Features", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("in_CS", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm2 = defineParam("out_GDB", "Geodatabase to store outputs", "DEWorkspace", "Required", "Input")
+
+      parms = [parm0, parm1, parm2]
+      return parms
+
+   def isLicensed(self):
+      """Set whether tool is licensed to execute."""
+      return True
+
+   def updateParameters(self, parameters):
+      """Modify the values and properties of parameters before internal
+      validation is performed.  This method is called whenever a parameter
+      has been changed."""
+      return
+
+   def updateMessages(self, parameters):
+      """Modify the messages created by internal validation for each tool
+      parameter.  This method is called after internal validation."""
+      return
+
+   def execute(self, parameters, messages):
+      """The source code of the tool."""
+      # Set up parameter names and values
+      declareParams(parameters)
+      fcList = ParseSiteTypes(in_PF, in_CS, out_GDB)
+      
+      # Extra code to get layers added to current map
+      try:
+         mxd = arcpy.mapping.MapDocument("CURRENT")
+         df = mxd.activeDataFrame
+         printMsg('Adding layers to map...')
+         for fc in fcList:
+            layer = arcpy.mapping.Layer(fc)
+            arcpy.mapping.AddLayer(df, layer, "TOP")
+         return 
+      except:
+         printMsg('Cannot add layers; no current map.')
+         
+      return
+      
 class assign_brank(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
