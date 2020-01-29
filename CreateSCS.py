@@ -2,7 +2,7 @@
 # CreateSCU.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2019-12-17
+# Last Edit: 2020-01-29
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -16,7 +16,18 @@
 
 # The Network Analyst extension is required for some functions, which will fail if the license is unavailable.
 
-# Note that the restrictions (contained in "r" variable below) for traversing the network must have been defined in the HydroNet itself (manually). If any additional restrictions are added, the HydroNet must be rebuilt or they will not take effect. I originally set a restriction of NoEphemeralOrIntermittent, but on testing I discovered that this eliminated some stream segments that actually contained EOs. I set the restriction to NoEphemeral instead. We may find that we need to remove the NoEphemeral restriction as well, or that users will need to edit attributes of the NHDFlowline segments on a case-by-case basis.
+# Note that the restrictions (contained in "r" variable below) for traversing the network must have been defined
+# in the HydroNet itself (manually).
+
+# If any additional restrictions are added, the HydroNet must be rebuilt or they will not take effect.
+# I originally set a restriction of NoEphemeralOrIntermittent, but on testing I discovered that this eliminated
+# some stream segments that actually might be needed. I set the restriction to NoEphemeral instead. We may find
+# that we need to remove the NoEphemeral restriction as well, or that users will need to edit attributes of the
+# NHDFlowline segments on a case-by-case basis. I also previously included NoConnectors as a restriction,
+# but in some cases I noticed with INSTAR data, it seems necessary to allow connectors, so I've removed that
+# restriction. (-krh)
+# The NoCanalDitch exclusion was also removed, after finding some INSTAR sites on this type of flowline, and with
+# CanalDitch immediately upstream.
 
 # Syntax:  
 # 
@@ -27,10 +38,12 @@ import Helper
 from Helper import *
 from arcpy.sa import *
 
-def MakeServiceLayers_scu(in_hydroNet):
+def MakeServiceLayers_scu(in_hydroNet, upDist, downDist):
    '''Creates two Network Analyst service layers needed for SCU delineation. This tool only needs to be run the first time you run the suite of SCU delineation tools. After that, the output layers can be reused repeatedly for the subsequent tools in the SCU delineation sequence.
    Parameters:
    - in_hydroNet = Input hydrological network dataset
+   - upDist = The distance (in map units) to traverse upstream from a point along the network
+   - downDist = The distance (in map units) to traverse downstream from a point along the network
    '''
    arcpy.CheckOutExtension("Network")
    
@@ -44,14 +57,17 @@ def MakeServiceLayers_scu(in_hydroNet):
    qry = "FType = 343" # DamWeir only
    arcpy.MakeFeatureLayer_management (nwLines, "lyr_DamWeir", qry)
    in_Lines = "lyr_DamWeir"
-   lyrDownTrace = hydroDir + os.sep + "naDownTrace.lyr"
-   lyrUpTrace = hydroDir + os.sep + "naUpTrace.lyr"
+   downString = (str(downDist)).replace('.','_')
+   upString = (str(upDist)).replace('.','_')
+   lyrDownTrace = hydroDir + os.sep + "naDownTrace_%s.lyr"%downString
+   lyrUpTrace = hydroDir + os.sep + "naUpTrace_%s.lyr"%upString
    
-   # Downstream trace with breaks at 1609 (1 mile) and 3218 (2 miles)
+   # Standard in the past:
+   # Downstream trace with break at 1609 (1 mile)
    # Upstream trace with break at 3218 (2 miles)
-   r = "NoCanalDitches;NoConnectors;NoPipelines;NoUndergroundConduits;NoEphemeral;NoCoastline"
+   r = "NoPipelines;NoUndergroundConduits;NoEphemeral;NoCoastline"
    printMsg('Creating upstream and downstream service layers...')
-   for sl in [["naDownTrace", "1609, 3218", "FlowDownOnly"], ["naUpTrace", "3218", "FlowUpOnly"]]:
+   for sl in [["naDownTrace", downDist, "FlowDownOnly"], ["naUpTrace", upDist, "FlowUpOnly"]]:
       restrictions = r + ";" + sl[2]
       serviceLayer = arcpy.MakeServiceAreaLayer_na(in_network_dataset=nwDataset,
          out_network_analysis_layer=sl[0], 
@@ -101,15 +117,14 @@ def MakeServiceLayers_scu(in_hydroNet):
    
    return (lyrDownTrace, lyrUpTrace)
 
-def MakeNetworkPts_scu(in_hydroNet, in_Catch, in_PF, out_Points, fld_SFID = "SFID", out_Scratch = arcpy.env.scratchGDB):
+def MakeNetworkPts_scu(in_hydroNet, in_Catch, in_PF, out_Points):
    '''Given a set of procedural features, creates points along the hydrological network. The user must ensure that the procedural features are "SCU-worthy."
    Parameters:
    - in_hydroNet = Input hydrological network dataset
-   - in_Catch = Input catchments
+   - in_Catch = Input catchments from NHDPlus
    - in_PF = Input Procedural Features
    - out_Points = Output feature class containing points generated from procedural features
-   - fld_SFID = The field in the input Procedural Features containing the Source Feature ID
-   - out_Scratch = Geodatabase to contain intermediate outputs'''
+   '''
    
    # timestamp
    t0 = datetime.now()
@@ -119,7 +134,6 @@ def MakeNetworkPts_scu(in_hydroNet, in_Catch, in_PF, out_Points, fld_SFID = "SFI
    descHydro = arcpy.Describe(in_hydroNet)
    nwDataset = descHydro.catalogPath
    catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
-   nhdArea = catPath + os.sep + "NHDArea"
    nhdFlowline = catPath + os.sep + "NHDFlowline"
    
    # Make feature layers  
@@ -127,28 +141,39 @@ def MakeNetworkPts_scu(in_hydroNet, in_Catch, in_PF, out_Points, fld_SFID = "SFI
    arcpy.MakeFeatureLayer_management (in_Catch, "lyr_Catchments")
    
    # Select catchments intersecting PFs
+   printMsg('Selecting catchments intersecting Procedural Features...')
    arcpy.SelectLayerByLocation_management ("lyr_Catchments", "INTERSECT", in_PF)
    
-   # Buffer PFs by 30-m (slop factor)
-   
+   # Buffer PFs by 30-m (standard slop factor) or by 250-m for wood turtles
+   printMsg('Buffering Procedural Features...')
+   code_block = '''def buff(elcode):
+      if elcode == "ARAAD02020":
+         b = 250
+      else:
+         b = 30
+      return b
+      '''
+   expression = "buff(!ELCODE!)"
+   arcpy.CalculateField_management (in_PF, "BUFFER", expression, "PYTHON", code_block)
+   buff_PF = "in_memory" + os.sep + "buff_PF"
+   arcpy.Buffer_analysis (in_PF, buff_PF, "BUFFER", "", "", "NONE")
+
    # Clip buffered PFs to selected catchments
+   printMsg('Clipping buffered Procedural Features...')
+   clipBuff_PF = "in_memory" + os.sep + "clipBuff_PF"
+   arcpy.Clip_analysis (buff_PF, "lyr_Catchments", clipBuff_PF)
    
    # Select by location flowlines that intersect selected catchments
+   printMsg('Selecting flowlines intersecting selected catchments...')
+   arcpy.SelectLayerByLocation_management ("lyr_Flowlines", "INTERSECT", "lyr_Catchments")
    
    # Clip selected flowlines to clipped, buffered PFs
+   printMsg('Clipping flowlines...')
+   clipLines = "in_memory" + os.sep + "clipLines"
+   arcpy.Clip_analysis ("lyr_Flowlines", "lyr_Catchments", clipLines)
    
    # Create points from start- and endpoints of clipped flowlines
-
-   if out_Scratch == "in_memory":
-      # Clear out memory to avoid failures in subsequent functions
-      arcpy.env.workspace = "in_memory"
-      dataList = arcpy.ListDatasets()
-      for item in dataList:
-         try:
-            arcpy.Delete_management(item)
-            printMsg('Deleted %s from memory.' % item)
-         except:
-            pass
+   arcpy.FeatureVerticesToPoints_management (clipLines, out_Points, "BOTH_ENDS")
    
    # timestamp
    t1 = datetime.now()
@@ -229,63 +254,23 @@ def CreateLines_scu(out_Lines, in_PF, in_Points, in_downTrace, in_upTrace, out_S
       printMsg('Saving updated %s service layer to %s...' %(inLyr,outLyr))      
       arcpy.SaveToLayerFile_management(inLyr, outLyr)
    
-   # Make feature layers for downstream lines
-   qry = "ToCumul_Length <= 1609" 
-   arcpy.MakeFeatureLayer_management (downLines, "downLTEbreak", qry)
-   qry = "ToCumul_Length > 1609"
-   arcpy.MakeFeatureLayer_management (downLines, "downGTbreak", qry)
-   
-   # Merge the downstream segments <= 1609 with the upstream segments
-   printMsg('Merging primary segments...')
-   mergedLines = out_Scratch + os.sep + 'mergedLines'
-   arcpy.Merge_management (["downLTEbreak", upLines], mergedLines)
-   
-   # Erase downstream segments > 1609 that overlap the merged segments
-   printMsg('Erasing irrelevant downstream extension segments...')
-   erasedLines = out_Scratch + os.sep + 'erasedLines'
-   arcpy.Erase_analysis ("downGTbreak", mergedLines, erasedLines)
-   
-   # Dissolve (on Facility ID) the remaining downstream segments > 1609
-   printMsg('Dissolving remaining downstream extension segments...')
-   dissolvedLines = out_Scratch + os.sep + 'dissolvedLines'
-   arcpy.Dissolve_management(erasedLines, dissolvedLines, "FacilityID", "", "SINGLE_PART", "DISSOLVE_LINES")
-   
-   # From dissolved segments, select only those intersecting 2+ merged downstream/upstream segments
-   ### Conduct nearest neighbor analysis with zero distance (i.e. touching)
-   printMsg('Analyzing adjacency of extension segments to primary segments...')
-   nearTab = out_Scratch + os.sep + 'nearTab'
-   arcpy.GenerateNearTable_analysis(dissolvedLines, mergedLines, nearTab, "0 Meters", "NO_LOCATION", "NO_ANGLE", "ALL", "2", "PLANAR")
-   
-   #### Find out if segment touches at least two neighbors
-   printMsg('Counting neighbors...')
-   countTab = out_Scratch + os.sep + 'countTab'
-   arcpy.Statistics_analysis(nearTab, countTab, "NEAR_FID COUNT", "IN_FID")
-   qry = "FREQUENCY = 2"
-   arcpy.MakeTableView_management(countTab, "connectorTab", qry)
-   
-   ### Get list of segments meeting the criteria, cast as a query and make feature layer
-   printMsg('Extracting extension segments with at least two primary neighbors...')
-   valList = unique_values("connectorTab", "IN_FID")
-   if len(valList) > 0:
-      qryList = str(valList)
-      qryList = qryList.replace('[', '(')
-      qryList = qryList.replace(']', ')')
-      qry = "OBJECTID in %s" % qryList
-   else:
-      qry = "OBJECTID = -1"
-   arcpy.MakeFeatureLayer_management (dissolvedLines, "extendLines", qry)
+   # # Merge the downstream segments with the upstream segments
+   # printMsg('Merging primary segments...')
+   # mergedLines = out_Scratch + os.sep + 'mergedLines'
+   # arcpy.Merge_management ([downLines, upLines], mergedLines)
    
    # Grab additional segments that may have been missed within large PFs in wide water areas
+   # No longer sure this is necessary...?
    nhdFlowline = catPath + os.sep + "NHDFlowline"
-   clpLine = out_Scratch + os.sep + 'clpLine'
+   clpLines = out_Scratch + os.sep + 'clpLines'
    qry = "FType in (460, 558)" # StreamRiver and ArtificialPath only
    arcpy.MakeFeatureLayer_management (nhdFlowline, "StreamRiver_Line", qry)
-   CleanClip("StreamRiver_Line", in_PF, clpLine)
+   CleanClip("StreamRiver_Line", in_PF, clpLines)
    
-   # Merge and dissolve the connected segments; ESRI does not make this simple
+   # Merge and dissolve the segments; ESRI does not make this simple
    printMsg('Merging primary segments with selected extension segments...')
    comboLines = out_Scratch + os.sep + 'comboLines'
-   arcpy.Merge_management (["extendLines", mergedLines, clpLine], comboLines)
+   arcpy.Merge_management ([downLines, upLines, clpLines], comboLines)
    
    printMsg('Buffering segments...')
    buffLines = out_Scratch + os.sep + 'buffLines'
@@ -315,383 +300,125 @@ def CreateLines_scu(out_Lines, in_PF, in_Points, in_downTrace, in_upTrace, out_S
    
    return (out_Lines, lyrDownTrace, lyrUpTrace)
    
-def CreatePolys_scu(in_Lines, in_hydroNet, out_Polys, out_Scratch = arcpy.env.scratchGDB):
-   '''Converts linear SCUs to polygons, including associated NHD StreamRiver polygons
+def DelinSite_scu(in_Lines, in_Catch, out_Polys):
+   '''Selects the catchments intersecting linear SCUs, dissolves them, and fills in the gaps.
    Parameters:
-   - in_Lines = Input line feature class representing Stream Conservation Units
-   - in_hydroNet = Input hydrological network dataset
-   - out_Polys = Output polygon feature class representing Stream Conservation Units (without catchment area)
-   - out_Scratch = Geodatabase to contain intermediate outputs
+   in_Lines = Input SCU lines, generated as output from CreateLines_scu function
+   in_Catch = Input catchments from NHDPlus
+   out_Polys = output polygons representing partial watersheds draining to the SCU lines
    '''
+   # timestamp
+   t0 = datetime.now()
+
+   # Select catchments intersecting scuLines
+   arcpy.MakeFeatureLayer_management (in_Catch, "lyr_Catchments")
+   arcpy.SelectLayerByLocation_management ("lyr_Catchments", "INTERSECT", in_Lines)
+
+   # Dissolve catchments
+   dissFeats = "in_memory" + os.sep + "dissFeats"
+   arcpy.Dissolve_management ("lyr_Catchments", dissFeats, "", "", "SINGLE_PART", "")
    
+   # Fill in gaps to create final sites
+   arcpy. EliminatePolygonPart_management (dissFeats, out_Polys, "PERCENT", "", 99, "CONTAINED_ONLY")
+   
+   # timestamp
+   t1 = datetime.now()
+   ds = GetElapsedTime (t0, t1)
+   printMsg('Completed function. Time elapsed: %s' % ds)
+   
+   return out_Polys
+
+def TrimSite_scu(in_Lines, in_hydroNet, in_catchPolys, buffDist, out_Polys):
+   '''Reduces the delineated sites to a specified buffer distance from streams and rivers. If we decide to implement this procedure, it should probably be folded into the previous function. Also, may want to add gap-filling at the end.
+   Parameters:
+   in_Lines = Input SCU lines, generated as output from CreateLines_scu function
+   in_hydroNet = Input hydrological network dataset
+   in_catchPolys = Input partial watershed polygons, generated as output from DelinSite_scu function
+   buffDist = Distance, in meters, to buffer the SCU lines and their associated NHD polygons
+   out_Polys = Output polygons representing buffer zone draining to SCU lines
+   '''
    # timestamp
    t0 = datetime.now()
    
-   # Create empty feature class to store polygons
-   sr = arcpy.Describe(in_Lines).spatialReference
-   appendPoly = out_Scratch + os.sep + 'appendPoly'
-   printMsg('Creating empty feature class for polygons')
-   if arcpy.Exists(appendPoly):
-      arcpy.Delete_management(appendPoly)
-   arcpy.CreateFeatureclass_management (out_Scratch, 'appendPoly', "POLYGON", in_Lines, '', '', sr)
-   
-   # Set up some variables:
+   # Set up some variables
    descHydro = arcpy.Describe(in_hydroNet)
    nwDataset = descHydro.catalogPath
    catPath = os.path.dirname(nwDataset) # This is where hydro layers will be found
    nhdArea = catPath + os.sep + "NHDArea"
-   nhdFlowline = catPath + os.sep + "NHDFlowline"
+   nhdWaterbody = catPath + os.sep + "NHDWaterbody"
+   out_Scratch = 'in_memory'
    
-   # Make some feature layers   
-   qry = "FType in (460, 558)" # StreamRiver and ArtificialPath only
-   arcpy.MakeFeatureLayer_management (nhdFlowline, "StreamRiver_Line", qry)
+   # Create empty feature class to store polygons
+   sr = arcpy.Describe(in_catchPolys).spatialReference
+   fname = os.path.basename(out_Polys)
+   fpath = os.path.dirname(out_Polys)
+   printMsg('Creating empty feature class for polygons')
+   if arcpy.Exists(out_Polys):
+      arcpy.Delete_management(out_Polys)
+   arcpy.CreateFeatureclass_management (fpath, fname, "POLYGON", in_catchPolys, '', '', sr)
+   
+   # Make feature layers including only StreamRiver and LakePond polygons from NHD
+   printMsg('Making feature layers...')
    qry = "FType = 460" # StreamRiver only
    arcpy.MakeFeatureLayer_management (nhdArea, "StreamRiver_Poly", qry)
+   qry = "FType = 390" # LakePond only
+   arcpy.MakeFeatureLayer_management (nhdWaterbody, "LakePond_Poly", qry)
    
-   # Variables used in-loop:
-   bufferLines = out_Scratch + os.sep + 'bufferLines'
-   splitPts = out_Scratch + os.sep + 'splitPts'
-   tmpPts = out_Scratch + os.sep + 'tmpPts'
-   tmpPts2 = out_Scratch + os.sep + 'tmpPts2'
-   bufferPts = out_Scratch + os.sep + 'bufferPts'
-   mbgPoly = out_Scratch + os.sep + 'mbgPoly'
-   mbgBuffer = out_Scratch + os.sep + 'mbgBuffer'
+   # Set up more variables
    clipRiverPoly = out_Scratch + os.sep + 'clipRiverPoly'
-   noGapPoly = out_Scratch + os.sep + "noGapPoly"
-   clipRiverLine = out_Scratch + os.sep + 'clipRiverLine'
+   fillRiverPoly = out_Scratch + os.sep + "fillRiverPoly"
+   clipLakePoly = out_Scratch + os.sep + 'clipLakePoly'
+   fillLakePoly = out_Scratch + os.sep + "fillLakePoly"
    clipLines = out_Scratch + os.sep + 'clipLines'
-   perpLine1 = out_Scratch + os.sep + 'perpLine1'
-   perpLine2 = out_Scratch + os.sep + 'perpLine2'
-   perpLine = out_Scratch + os.sep + 'perpLine'
-   perpClip = out_Scratch + os.sep + 'perpClip'
-   splitPoly = out_Scratch + os.sep + 'splitPoly'
-   mergePoly = out_Scratch + os.sep + 'mergePoly'
-   tmpPoly = out_Scratch + os.sep + 'tmpPoly'
-      
-   with  arcpy.da.SearchCursor(in_Lines, ["SHAPE@", "grpID"]) as myLines:
-      for line in myLines:
-         shp = line[0]
-         id = line[1]
-         arcpy.env.Extent = shp
-         
-         printMsg('Working on %s...' % str(id))
-         
-         # Buffer linear SCU by at least half of cell size in flow direction raster (5 m)
-         # This serves as the minimum polygon representing the SCU (in the absence of any nhdArea features)
-         printMsg('Creating minimum buffer around linear SCU...')
-         arcpy.Buffer_analysis(shp, bufferLines, "5 Meters", "", "ROUND", "ALL")
-
-         # Generate large buffer polygon around linear SCU
-         # Use this to clip nhdArea and nhdFlowline
-         printMsg('Creating maximum buffer around linear SCU...')
-         arcpy.Buffer_analysis(shp, mbgBuffer, "5000 Meters", "", "ROUND", "ALL")
-         printMsg('Clipping NHD to buffer...')
-         CleanClip("StreamRiver_Poly", mbgBuffer, clipRiverPoly)
-         # Also need to fill any holes in polygons to avoid aberrant results
-         arcpy. EliminatePolygonPart_management (clipRiverPoly, noGapPoly, "PERCENT", "", 99, "CONTAINED_ONLY")
-         arcpy.MakeFeatureLayer_management (noGapPoly, "clipRiverPoly")
-         CleanClip("StreamRiver_Line", mbgBuffer, clipRiverLine)
-         
-         # # Generate points at ends of linear SCU
-         # printMsg('Generating split points at end of SCUs...')
-         # arcpy.FeatureVerticesToPoints_management(shp, splitPts, "DANGLE") 
-                  
-         # Generate points where buffered linear SCU intersects Flowlines
-         printMsg('Generating split points...')
-         arcpy.Intersect_analysis ([bufferLines, clipRiverLine], tmpPts, "", "", "POINT")
-         arcpy.MultipartToSinglepart_management (tmpPts, splitPts)
-
-         # Select only the points within clipped StreamRiver polygons
-         arcpy.MakeFeatureLayer_management (splitPts, "splitPts")
-         arcpy.SelectLayerByLocation_management("splitPts", "COMPLETELY_WITHIN", "clipRiverPoly")
-         c = countSelectedFeatures("splitPts")
-         if c > 0:
-            # Buffer points and use them to clip flowlines
-            printMsg('Buffering split points...')
-            arcpy.Buffer_analysis("splitPts", bufferPts, "1 Meters")
-            printMsg('Clipping flowlines at split points...')
-            CleanClip(nhdFlowline, bufferPts, clipLines)
-            
-            # Add geometry attributes to clipped segments
-            printMsg('Adding geometry attributes...')
-            arcpy.AddGeometryAttributes_management(clipLines, "CENTROID;LINE_BEARING")
-            arcpy.AddField_management(clipLines, "PERP_BEARING1", "DOUBLE")
-            arcpy.AddField_management(clipLines, "PERP_BEARING2", "DOUBLE")
-            arcpy.AddField_management(clipLines, "DISTANCE", "DOUBLE")
-            expression = "PerpBearing(!BEARING!)"
-            code_block1='''def PerpBearing(bearing):
-               p = bearing + 90
-               if p > 360:
-                  p -= 360
-               return p'''
-            code_block2='''def PerpBearing(bearing):
-               p = bearing - 90
-               if p < 0:
-                  p += 360
-               return p'''
-            arcpy.CalculateField_management(clipLines, "PERP_BEARING1", expression, "PYTHON_9.3", code_block1)
-            arcpy.CalculateField_management(clipLines, "PERP_BEARING2", expression, "PYTHON_9.3", code_block2)
-            arcpy.CalculateField_management(clipLines, "DISTANCE", 10, "PYTHON_9.3")
-
-            # Generate lines perpendicular to segment
-            # These need to be really long to cut wide rivers near Chesapeake
-            printMsg('Creating perpendicular lines at split points...')
-            for l in [["PERP_BEARING1", perpLine1],["PERP_BEARING2", perpLine2]]:
-               bearingFld = l[0]
-               outLine = l[1]
-               arcpy.BearingDistanceToLine_management(clipLines, outLine, "CENTROID_X", "CENTROID_Y", "DISTANCE", "KILOMETERS", bearingFld, "DEGREES", "GEODESIC", "", sr)
-            arcpy.Merge_management ([perpLine1, perpLine2], perpLine)
-            
-            # Clip perpendicular lines to clipped StreamRiver
-            CleanClip(perpLine, "clipRiverPoly", perpClip)
-            arcpy.MakeFeatureLayer_management (perpClip, "perpClip")
-            
-            # Select lines intersecting the point buffers
-            arcpy.SelectLayerByLocation_management("perpClip", "INTERSECT", bufferPts, "", "NEW_SELECTION")
-            
-            # Remove from selection any lines < 5m from scuLine
-            arcpy.SelectLayerByLocation_management("perpClip", "WITHIN_A_DISTANCE", shp, "4.9 Meters", "REMOVE_FROM_SELECTION")
-            
-            # Select clipped StreamRiver polygons containing selected lines
-            arcpy.SelectLayerByLocation_management("clipRiverPoly", "CONTAINS", "perpClip", "", "NEW_SELECTION")
-            
-            # Use selected lines to split clipped StreamRiver polygons
-            printMsg('Splitting river polygons with perpendiculars...')
-            arcpy.FeatureToPolygon_management("perpClip;clipRiverPoly", splitPoly)
-            arcpy.MakeFeatureLayer_management (splitPoly, "splitPoly")
-            
-            # Select split StreamRiver polygons containing scuLines
-            # Two selection criteria needed to capture all
-            arcpy.SelectLayerByLocation_management("splitPoly", "CROSSED_BY_THE_OUTLINE_OF", shp, "", "NEW_SELECTION")
-            arcpy.SelectLayerByLocation_management("splitPoly", "CONTAINS", shp, "", "ADD_TO_SELECTION")
-            
-            # Merge/dissolve polygons in with baseline buffered scuLines
-            printMsg('Merging and dissolving shapes...')
-            arcpy.Merge_management ([bufferLines, "splitPoly"], mergePoly)
-            arcpy.Dissolve_management (mergePoly, tmpPoly, "", "", "SINGLE_PART")
-            
-         else:
-            tmpPoly = bufferLines
-            
-         # Append to output
-         printMsg('Appending shape to output...')
-         arcpy.Append_management (tmpPoly, appendPoly, "NO_TEST")
-         
-   # Dissolve final output
-   printMsg('Dissolving final shapes...')
-   arcpy.Dissolve_management (appendPoly, out_Polys, "", "", "SINGLE_PART")
-   
-   # timestamp
-   t1 = datetime.now()
-   ds = GetElapsedTime (t0, t1)
-   printMsg('Completed function. Time elapsed: %s' % ds)
-
-   return out_Polys
-   
-def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_Scratch = arcpy.env.scratchGDB):
-   '''Delineates catchment buffers around polygon SCUs based on flow distance down to features (rather than straight distance)
-   Parameters:
-   - in_Polys = Input polygons representing unbuffered Stream Conservation Units
-   - fld_ID = The field in the input Procedural Features containing the Source Feature ID
-   - in_FlowDir = Input raster representing D8 flow direction
-   - out_Polys = Output polygon feature class representing Stream Conservation Units with catchment buffers
-   - maxDist = Maximum buffer distance (used to truncate catchments)
-   - out_Scratch = Geodatabase to contain intermediate outputs
-   
-   Note that scratchGDB is used rather than in_memory b/c process inexplicably yields incorrect output otherwise.
-   '''
-   
-   # timestamp
-   t0 = datetime.now()
-   
-   arcpy.CheckOutExtension("Spatial")
-   
-   # Get cell size and output spatial reference from in_FlowDir
-   cellSize = (arcpy.GetRasterProperties_management(in_FlowDir, "CELLSIZEX")).getOutput(0)
-   srRast = arcpy.Describe(in_FlowDir).spatialReference
-   linUnit = srRast.linearUnitName
-   printMsg('Cell size of flow direction raster is %s %ss' %(cellSize, linUnit))
-   printMsg('Flow modeling is strongly dependent on cell size.')
-
-   # Set environment setting and other variables
-   arcpy.env.snapRaster = in_FlowDir
-   (num, units, procDist) = multiMeasure(maxDist, 3)
-
-   # Check if input features and input flow direction have same spatial reference.
-   # If so, just make a copy. If not, reproject features to match raster.
-   srFeats = arcpy.Describe(in_Polys).spatialReference
-   if srFeats.Name == srRast.Name:
-      printMsg('Coordinate systems for features and raster are the same. Copying...')
-      arcpy.CopyFeatures_management (in_Polys, out_Polys)
-   else:
-      printMsg('Reprojecting features to match raster...')
-      # Check if geographic transformation is needed, and handle accordingly.
-      if srFeats.GCS.Name == srRast.GCS.Name:
-         geoTrans = ""
-         printMsg('No geographic transformation needed...')
-      else:
-         transList = arcpy.ListTransformations(srFeats,srRast)
-         geoTrans = transList[0]
-      arcpy.Project_management (in_Polys, out_Polys, srRast, geoTrans)
-
-   # Add and calculate a field needed for raster conversion
-   arcpy.AddField_management (out_Polys, 'rasterVal', 'SHORT')
-   arcpy.CalculateField_management (out_Polys, 'rasterVal', '1', 'PYTHON_9.3')
-      
-   # Count features and report
-   numFeats = countFeatures(out_Polys)
-   printMsg('There are %s features to process.' % numFeats)
-   
-   # Variables used in loop
-   trashList = [] # Empty list for trash collection
-   tmpFeat = out_Scratch + os.sep + 'tmpFeat'
-   srcRast = out_Scratch + os.sep + 'srcRast'
-   procBuff = out_Scratch + os.sep + 'procBuff'
-   clp_FlowDir = out_Scratch + os.sep + 'clp_FlowDir'
-   clp_Watershed = out_Scratch + os.sep + 'clp_Watershed'
-   snk_FlowDir = out_Scratch + os.sep + 'snk_FlowDir'
-   FlowDist = out_Scratch + os.sep + 'FlowDist'
+   StreamRiverBuff = out_Scratch + os.sep + 'StreamRiverBuff'
+   LakePondBuff = out_Scratch + os.sep + 'LakePondBuff'
+   LineBuff = out_Scratch + os.sep + 'LineBuff'
+   mergeBuff = out_Scratch + os.sep + 'mergeBuff'
+   dissBuff = out_Scratch + os.sep + 'dissBuff'
    clipBuff = out_Scratch + os.sep + 'clipBuff'
-   clp_FlowDist = out_Scratch + os.sep + 'clp_FlowDist'
-   binRast = out_Scratch + os.sep + 'binRast'
-   cleanRast = out_Scratch + os.sep + 'cleanRast'
-   prePoly = out_Scratch + os.sep + 'prePoly'
-   finPoly = out_Scratch + os.sep + 'finPoly'
-   coalescedPoly = out_Scratch + os.sep + 'finPoly'
-   multiPoly = out_Scratch + os.sep + 'multiPoly'
    
-   # Create an empty list to store IDs of features that fail to get processed
-   myFailList = []
-
-   # Set up processing cursor and loop
-   flags = [] # Initialize empty list to keep track of suspects
-   cursor = arcpy.da.UpdateCursor(out_Polys, [fld_ID, "SHAPE@"])
-   counter = 1
-   for row in cursor:
-      try:
-         # Extract the unique ID and geometry object
-         myID = row[0]
-         myShape = row[1]
-
-         printMsg('Working on feature %s with ID %s' % (counter, str(myID)))
-
-         # Process:  Select (Analysis)
-         # Create a temporary feature class including only the current feature
-         selQry = "%s = %s" % (fld_ID, str(myID))
-         arcpy.Select_analysis (out_Polys, tmpFeat, selQry)
-
-         # Clip flow direction raster to processing buffer
-         printMsg('Buffering feature to set maximum processing distance')
-         arcpy.Buffer_analysis (tmpFeat, procBuff, procDist, "", "", "ALL", "")
-         myExtent = str(arcpy.Describe(procBuff).extent).replace(" NaN", "")
-         #printMsg('Extent: %s' %myExtent)
-         printMsg('Clipping flow direction raster to processing buffer')
-         arcpy.Clip_management (in_FlowDir, myExtent, clp_FlowDir, procBuff, "", "ClippingGeometry")
-         arcpy.env.extent = procBuff
-         arcpy.env.mask = procBuff
-         
-         # Convert feature to raster
-         arcpy.PolygonToRaster_conversion (tmpFeat, 'rasterVal', srcRast, "MAXIMUM_COMBINED_AREA", 'rasterVal', cellSize)
-
-         # Get the watershed for the SCU feature (truncated by processing buffer)
-         printMsg('Creating truncated watershed from feature...')
-         tmpRast = Watershed (clp_FlowDir, srcRast)
-         tmpRast2 = CellStatistics([tmpRast, srcRast], "MAXIMUM", "DATA")
-         # Above step needed in situations with missing flow direction data (coastal)
-         tmpRast2.save(clp_Watershed)
-         arcpy.env.mask = clp_Watershed # Processing now restricted to Watershed
-         
-         # Burn SCU feature into flow direction raster as sink
-         printMsg('Creating sink from feature...')
-         tmpRast = Con(IsNull(srcRast),clp_FlowDir)
-         tmpRast.save(snk_FlowDir)
-         
-         # Calculate flow distance down to sink
-         printMsg('Within watershed, calculating flow distance to sink...')
-         tmpRast = FlowLength (snk_FlowDir, "DOWNSTREAM")
-         tmpRast.save(FlowDist)
-         
-         # Clip flow distance raster to the maximum distance buffer
-         arcpy.Buffer_analysis (tmpFeat, clipBuff, maxDist, "", "", "ALL", "")
-         myExtent = str(arcpy.Describe(clipBuff).extent).replace(" NaN", "")
-         #printMsg('Extent: %s' %myExtent)
-         printMsg('Clipping flow distance raster to maximum distance buffer')
-         arcpy.Clip_management (FlowDist, myExtent, clp_FlowDist, clipBuff, "", "ClippingGeometry")
-         arcpy.env.extent = clp_FlowDist
-         
-         # Make a binary raster based on flow distance
-         printMsg('Creating binary raster from flow distance...')
-         tmpRast = Con((IsNull(clp_FlowDist) == 1),
-                  (Con((IsNull(srcRast)== 0),1,0)),
-                  (Con((Raster(clp_FlowDist) <= num),1,0)))
-         tmpRast.save(binRast)
-         # printMsg('Boundary cleaning...')
-         # tmpRast = BoundaryClean (binRast, 'NO_SORT', 'TWO_WAY')
-         # tmpRast.save(cleanRast)
-         printMsg('Setting zeros to nulls...')
-         tmpRast = SetNull (binRast, 1, 'Value = 0')
-         tmpRast.save(prePoly)
-
-         # Convert raster to polygon
-         printMsg('Converting flow distance raster to polygon...')
-         arcpy.RasterToPolygon_conversion (prePoly, finPoly, "NO_SIMPLIFY")
-     
-         # Check the number of features at this point. 
-         # It should be just one. If more, need to remove orphan fragments.
-         arcpy.MakeFeatureLayer_management (finPoly, "finPoly")
-         count = countFeatures("finPoly")
-         if count > 1:
-            printMsg('Removing orphan fragments...')
-            arcpy.SelectLayerByLocation_management("finPoly", "CONTAINS", tmpFeat, "", "NEW_SELECTION")
-         
-         # Use the flow distance buffer geometry as the final shape
-         myFinalShape = arcpy.SearchCursor("finPoly").next().Shape
-
-         # Update the feature with its final shape
-         row[1] = myFinalShape
-         cursor.updateRow(row)
-         del row 
-
-         printMsg('Finished processing feature %s' %str(myID))
-
-      except:
-         # Add failure message and append failed feature ID to list
-         printMsg("\nFailed to fully process feature " + str(myID))
-         myFailList.append(myID)
-
-         # Error handling code swiped from "A Python Primer for ArcGIS"
-         tb = sys.exc_info()[2]
-         tbinfo = traceback.format_tb(tb)[0]
-         pymsg = "PYTHON ERRORS:\nTraceback Info:\n" + tbinfo + "\nError Info:\n " + str(sys.exc_info()[1])
-         msgs = "ARCPY ERRORS:\n" + arcpy.GetMessages(2) + "\n"
-
-         printWrng(msgs)
-         printWrng(pymsg)
-         printMsg(arcpy.GetMessages(1))
-
-         # Add status message
-         printMsg("\nMoving on to the next feature.  Note that the output will be incomplete.")
-         
-      finally:
-         # Reset extent, because Arc is stupid.
-         arcpy.env.extent = "MAXOF"
-         
-         # Update counter
-         counter += 1
-         
-         # Grasping at straws here to avoid failure processing large datasets.
-         if counter%25 == 0:
-            printMsg('Compacting scratch geodatabase...')
-            arcpy.Compact_management (out_Scratch)
+   # Clip input layers to partial watersheds
+   # Also need to fill any holes in polygons to avoid aberrant results
+   printMsg('Clipping StreamRiver polygons...')
+   CleanClip("StreamRiver_Poly", in_catchPolys, clipRiverPoly)
+   arcpy.EliminatePolygonPart_management (clipRiverPoly, fillRiverPoly, "PERCENT", "", 99, "CONTAINED_ONLY")
+   arcpy.MakeFeatureLayer_management (fillRiverPoly, "StreamRivers")
    
-   if len(flags) > 0:
-      printWrng('These features may be incorrect: %s' % str(flags))
-   if len(myFailList) > 0:
-      printWrng('These features failed to process: %s' % str(myFailList))
+   printMsg('Clipping LakePond polygons...')
+   CleanClip("LakePond_Poly", in_catchPolys, clipLakePoly)
+   arcpy.EliminatePolygonPart_management (clipLakePoly, fillLakePoly, "PERCENT", "", 99, "CONTAINED_ONLY")
+   arcpy.MakeFeatureLayer_management (fillLakePoly, "LakePonds")
    
-
+   # Select clipped NHD polygons intersecting clipped SCU lines
+   printMsg('Selecting by location the clipped NHD polygons intersecting clipped SCU lines...')
+   arcpy.SelectLayerByLocation_management("StreamRivers", "INTERSECT", in_Lines, "", "NEW_SELECTION")
+   arcpy.SelectLayerByLocation_management("LakePonds", "INTERSECT", in_Lines, "", "NEW_SELECTION")
    
-   arcpy.CheckInExtension("Spatial")
+   # Buffer SCU lines and selected NHD polygons
+   printMsg('Buffering StreamRiver polygons...')
+   arcpy.Buffer_analysis("StreamRivers", StreamRiverBuff, buffDist, "", "ROUND", "NONE")
+   
+   printMsg('Buffering LakePond polygons...')
+   arcpy.Buffer_analysis("LakePonds", LakePondBuff, buffDist, "", "ROUND", "NONE")
+   
+   printMsg('Buffering SCU lines...')
+   arcpy.Buffer_analysis(in_Lines, LineBuff, buffDist, "", "ROUND", "NONE")
+   
+   # Merge buffers and dissolve
+   printMsg('Merging buffer polygons...')
+   arcpy.Merge_management ([StreamRiverBuff, LakePondBuff, LineBuff], mergeBuff)
+   
+   printMsg('Dissolving...')
+   arcpy.Dissolve_management (mergeBuff, dissBuff, "", "", "SINGLE_PART")
+   
+   # Clip buffers to partial watershed
+   printMsg('Clipping to partial watershed...')
+   CleanClip(dissBuff, in_catchPolys, clipBuff)
+   arcpy.MakeFeatureLayer_management (clipBuff, "clipBuffers")
+   
+   # Eliminate buffer fragments and save
+   arcpy.SelectLayerByLocation_management("clipBuffers", "CONTAINS", in_Lines, "", "NEW_SELECTION")
+   arcpy.CopyFeatures_management ("clipBuffers", out_Polys)
    
    # timestamp
    t1 = datetime.now()
@@ -699,25 +426,50 @@ def CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, out_
    printMsg('Completed function. Time elapsed: %s' % ds)
    
    return out_Polys
-   
+
 # Use the main function below to run functions directly from Python IDE or command line with hard-coded variables
 def main():
-   in_hydroGDB = r'C:\Users\xch43889\Documents\Working\SCU\VA_HydroNet.gdb'
-   # in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuPFs'
-   in_PF = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfSet5'
-   out_Points = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\pfPoints_set5'
-   out_Lines = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuLines_set5'
-   in_downTrace = r'C:\Users\xch43889\Documents\Working\SCU\naDownTrace.lyr'
-   in_upTrace = r'C:\Users\xch43889\Documents\Working\SCU\naUpTrace.lyr'
-   scratchGDB = r'C:\Users\xch43889\Documents\Working\SCU\scratch2.gdb'
-   out_Polys = r'C:\Users\xch43889\Documents\Working\SCU\testData.gdb\scuPolys_set5'
+   in_hydroNet = r'C:\Users\xch43889\Documents\Working\SCU\VA_HydroNet.gdb\HydroNet\HydroNet_ND'
+   # upDist = 8046.72
+   # downDist = 805
+   # in_Catch = r'E:\SpatialData\NHD_Plus_HR\Proc_NHDPlus_HR.gdb\NHDPlusCatchment_Merge_valam'
+   # in_PF = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ProcFeats_20191213_scu'
+   # out_Points = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200114.gdb\scuPoints'
+   # in_Points = out_Points
+   # out_Lines = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200114.gdb\scuLines_5_half'
+   # in_Lines = out_Lines
+   # out_Polys = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200114.gdb\scsPolys_5_half'
+   in_Lines = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200114.gdb\scuLines_2_half'
+   in_catchPolys = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200114.gdb\scsPolys_2_half'
+   scs2Half_250 = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200128.gdb\scs2Half_250'
+   scs2Half_500 = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200128.gdb\scs2Half_500'
+   scs2Half_1K = r'C:\Users\xch43889\Documents\Working\SCU\TestOutputs_20200128.gdb\scs2Half_1K'
+   
    # End of user input
 
    # Function(s) to run
-   # (downLyr, upLyr) = MakeServiceLayers_scu(in_GDB)
-   # MakeNetworkPts_scu(in_PF, out_Points, "SFID", in_downTrace, in_upTrace, "in_memory")
-   # CreateLines_scu(out_Lines, in_downTrace, in_upTrace, scratchGDB)
-   CreatePolys_scu(out_Lines, in_hydroGDB, out_Polys, scratchGDB)
+   # printMsg('Starting MakeServiceLayers_scu function.')
+   # (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scu(in_hydroNet, upDist, downDist)
+   
+   # printMsg('Starting MakeNetworkPts_scu function.')
+   # MakeNetworkPts_scu(in_hydroNet, in_Catch, in_PF, out_Points)
+   
+   # printMsg('Starting CreateLines_scu function.')
+   # CreateLines_scu(out_Lines, in_PF, in_Points, lyrDownTrace, lyrUpTrace)
+   
+   # printMsg('Starting DelinSite_scu function.')
+   # DelinSite_scu(in_Lines, in_Catch, out_Polys)
+   
+   printMsg('Starting TrimSite_scu function, 250-m.')
+   TrimSite_scu(in_Lines, in_hydroNet, in_catchPolys, 250, scs2Half_250)
+   
+   printMsg('Starting TrimSite_scu function, 500-m.')
+   TrimSite_scu(in_Lines, in_hydroNet, in_catchPolys, 500, scs2Half_500)
+   
+   printMsg('Starting TrimSite_scu function, 1-km.')
+   TrimSite_scu(in_Lines, in_hydroNet, in_catchPolys, 1000, scs2Half_1K)
+   
+   printMsg('Finished.')
    
 if __name__ == '__main__':
    main()

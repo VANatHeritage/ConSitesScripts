@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-12-17
+# Last Edit: 2020-01-14
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -688,10 +688,12 @@ class ServLyrs_scu(object):
          parm0.value = "HydroNet_ND"
       except:
          pass
-      parm1 = defineParam("out_lyrDown", "Output Downstream Layer", "DELayer", "Derived", "Output")
-      parm2 = defineParam("out_lyrUp", "Output Upstream Layer", "DELayer", "Derived", "Output")
+      parm1 = defineParam("upDist", "Upstream distance in map units", "GPDouble", "Required", "Input")
+      parm2 = defineParam("downDist", "Downstream distance in map units", "GPDouble", "Required", "Input")
+      parm3 = defineParam("out_lyrDown", "Output Downstream Layer", "DELayer", "Derived", "Output")
+      parm4 = defineParam("out_lyrUp", "Output Upstream Layer", "DELayer", "Derived", "Output")
       
-      parms = [parm0, parm1, parm2]
+      parms = [parm0, parm1, parm2, parm3, parm4]
       return parms
 
    def isLicensed(self):
@@ -715,7 +717,7 @@ class ServLyrs_scu(object):
       declareParams(parameters)
       
       # Run the function
-      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scu(in_hydroNet)
+      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scu(in_hydroNet, upDist, downDist)
 
       # Update the derived parameters.
       # This enables layers to be displayed automatically if running tool from ArcMap.
@@ -739,16 +741,15 @@ class NtwrkPts_scu(object):
          parm0.value = "HydroNet_ND"
       except:
          pass
-      parm1 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
+      parm1 = defineParam("in_Catch", "Input Catchments", "GPFeatureLayer", "Required", "Input")
+      parm2 = defineParam("in_PF", "Input Procedural Features (PFs)", "GPFeatureLayer", "Required", "Input")
       try:
-         parm1.value = "Biotics_ProcFeats"
+         parm2.value = "Biotics_ProcFeats"
       except:
          pass
-      parm2 = defineParam("out_Points", "Output Network Points", "DEFeatureClass", "Required", "Output", "scuPoints")
-      parm3 = defineParam("fld_SFID", "Source Feature ID field", "String", "Required", "Input", "SFID")
-      parm4 = defineParam("out_Scratch", "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
+      parm3 = defineParam("out_Points", "Output Network Points", "DEFeatureClass", "Required", "Output", "scuPoints")
 
-      parms = [parm0, parm1, parm2, parm3, parm4]
+      parms = [parm0, parm1, parm2, parm3]
       return parms
 
    def isLicensed(self):
@@ -774,14 +775,9 @@ class NtwrkPts_scu(object):
       """The source code of the tool."""
       # Set up parameter names and values
       declareParams(parameters)
-      
-      if out_Scratch != 'None':
-         scratchParm = out_Scratch 
-      else:
-         scratchParm = "in_memory" 
-      
+
       # Run the function
-      scuPoints = MakeNetworkPts_scu(in_hydroNet, in_PF, out_Points, fld_SFID, scratchParm)
+      scuPoints = MakeNetworkPts_scu(in_hydroNet, in_Catch, in_PF, out_Points)
       
       return
       
@@ -856,150 +852,25 @@ class Lines_scu(object):
       
       return
 
-class Polys_scu(object):
-   def __init__(self):
-      """Define the tool (tool name is the name of the class)."""
-      self.label = "3: Generate SCU Polygons"
-      self.description = 'Given input linear SCUs, and NHD data, generates SCU polygons'
-      self.canRunInBackground = True
-      self.category = "Site Delineation Tools: SCU"
-
-   def getParameterInfo(self):
-      """Define parameters"""
-      parm0 = defineParam('in_scuLines', "Input Linear SCUs", "GPFeatureLayer", "Required", "Input")
-      try:
-         parm0.value = "scuLines"
-      except:
-         pass
-      parm1 = defineParam("in_hydroNet", "Input Hydro Network Dataset", "GPNetworkDatasetLayer", "Required", "Input")
-      try:
-         parm1.value = "HydroNet_ND"
-      except:   
-         pass
-      parm2 = defineParam('out_Polys', "Output SCU Polygons", "DEFeatureClass", "Required", "Output", "scuPolys")
-      parm3 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
-
-      parms = [parm0, parm1, parm2, parm3]
-      return parms
-
-   def isLicensed(self):
-      """Set whether tool is licensed to execute."""
-      return True
-
-   def updateParameters(self, parameters):
-      """Modify the values and properties of parameters before internal
-      validation is performed.  This method is called whenever a parameter
-      has been changed."""
-      return
-
-   def updateMessages(self, parameters):
-      """Modify the messages created by internal validation for each tool
-      parameter.  This method is called after internal validation."""
-      return
-
-   def execute(self, parameters, messages):
-      """The source code of the tool."""
-      # Set up parameter names and values
-      declareParams(parameters)
-      
-      if out_Scratch != 'None':
-         scratchParm = out_Scratch 
-      else:
-         scratchParm = arcpy.env.scratchGDB 
-      
-      # Run the function
-      CreatePolys_scu(in_scuLines, in_hydroNet, out_Polys, scratchParm)
-      
-      return
-
-class FlowBuffers_scu(object):
-   def __init__(self):
-      """Define the tool (tool name is the name of the class)."""
-      self.label = "4: Buffer SCU Polygons"
-      self.description = 'Delineates buffers around polygon SCUs based on flow distance down to features (rather than straight distance)'
-      self.canRunInBackground = True
-      self.category = "Site Delineation Tools: SCU"
-
-   def getParameterInfo(self):
-      """Define parameters"""
-      parm0 = defineParam('in_Polys', "Input Polygon SCUs", "GPFeatureLayer", "Required", "Input")
-      try:
-         parm0.value = "scuPolys"
-      except:
-         pass
-      parm1 = defineParam("fld_ID", "Polygon ID field", "String", "Required", "Input", "OBJECTID")
-      parm2 = defineParam("in_FlowDir", "Input Flow Direction Raster", "GPRasterLayer", "Required", "Input")
-      try:
-         parm2.value = "fdir_VA"
-      except:
-         pass
-      parm3 = defineParam("out_Polys", "Output SCU Polygons", "DEFeatureClass", "Required", "Output")
-      try:
-         parm3.value = "scuFlowBuffers"
-      except:
-         pass
-      parm4 = defineParam("maxDist", "Maximum Buffer Distance", "GPLinearUnit", "Required", "Input", "500 METERS")
-      parm5 = defineParam('out_Scratch', "Scratch Geodatabase", "DEWorkspace", "Optional", "Input")
-
-      parms = [parm0, parm1, parm2, parm3, parm4, parm5]
-      return parms
-
-   def isLicensed(self):
-      """Set whether tool is licensed to execute."""
-      return True
-
-   def updateParameters(self, parameters):
-      """Modify the values and properties of parameters before internal
-      validation is performed.  This method is called whenever a parameter
-      has been changed."""
-      if parameters[0].altered:
-         fc = parameters[0].valueAsText
-         field_names = [f.name for f in arcpy.ListFields(fc)]
-         parameters[1].filter.list = field_names
-      return
-
-   def updateMessages(self, parameters):
-      """Modify the messages created by internal validation for each tool
-      parameter.  This method is called after internal validation."""
-      return
-
-   def execute(self, parameters, messages):
-      """The source code of the tool."""
-      # Set up parameter names and values
-      declareParams(parameters)
-      
-      if out_Scratch != 'None':
-         scratchParm = out_Scratch 
-      else:
-         scratchParm = arcpy.env.scratchGDB 
-         
-      # Run the function
-      flowBuffs = CreateFlowBuffers_scu(in_Polys, fld_ID, in_FlowDir, out_Polys, maxDist, scratchParm)
-      
-      return
-
 class Finalize_scu(object):
    def __init__(self):
       """Define the tool (tool name is the name of the class)."""
-      self.label = "5: Finalize Stream Conservation Sites"
-      self.description = "Aggregates and smoothes buffered Stream Conservation Units to produce final output Stream Conservation Sites"
+      self.label = "3: Finalize Stream Conservation Sites"
+      self.description = "Aggregates catchments associated with linear SCUs to produce final output Stream Conservation Sites"
       self.canRunInBackground = True
-      self.category = "Site Delineation Tools: SCU"
+      self.category = "Site Delineation Tools: SCS"
 
    def getParameterInfo(self):
       """Define parameters"""
-      parm0 = defineParam("in_Feats", "Input buffered SCU polygons", "GPFeatureLayer", "Required", "Input")
+      parm0 = defineParam("in_Lines", "Input linear SCUs", "GPFeatureLayer", "Required", "Input")
       try:
-         parm0.value = "scuFlowBuffers"
+         parm0.value = "scuLines"
       except: 
          pass
-      parm1 = defineParam("dil_Dist", "Dilation distance", "GPLinearUnit", "Required", "Input", "10 METERS")
-      parm2 = defineParam("out_Feats", "Output final Stream Conservation Sites", "DEFeatureClass", "Required", "Output")
-      parm3 = defineParam("smthMulti", "Smoothing multiplier", "GPDouble", "Optional", "Input", 8)
-      parm4 = defineParam("scratch_GDB", "Scratch geodatabase", "DEWorkspace", "Optional", "Input")
-      parm4.filter.list = ["Local Database"]
+      parm1 = defineParam("in_Catch", "Input NHDPlus Catchments", "GPFeatureLayer", "Required", "Input")
+      parm2 = defineParam("out_Polys", "Output final Stream Conservation Sites", "DEFeatureClass", "Required", "Output")
       
-      parms = [parm0, parm1, parm2, parm3, parm4]
+      parms = [parm0, parm1, parm2]
       return parms
 
    def isLicensed(self):
@@ -1022,19 +893,9 @@ class Finalize_scu(object):
       # Set up parameter names and values
       declareParams(parameters)
 
-      if scratch_GDB != 'None':
-         scratchParm = scratch_GDB 
-      else:
-         scratchParm = "in_memory" 
-         
-      if smthMulti != 'None':
-         multiParm = smthMulti
-      else:
-         multiParm = 8
-      
-      ShrinkWrap(in_Feats, dil_Dist, out_Feats, multiParm, scratchParm)
+      DelinSite_scu(in_Lines, in_Catch, out_Polys)
 
-      return out_Feats
+      return out_Polys
 
 class tabulate_exclusions(object):
    def __init__(self):
