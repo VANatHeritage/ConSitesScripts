@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2019-12-30
+# Last Edit: 2020-03-02
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -562,8 +562,8 @@ def AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in
    - in_consLands_flat: A "flattened" version of in_ConsLands, based on level of Biodiversity Management Intent (BMI). (This is needed due to stupid overlapping polygons in our database. Sigh.)
    - in_ecoReg: A polygon feature class representing ecoregions
    - fld_RegCode: Field in in_ecoReg with short, unique region codes
-   - cutYear: Integer value indicating year before which observations should be excluded
-   - flagYear: Integer value indicating year before which observations should be flagged for updating
+   - cutYear: Integer value indicating hard cutoff year. EOs with last obs equal to or earlier than this cutoff are to be excluded from the ECS process altogether.
+   - flagYear: Integer value indicating flag year. EOs with last obs equal to or earlier than this cutoff are to be flagged with "Update Needed". However, this cutoff does not affect the ECS process.
    - out_procEOs: Output EOs with TIER scores and other attributes.
    - out_sumTab: Output table summarizing number of included EOs per element'''
    
@@ -811,7 +811,7 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "false", ysnYear = "
    Parameters:
    - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function)
    - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
-   - ysnMil: determines whether to consider military land as a ranking factor ("true") or not ("false"; default)
+   - ysnMil: determines whether to use military status of land as a ranking factor ("true") or not ("false"; default)
    - ysnYear: determines whether to use observation year as a ranking factor ("true"; default) or not ("false")
    - out_sortedEOs: output feature class of processed EOs, sorted by element code and rankings.
    '''
@@ -1002,6 +1002,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       - NEW_EO: overwrite existing EO picks, but keep previous ConSite picks
       - NEW_CS: overwrite existing ConSite picks, but keep previous EO picks
       - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites
+   - in_consLands_flat: Input "flattened" version of Conservation Lands, based on level of Biodiversity Management Intent (BMI).
    '''
    
    scratchGDB = arcpy.env.scratchGDB

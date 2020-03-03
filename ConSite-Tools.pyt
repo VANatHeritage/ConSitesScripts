@@ -4,7 +4,7 @@
 # ArcGIS version: 10.3.1
 # Python version: 2.7.8
 # Creation Date: 2017-08-11
-# Last Edit: 2019-12-17
+# Last Edit: 2020-03-02
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -1251,16 +1251,16 @@ class build_portfolio(object):
          parm01.value = "scoredEOs"
       except:
          pass
-      parm02 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output", "priorEOs")
-      parm03 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      parm02 = defineParam("in_sumTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
       try:
-         parm03.value = "sumTab"
+         parm02.value = "sumTab"
       except:
          pass
-      parm04 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab_upd")
-      parm05 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
-      parm06 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output", "priorConSites")
-      parm07 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm03 = defineParam("in_ConSites", "Input Conservation Sites", "GPFeatureLayer", "Required", "Input")
+      parm04 = defineParam("in_consLands_flat", "Input Flattened Conservation Lands", "GPFeatureLayer", "Required", "Input")
+      parm05 = defineParam("out_sortedEOs", "Output Prioritized Element Occurrences (EOs)", "DEFeatureClass", "Required", "Output", "priorEOs")
+      parm06 = defineParam("out_sumTab", "Output Updated Element Portfolio Summary Table", "DETable", "Required", "Output", "sumTab_upd")
+      parm07 = defineParam("out_ConSites", "Output Prioritized Conservation Sites", "DEFeatureClass", "Required", "Output", "priorConSites")  
 
       parms = [parm00, parm01, parm02, parm03, parm04, parm05, parm06, parm07]
       return parms
@@ -1307,7 +1307,8 @@ class build_element_lists(object):
          parm02.value = "priorEOs"
       except:
          pass
-      parm03 = defineParam("in_elementTab", "Input Element Portfolio Summary Table", "GPTableView", "Required", "Input")
+      parm03 = defineParam("in_elementTab", "Input Element Portfolio Summary Table", "DETable", "Required", "Input")
+      # For some reason this is not working if you input a table view...
       try:
          parm03.value = "sumTab_upd"
       except:
