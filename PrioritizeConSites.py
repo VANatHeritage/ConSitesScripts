@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2020-03-02
+# Last Edit: 2020-03-10
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -1355,29 +1355,98 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
    
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
-   # Set up variables
-   in_ProcFeats = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ProcFeats_20191213_tcs'
-   in_elExclude = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ElementExclusions'
-   in_consLands = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ConsLands_20191209'
-   in_consLands_flat = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ConsLands_20191209_flat'
-   in_ecoReg = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\tncEcoRegions_lam'
+   ### Set up input variables ###
+   
+   # Path to output geodatabase
+   out_GDB = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Outputs_March2020.gdb'
+   
+   # Path to directory for storing output spreadsheets
+   out_DIR = r'F:\Working\EssentialConSites\ECS_Run_March2020\Spreadsheets_March2020' 
+   
+   # Input Procedural Features by site type
+   in_pf_tcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\pfTerrestrial'
+   in_pf_scu = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\pfStream'
+   in_pf_kcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\pfKarst'
+   
+   # Input Conservation Sites by type
+   in_cs_tcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\csTerrestrial'
+   in_cs_scu = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\csStream'
+   in_cs_kcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\csKarst'
+   
+   # Input other standard variables
+   in_elExclude = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\ElementExclusions'
+   in_consLands = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\conslands200302'
+   in_consLands_flat = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\conslands200302_flat'
+   in_ecoReg = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\tncEcoRegions_lam'
    fld_RegCode = 'GEN_REG'
-   cutYear = 1995
-   flagYear = 2000
-   in_ConSites = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ConSites_20191213_tcs'
-   attribEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191213.gdb\attribEOs_tcs'
-   sumTab = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191213.gdb\sumTab_tcs'
-   scoredEOs = r'C:\Users\xch43889\Documents\Working\EssentialConSites\ECS_Outputs_20191213.gdb\scoredEOs_tcs'
    
-   # Specify function(s) to run below
+   # Input cutoff years
+   cutYear = 1995 # yyyy - 25 for TCS and SCU
+   flagYear = 2000 # yyyy - 20 for TCS and SCU
+   cutYear_kcs = 1980 # yyyy - 40 for KCS
+   flagYear_kcs = 1985 # yyyy - 35 for KCS
+
+   # Set up outputs by type - no need to change these as long as your out_GDB above is valid
+   attribEOs_tcs = out_GDB + os.sep + 'attribEOs_tcs'
+   sumTab_tcs = out_GDB + os.sep + 'sumTab_tcs'
+   scoredEOs_tcs = out_GDB + os.sep + 'scoredEOs_tcs'
+   priorEOs_tcs = out_GDB + os.sep + 'priorEOs_tcs'
+   sumTab_upd_tcs = out_GDB + os.sep + 'sumTab_upd_tcs'
+   priorConSites_tcs = out_GDB + os.sep + 'priorConSites_tcs'
+   elementList_tcs = out_GDB + os.sep + 'elementList_tcs'
+   excelList_tcs = out_DIR + os.sep + 'elementList_tcs.xls'
    
-   #AttributeEOs(in_ProcFeats, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs, sumTab)
+   attribEOs_scu = out_GDB + os.sep + 'attribEOs_scu'
+   sumTab_scu = out_GDB + os.sep + 'sumTab_scu'
+   scoredEOs_scu = out_GDB + os.sep + 'scoredEOs_scu'
+   priorEOs_scu = out_GDB + os.sep + 'priorEOs_scu'
+   sumTab_upd_scu = out_GDB + os.sep + 'sumTab_upd_scu'
+   priorConSites_scu = out_GDB + os.sep + 'priorConSites_scu'
+   elementList_scu = out_GDB + os.sep + 'elementList_scu'
+   excelList_scu = out_DIR + os.sep + 'elementList_scu.xls'   
+      
+   attribEOs_kcs = out_GDB + os.sep + 'attribEOs_kcs'
+   sumTab_kcs = out_GDB + os.sep + 'sumTab_kcs'
+   scoredEOs_kcs = out_GDB + os.sep + 'scoredEOs_kcs'
+   priorEOs_kcs = out_GDB + os.sep + 'priorEOs_kcs'
+   sumTab_upd_kcs = out_GDB + os.sep + 'sumTab_upd_kcs'
+   priorConSites_kcs = out_GDB + os.sep + 'priorConSites_kcs'
+   elementList_kcs = out_GDB + os.sep + 'elementList_kcs'
+   excelList_kcs = out_DIR + os.sep + 'elementList_kcs.xls'
    
-   ScoreEOs(attribEOs, sumTab, scoredEOs, ysnMil = "false", ysnYear = "true")
    
-   #BuildPortfolio(scoredEOs, priorEOs, sumTab, sumTab, in_ConSites, priorConSites, in_consLands_flat, build = 'NEW')
+   ### Specify functions to run - no need to change these as long as all your input/output variables above are valid ###
    
-   #BuildElementLists(in_ConSites, fld_siteID, priorEOs, sumTab, cs_sumTab, out_Excel)
+   # Attribute EOs
+   AttributeEOs(in_pf_tcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_tcs, sumTab_tcs)
+   
+   AttributeEOs(in_pf_scu, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_scu, sumTab_scu)
+   
+   AttributeEOs(in_pf_kcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear_kcs, flagYear_kcs, attribEOs_kcs, sumTab_kcs)
+   
+   
+   # Score EOs
+   ScoreEOs(attribEOs_tcs, sumTab_tcs, scoredEOs_tcs, ysnMil = "false", ysnYear = "true")
+   
+   ScoreEOs(attribEOs_scu, sumTab_scu, scoredEOs_scu, ysnMil = "false", ysnYear = "true")
+   
+   ScoreEOs(attribEOs_kcs, sumTab_kcs, scoredEOs_kcs, ysnMil = "false", ysnYear = "true")
+   
+   
+   # Build Portfolio
+   BuildPortfolio(scoredEOs_tcs, priorEOs_tcs, sumTab_tcs, sumTab_upd_tcs, in_cs_tcs, priorConSites_tcs, in_consLands_flat, build = 'NEW')
+   
+   BuildPortfolio(scoredEOs_scu, priorEOs_scu, sumTab_scu, sumTab_upd_scu, in_cs_scu, priorConSites_scu, in_consLands_flat, build = 'NEW')
+   
+   BuildPortfolio(scoredEOs_kcs, priorEOs_kcs, sumTab_kcs, sumTab_upd_kcs, in_cs_kcs, priorConSites_kcs, in_consLands_flat, build = 'NEW')
+   
+   
+   # Build Elements List
+   BuildElementLists(in_cs_tcs, 'SITENAME', priorEOs_tcs, sumTab_upd_tcs, elementList_tcs, excelList_tcs)
+   
+   BuildElementLists(in_cs_scu, 'SITENAME', priorEOs_scu, sumTab_upd_scu, elementList_scu, excelList_scu)
+   
+   BuildElementLists(in_cs_kcs, 'SITENAME', priorEOs_kcs, sumTab_upd_kcs, elementList_kcs, excelList_kcs)
    
 if __name__ == '__main__':
    main()
