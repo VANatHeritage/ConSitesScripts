@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2019-07-30
+# Last Edit: 2020-06-02
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -133,6 +133,28 @@ def countSelectedFeatures(featureLyr):
    desc = arcpy.Describe(featureLyr)
    count = len(desc.FIDSet)
    return count
+
+def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
+   '''Selects features within specified distance of selection features, and copies to output.
+   Input features to be selected must be a layer, not a feature class.
+   NOTE: This does not seem to work with feature services. ESRI FAIL.'''
+   # Select input features within distance of selection features
+   arcpy.SelectLayerByLocation_management (in_FeatLyr, "WITHIN_A_DISTANCE", selFeats, selDist, "NEW_SELECTION", "NOT_INVERT")
+   
+   # Get the number of SELECTED features
+   numSelected = countSelectedFeatures(in_FeatLyr)
+   
+   # Copy selected features to output
+   if numSelected == 0:
+      # Create an empty dataset
+      fc = os.path.basename(out_Feats)
+      gdb = os.path.dirname(out_Feats)
+      geom = arcpy.Describe(in_Feats).shapeType
+      CreateFeatureclass_management (gdb, fc, geom, in_Feats)
+   else:
+      arcpy.CopyFeatures_management (in_FeatLyr, out_Feats)
+      
+   return out_Feats
 
 def unique_values(table, field):
    '''This function was obtained from:

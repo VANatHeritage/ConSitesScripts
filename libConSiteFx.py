@@ -1,8 +1,9 @@
+### SLATED FOR DELETION AFTER MOVING ALL FUNCTIONS
 # ----------------------------------------------------------------------------------------
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2019-06-26
+# Last Edit: 2020-0602
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -13,7 +14,8 @@
 # Import modules
 import Helper
 from Helper import *
-   
+ 
+# MOVED TO CreateTCS.py 
 def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scratchGDB = "in_memory"):
    ''' For ConSite creation: creates exclusion features from input hydro or transportation surface features'''
    # Process: Make Feature Layer (subset of selected features)
@@ -48,7 +50,8 @@ def GetEraseFeats (inFeats, selQry, elimDist, outEraseFeats, elimFeats = "", scr
       garbagePickup(trashlist)
    
    return outEraseFeats
-   
+
+# MOVED TO CreateTCS.py    
 def CullEraseFeats (inEraseFeats, in_Feats, fld_SFID, PerCov, outEraseFeats, scratchGDB = "in_memory"):
    '''For ConSite creation: Culls exclusion features containing a significant percentage of any input feature's (PF or SBB) area'''
    # Process:  Add Field (Erase ID) and Calculate
@@ -87,7 +90,8 @@ def CullEraseFeats (inEraseFeats, in_Feats, fld_SFID, PerCov, outEraseFeats, scr
       garbagePickup(trashlist)
    
    return outEraseFeats
-   
+
+# MOVED TO CreateTCS.py    
 def CullFrags (inFrags, in_PF, searchDist, outFrags):
    '''For ConSite creation: Culls SBB or ConSite fragments farther than specified search distance from 
    Procedural Features'''
@@ -103,7 +107,8 @@ def CullFrags (inFrags, in_PF, searchDist, outFrags):
    CleanFeatures("Frags_lyr", outFrags)
    
    return outFrags
-   
+
+# MOVED TO CreateTCS.py    
 def ExpandSBBselection(inSBB, inPF, joinFld, inConSites, SearchDist, outSBB, outPF):
    '''Given an initial selection of Site Building Blocks (SBB) features, selects additional SBB features in the vicinity that should be included in any Conservation Site update. Also selects the Procedural Features (PF) corresponding to selected SBBs. Outputs the selected SBBs and PFs to new feature classes.'''
    # If applicable, clear any selections on the PFs and ConSites inputs
@@ -151,7 +156,8 @@ def ExpandSBBselection(inSBB, inPF, joinFld, inConSites, SearchDist, outSBB, out
    
    featTuple = (outSBB, outPF)
    return featTuple
-   
+
+# MOVED TO CreateTCS.py    
 def SubsetSBBandPF(inSBB, inPF, selOption, joinFld, outSBB, outPF):
    '''Given input Site Building Blocks (SBB) features, selects the corresponding Procedural Features (PF). Or vice versa, depending on SelOption parameter.  Outputs the selected SBBs and PFs to new feature classes.'''
    if selOption == "PF":
@@ -192,7 +198,8 @@ def SubsetSBBandPF(inSBB, inPF, selOption, joinFld, outSBB, outPF):
    
    featTuple = (outPF, outSBB)
    return featTuple
-   
+
+# MOVED TO CreateTCS.py    
 def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000 METERS", scratchGDB = "in_memory"):
    '''Adds core area to SBBs of PFs intersecting that core. This function should only be used with a single Core feature; i.e., either embed it within a loop, or use an input Cores layer that contains only a single core. Otherwise it will not behave as needed.
    in_PF: layer or feature class representing Procedural Features
@@ -239,7 +246,8 @@ def AddCoreAreaToSBBs(in_PF, in_SBB, joinFld, in_Core, out_SBB, BuffDist = "1000
    
    printMsg('Done.')
    return out_SBB
-   
+
+# MOVED TO CreateTCS.py    
 def ChopSBBs(in_PF, in_SBB, in_EraseFeats, out_Clusters, out_subErase, dilDist = "5 METERS", scratchGDB = "in_memory"):
    '''Uses Erase Features to chop out sections of SBBs. Stitches SBB fragments back together only if within twice the dilDist of each other. Subsequently uses output to erase EraseFeats.'''
 
@@ -270,6 +278,7 @@ def ChopSBBs(in_PF, in_SBB, in_EraseFeats, out_Clusters, out_subErase, dilDist =
    outTuple = (out_Clusters, out_subErase)
    return outTuple
 
+# MOVED TO PrepInputs.py
 def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    '''Extracts data from Biotics5 query layers for Procedural Features and Conservation Sites and saves to a file geodatabase.
    Note: this tool must be run from within a map document containing the relevant query layers.'''
@@ -298,31 +307,8 @@ def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    inCoordSyst = "PROJCS['WGS_1984_Web_Mercator_Auxiliary_Sphere',GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Mercator_Auxiliary_Sphere'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',0.0],PARAMETER['Standard_Parallel_1',0.0],PARAMETER['Auxiliary_Sphere_Type',0.0],UNIT['Meter',1.0]]"
    arcpy.Project_management(unprjPF, outPF, outCoordSyst, transformMethod, inCoordSyst, "PRESERVE_SHAPE", "")
    printMsg('Procedural Features successfully exported to %s' %outPF)
-   
-   # # Add layers to map after removing existing layers, if present
-   # printMsg('Adding layers to map document')
-   # mxd = arcpy.mapping.MapDocument("CURRENT")
-   # dataFrame = arcpy.mapping.ListDataFrames(mxd, "*")[0] 
-   # for lyr in ["Biotics_TerrSites", "Biotics_AHZSites", "Biotics_ProcFeats"]: 
-      # try:
-         # arcpy.mapping.RemoveLayer(dataFrame, lyr)
-      # except: pass
-      
-   # addTerrSites = arcpy.mapping.Layer(outCS)
-   # addTerrSites.name = "Biotics_TerrSites"
-   # addTerrSites.definitionQuery = "SITE_TYPE = 'Conservation Site'"
-   # arcpy.mapping.AddLayer(dataFrame, addTerrSites)
 
-   # addAHZSites = arcpy.mapping.Layer(outCS)
-   # addAHZSites.name = "Biotics_AHZSites"
-   # addAHZSites.definitionQuery = "SITE_TYPE = 'Anthropogenic Habitat Zone'"
-   # arcpy.mapping.AddLayer(dataFrame, addAHZSites)
-
-   # addProcFeats = arcpy.mapping.Layer(outPF)
-   # addProcFeats.name = "Biotics_ProcFeats"
-   # addProcFeats.definitionQuery = "RULE NOT IN ( 'CAVE' , 'SCU' )"
-   # arcpy.mapping.AddLayer(dataFrame, addProcFeats)
-
+# NEED TO MOVE - BUT WHERE?
 def dissolvePF (in_ProcFeats, out_procEOs, site_type):
    '''Dissolves input procedural features on EO-specific fields to create "site-worthy" EOs for the purpose of ConSite prioritization, where EOs rather than PFs are needed. Creates subset depending on the site type under consideration.
    '''
@@ -346,7 +332,7 @@ def dissolvePF (in_ProcFeats, out_procEOs, site_type):
    
    return out_procEOs
    
-   
+# MOVED TO Helper.py   
 def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
    '''Selects features within specified distance of selection features, and copies to output.
    Input features to be selected must be a layer, not a feature class.
@@ -368,7 +354,8 @@ def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
       arcpy.CopyFeatures_management (in_FeatLyr, out_Feats)
       
    return out_Feats
-   
+
+# ORPHAN FUNCTION - Check if this is really used anywhere   
 def subsetDataInputs(selFeats, out_GDB, selDist = "3000 METERS", nwi5 = None, nwi67 = None, nwi9 = None, hydro = None, cores = None, roads = None, rail = None, exclusions = None):
    '''Selects the subset of data inputs within specified distance of selection features, and copies them to the output geodatabase. Inputs must be feature layers, not feature classes.
    NOTE: This does not work with feature services. ESRI FAIL.'''

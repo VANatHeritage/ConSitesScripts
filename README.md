@@ -1,6 +1,8 @@
 # ConSite Toolbox
 ArcGIS toolbox and associated scripts for automated delineation of Virginia Natural Heritage Conservation Sites. Additional tools for prioritization.
 
+### This version is still in progress; major file cleanup in progress.
+
 ### Toolbox Version Notes (last updated by K. Hazler, 2020-06-02):
 #### Version 1.2: Conservation Site delineation process remains unchanged from previous version. The "Essential Conservation Sites" (ECS) process has been finalized (at least for now) since the last version, when it was still in flux. Site priorities from the ECS process were first added to Biotics for the March 2020 quarterly update, and the ECS process remains stable since that time. 
 
