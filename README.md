@@ -3,5 +3,6 @@ ArcGIS toolbox and associated scripts for automated delineation of Virginia Natu
 
 ### Toolbox Version Notes:
 #### Version 1.0: This was the version used for the first major overhaul/replacement of Terrestrial Conservation Sites and Anthropomorphic Habitat Zones, starting in 2018.
+This version is no longer in use and is retained for archival purposes only.
 
 For more information, contact Kirsten Hazler at kirsten.hazler@dcr.virginia.gov
