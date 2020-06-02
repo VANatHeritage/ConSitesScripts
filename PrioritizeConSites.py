@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2020-03-10
+# Last Edit: 2020-06-02
 # Creator:  Kirsten R. Hazler
 # ---------------------------------------------------------------------------
 
@@ -1355,29 +1355,42 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
    
 # Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
 def main():
+   ### Run preliminary steps. You need to be on COV network to be able to extract Biotics data.
+   # Prior to running this script, the following should be done:
+   # - Open the map document set up for ECS (i.e., ECS_Working_yyyymmdd.mxd), and save it as a new document in a new output folder with appropriate date tags.
+   # - Create an input geodatabase named ECS_Inputs_[MonthYear].gdb
+   # - Create an output geodatabase named ECS_Outputs_[MonthYear].gdb
+   # - Run the "Extract Biotics data" tool, with output going to the input geodatabase
+   # - Run the "Parse site types" tool, with output going to the input geodatabase
+   # - Import required inputs into the input geodatabase:
+   #   -- ElementExclusions table (get annually from biologists)
+   #   -- ConsLands feature class (get quarterly from Dave Boyd)
+   #   -- EcoRegions feature class (fairly static data)
+   # - Run the "Flatten Conservation Lands" tool, with output going to the input geodatabase
+   # - Update all the paths and cutoff years as needed in the variables set up below.
+   # - Close ArcMap and run the script from the Python environment
+   
    ### Set up input variables ###
-   
-   # Path to output geodatabase
-   out_GDB = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Outputs_March2020.gdb'
-   
-   # Path to directory for storing output spreadsheets
-   out_DIR = r'F:\Working\EssentialConSites\ECS_Run_March2020\Spreadsheets_March2020' 
+   # Path to input and output geodatabases and directories
+   in_GDB = r'F:\Working\EssentialConSites\ECS_Run_June2020\ECS_Inputs_June2020.gdb'
+   out_GDB = r'F:\Working\EssentialConSites\ECS_Run_June2020\ECS_Outputs_June2020.gdb'
+   out_DIR = r'F:\Working\EssentialConSites\ECS_Run_June2020\Spreadsheets_June2020' 
    
    # Input Procedural Features by site type
-   in_pf_tcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\pfTerrestrial'
-   in_pf_scu = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\pfStream'
-   in_pf_kcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\pfKarst'
+   in_pf_tcs = in_GDB + os.sep + 'pfTerrestrial'
+   in_pf_scu = in_GDB + os.sep + 'pfStream'
+   in_pf_kcs = in_GDB + os.sep + 'pfKarst'
    
    # Input Conservation Sites by type
-   in_cs_tcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\csTerrestrial'
-   in_cs_scu = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\csStream'
-   in_cs_kcs = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\csKarst'
+   in_cs_tcs = in_GDB + os.sep + 'csTerrestrial'
+   in_cs_scu = in_GDB + os.sep + 'csStream'
+   in_cs_kcs = in_GDB + os.sep + 'csKarst'
    
    # Input other standard variables
-   in_elExclude = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\ElementExclusions'
-   in_consLands = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\conslands200302'
-   in_consLands_flat = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\conslands200302_flat'
-   in_ecoReg = r'F:\Working\EssentialConSites\ECS_Run_March2020\ECS_Inputs_March2020.gdb\tncEcoRegions_lam'
+   in_elExclude = in_GDB + os.sep + 'ElementExclusions'
+   in_consLands = in_GDB + os.sep + 'ConsLands_20200602'
+   in_consLands_flat = in_GDB + os.sep + 'ConsLands_20200602_flat'
+   in_ecoReg = in_GDB + os.sep + 'tncEcoRegions_lam'
    fld_RegCode = 'GEN_REG'
    
    # Input cutoff years
@@ -1417,36 +1430,64 @@ def main():
    
    ### Specify functions to run - no need to change these as long as all your input/output variables above are valid ###
    
+   # Get timestamp
+   tStart = datetime.now()
+   printMsg("Processing started at %s on %s" %(tStart.strftime("%H:%M:%S"), tStart.strftime("%Y-%m-%d")))
+   
    # Attribute EOs
+   printMsg("Attributing terrestrial EOs...")
    AttributeEOs(in_pf_tcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_tcs, sumTab_tcs)
    
+   printMsg("Attributing stream EOs...")
    AttributeEOs(in_pf_scu, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_scu, sumTab_scu)
    
+   printMsg("Attributing karst EOs...")
    AttributeEOs(in_pf_kcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear_kcs, flagYear_kcs, attribEOs_kcs, sumTab_kcs)
    
+   tNow = datetime.now()
+   printMsg("EO attribution ended at %s" %tNow.strftime("%H:%M:%S"))
    
    # Score EOs
+   printMsg("Scoring terrestrial EOs...")
    ScoreEOs(attribEOs_tcs, sumTab_tcs, scoredEOs_tcs, ysnMil = "false", ysnYear = "true")
    
+   printMsg("Scoring stream EOs...")
    ScoreEOs(attribEOs_scu, sumTab_scu, scoredEOs_scu, ysnMil = "false", ysnYear = "true")
    
+   printMsg("Scoring karst EOs...")
    ScoreEOs(attribEOs_kcs, sumTab_kcs, scoredEOs_kcs, ysnMil = "false", ysnYear = "true")
    
+   tNow = datetime.now()
+   printMsg("EO scoring ended at %s" %tNow.strftime("%H:%M:%S"))
    
    # Build Portfolio
+   printMsg("Building terrestrial portfolio...")
    BuildPortfolio(scoredEOs_tcs, priorEOs_tcs, sumTab_tcs, sumTab_upd_tcs, in_cs_tcs, priorConSites_tcs, in_consLands_flat, build = 'NEW')
    
+   printMsg("Building stream portfolio...")
    BuildPortfolio(scoredEOs_scu, priorEOs_scu, sumTab_scu, sumTab_upd_scu, in_cs_scu, priorConSites_scu, in_consLands_flat, build = 'NEW')
    
+   printMsg("Building karst portfolio...")
    BuildPortfolio(scoredEOs_kcs, priorEOs_kcs, sumTab_kcs, sumTab_upd_kcs, in_cs_kcs, priorConSites_kcs, in_consLands_flat, build = 'NEW')
    
+   tNow = datetime.now()
+   printMsg("Portolio building ended at %s" %tNow.strftime("%H:%M:%S"))
    
    # Build Elements List
+   printMsg("Building terrestrial elements list...")
    BuildElementLists(in_cs_tcs, 'SITENAME', priorEOs_tcs, sumTab_upd_tcs, elementList_tcs, excelList_tcs)
    
+   printMsg("Building stream elements list...")
    BuildElementLists(in_cs_scu, 'SITENAME', priorEOs_scu, sumTab_upd_scu, elementList_scu, excelList_scu)
    
+   printMsg("Building karst elements list...")
    BuildElementLists(in_cs_kcs, 'SITENAME', priorEOs_kcs, sumTab_upd_kcs, elementList_kcs, excelList_kcs)
+   
+   # Get timestamp and elapsed time
+   tEnd = datetime.now()
+   printMsg("Processing ended at %s" %tNow.strftime("%H:%M:%S"))
+   deltaString = GetElapsedTime (tStart, tEnd)
+   printMsg("Mission complete. Elapsed time: %s" %deltaString)
    
 if __name__ == '__main__':
    main()
