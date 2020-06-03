@@ -1,4 +1,4 @@
-### SLATED FOR DELETION - ALL FUNCTIONS MOVE TO CreateTCS.py
+### SLATED FOR DELETION - All functions moved to CreateTCS.py
 # ----------------------------------------------------------------------------------------
 # CreateSBBs.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8

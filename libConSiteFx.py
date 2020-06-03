@@ -1,9 +1,9 @@
-### SLATED FOR DELETION AFTER MOVING ALL FUNCTIONS
+### SLATED FOR DELETION - relevant functions have been moved
 # ----------------------------------------------------------------------------------------
 # libConSiteFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2020-0602
+# Last Edit: 2020-06-03
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -308,7 +308,7 @@ def ExtractBiotics(BioticsPF, BioticsCS, outGDB):
    arcpy.Project_management(unprjPF, outPF, outCoordSyst, transformMethod, inCoordSyst, "PRESERVE_SHAPE", "")
    printMsg('Procedural Features successfully exported to %s' %outPF)
 
-# NEED TO MOVE - BUT WHERE?
+# ORPHAN FUNCTION - I THINK this can be safely deleted 
 def dissolvePF (in_ProcFeats, out_procEOs, site_type):
    '''Dissolves input procedural features on EO-specific fields to create "site-worthy" EOs for the purpose of ConSite prioritization, where EOs rather than PFs are needed. Creates subset depending on the site type under consideration.
    '''
@@ -355,7 +355,7 @@ def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):
       
    return out_Feats
 
-# ORPHAN FUNCTION - Check if this is really used anywhere   
+# ORPHAN FUNCTION - I THINK this can be safely deleted  
 def subsetDataInputs(selFeats, out_GDB, selDist = "3000 METERS", nwi5 = None, nwi67 = None, nwi9 = None, hydro = None, cores = None, roads = None, rail = None, exclusions = None):
    '''Selects the subset of data inputs within specified distance of selection features, and copies them to the output geodatabase. Inputs must be feature layers, not feature classes.
    NOTE: This does not work with feature services. ESRI FAIL.'''

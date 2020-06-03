@@ -1,3 +1,4 @@
+### SLATED FOR DELETION - Function moved to PrioritizeConSites.py
 # ---------------------------------------------------------------------------------------
 # ReviewConSites.py
 # Version:  ArcGIS 10.1 / Python 2.7

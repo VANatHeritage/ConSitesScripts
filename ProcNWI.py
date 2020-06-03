@@ -1,3 +1,4 @@
+### SLATED FOR DELETION - All functions moved to PrepInputs.py
 # ---------------------------------------------------------------------------
 # ProcNWI.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
@@ -17,6 +18,7 @@ import Helper
 from Helper import *
 import re # support for regular expressions.  Used extensively in this script!
 
+# MOVED to PrepInputs.py
 def TabParseNWI(inNWI, outTab):
    '''Given a National Wetlands Inventory (NWI) feature class, creates a table containing one record for each unique code in the ATTRIBUTE field. The codes in the ATTRIBUTE field are then parsed into easily comprehensible fields, to facilitate processing and mapping. (Adapted from a Model-Builder tool and a script tool.) 
 
@@ -255,6 +257,7 @@ def TabParseNWI(inNWI, outTab):
    printMsg('Mission accomplished.')
    return outTab
 
+# MOVED to PrepInputs.py
 def SbbToNWI(inTab):
    '''Assigns Site Building Blocks (SBB) rules to National Wetland Inventory (NWI) codes. This function is specific to the Virginia Natural Heritage Program. (Adapted from a script tool.)
    
@@ -337,7 +340,8 @@ def SbbToNWI(inTab):
          cursor.updateRow(row)
    printMsg('Mission accomplished.')
    return 
-   
+
+# MOVED to PrepInputs.py   
 def SubsetNWI(inNWI, inTab, inGDB):
    '''Creates subsets of National Wetlands Inventory (NWI) polygons specific to Site Building Blocks (SBB) rules. This function is specific to the Virginia Natural Heritage Program. (Adapted from a Model-Builder tool.)
    

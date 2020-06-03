@@ -1,3 +1,4 @@
+### SLATED FOR DELETION - Not needed b/c we have Biotics query layers for this.
 # -------------------------------------------------------------------------------------------------------
 # CreateProcFeats.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8

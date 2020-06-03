@@ -1,3 +1,4 @@
+### SLATED FOR DELETION - Function present in PrioritizeConSites.py
 # ---------------------------------------------------------------------------
 # ProcBRANK.py
 # Version:  ArcGIS 10.3 / Python 2.7

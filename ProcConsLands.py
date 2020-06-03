@@ -1,3 +1,4 @@
+### SLATED FOR DELETION - Function moved to PrepInputs.py
 # ---------------------------------------------------------------------------
 # ProcConsLands.py
 # Version:  ArcGIS 10.3 / Python 2.7
