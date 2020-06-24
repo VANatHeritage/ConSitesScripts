@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2020-06-02
+# Last Edit: 2020-06-22
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -190,6 +190,23 @@ def multiMeasure(meas, multi):
    measTuple = (num, units, newMeas)
    return measTuple
    
+def createFGDB(FGDB):
+   '''Checks to see if specified file geodatabase exists, and creates it if not.
+   Parameters:
+   - FGDB: full path to file geodatabase (e.g. r'C:\myDir\myGDB.gdb')
+   '''
+   gdbPath = os.path.dirname(FGDB)
+   gdbName = os.path.basename(FGDB)
+   
+   if arcpy.Exists(FGDB):
+      printMsg("%s already exists." %gdbName)
+      pass
+   else:
+      printMsg("Creating new file geodatabase...")
+      arcpy.CreateFileGDB_management(gdbPath, gdbName)
+      printMsg("%s created." %gdbName)
+   return FGDB
+
 def createTmpWorkspace():
    '''Creates a new temporary geodatabase with a timestamp tag, within the current scratchFolder'''
    # Get time stamp
@@ -389,29 +406,100 @@ def ShrinkWrap(inFeats, dilDist, outFeats, smthMulti = 8, scratchGDB = "in_memor
       
    return outFeats
    
-def ProjectToMatch(in_Feats, in_Template, out_Feats):
+def CompareSpatialRef(in_Data, in_Template):
+   sr_In = arcpy.Describe(in_Data).spatialReference
+   sr_Out = arcpy.Describe(in_Template).spatialReference
+   srString_In = sr_In.exporttostring()
+   srString_Out = sr_Out.exporttostring()
+   gcsString_In = sr_In.GCS.exporttostring()
+   gcsString_Out = sr_Out.GCS.exporttostring()
+    
+   if srString_In == srString_Out:
+      reproject = 0
+      transform = 0
+      geoTrans = ""
+   else:
+      reproject = 1
+      
+   if reproject == 1:
+      if gcsString_In == gcsString_Out:
+         transform = 0
+         geoTrans = ""
+      else:
+         transList = arcpy.ListTransformations(sr_In, sr_Out)
+         if len(transList) == 0:
+            transform = 0
+            geoTrans = ""
+         else:
+            transform = 1
+            geoTrans = transList[0]
+         
+   return (sr_In, sr_Out, reproject, transform, geoTrans)
+
+def ProjectToMatch_vec(in_Data, in_Template, out_Data):
    '''Check if input features and template data have same spatial reference.
    If so, make a copy. If not, reproject features to match template.
    Parameters:
-   in_Feats = input features to be reprojected or copied
+   in_Data = input features to be reprojected or copied
    in_Template = dataset used to determine desired spatial reference
-   out_Feats = output features resulting from copy or reprojection
+   out_Data = output features resulting from copy or reprojection
    '''
    
-   srFeats = arcpy.Describe(in_Feats).spatialReference
-   srTemplate = arcpy.Describe(in_Template).spatialReference
+   # Compare the spatial references of input and template data
+   (sr_In, sr_Out, reproject, transform, geoTrans) = CompareSpatialRef(in_Data, in_Template)
    
-   if srFeats.Name == srTemplate.Name:
+   if reproject == 0:
       printMsg('Coordinate systems for features and template data are the same. Copying...')
-      arcpy.CopyFeatures_management (in_Feats, out_Feats)
+      arcpy.CopyFeatures_management (in_Data, out_Data)
    else:
       printMsg('Reprojecting features to match template...')
-      # Check if geographic transformation is needed, and handle accordingly.
-      if srFeats.GCS.Name == srTemplate.GCS.Name:
-         geoTrans = ""
+      if transform == 0:
          printMsg('No geographic transformation needed...')
       else:
-         transList = arcpy.ListTransformations(srFeats,srTemplate)
-         geoTrans = transList[0]
-      arcpy.Project_management (in_Feats, out_Feats, srTemplate, geoTrans)
-   return out_Feats
+         printMsg('Applying an appropriate geographic transformation...')
+      arcpy.Project_management (in_Data, out_Data, sr_Out, geoTrans)
+   return out_Data
+   
+def ProjectToMatch_ras(in_Data, in_Template, out_Data, resampleType = "NEAREST"):
+   '''Check if input raster and template raster have same spatial reference.
+   If not, reproject input to match template.
+   Parameters:
+   in_Data = input raster to be reprojected
+   in_Template = dataset used to determine desired spatial reference and cell alignment
+   out_Data = output raster resulting from resampling
+   resampleType = type of resampling to use (NEAREST, MAJORITY, BILINEAR, or CUBIC)
+   '''
+   
+   # Compare the spatial references of input and template data
+   (sr_In, sr_Out, reproject, transform, geoTrans) = CompareSpatialRef(in_Data, in_Template)
+   
+   if reproject == 0:
+      printMsg('Coordinate systems for input and template data are the same. No need to reproject.')
+      return in_Data
+   else:
+      printMsg('Reprojecting input raster to match template...')
+      arcpy.env.snapRaster = in_Template
+      if transform == 0:
+         printMsg('No geographic transformation needed...')
+      else:
+         printMsg('Applying an appropriate geographic transformation...')
+      arcpy.ProjectRaster_management (in_Data, out_Data, sr_Out, resampleType, "", geoTrans)
+      return out_Data
+      
+def clipRasterToPoly(in_Rast, in_Poly, out_Rast):
+   '''Clips a raster to a polygon feature class.
+   
+   Parameters:
+   in_Rast: Input raster to be clipped
+   in_Poly: Input polygon feature class or a geometry object to be used for clipping
+   out_Rast: Output clipped raster
+   '''
+   try:
+      # This should work if input is a feature class
+      myExtent = str(arcpy.Describe(in_Poly).extent).replace(" NaN", "")
+   except:
+      # This should work if input is a geometry object
+      myExtent = str(in_Poly.extent).replace(" NaN", "")
+   arcpy.Clip_management (in_Rast, myExtent, out_Rast, in_Poly, "", "ClippingGeometry")
+   
+   return out_Rast
