@@ -1,4 +1,4 @@
-### SLATED FOR DELETION; PROBABLY NO LONGER NEEDED
+### SLATED FOR DELETION; PROBABLY NO LONGER NEEDED, BUT FIRST SOME FUNCTIONS SHOULD BE MOVED TO OTHER SCRIPTS
 # ----------------------------------------------------------------------------------------
 # libScuFx.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8

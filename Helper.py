@@ -436,21 +436,28 @@ def CompareSpatialRef(in_Data, in_Template):
          
    return (sr_In, sr_Out, reproject, transform, geoTrans)
 
-def ProjectToMatch_vec(in_Data, in_Template, out_Data):
+def ProjectToMatch_vec(in_Data, in_Template, out_Data, copy = 1):
    '''Check if input features and template data have same spatial reference.
    If so, make a copy. If not, reproject features to match template.
+   
    Parameters:
-   in_Data = input features to be reprojected or copied
-   in_Template = dataset used to determine desired spatial reference
-   out_Data = output features resulting from copy or reprojection
+   in_Data: input features to be reprojected or copied
+   in_Template: dataset used to determine desired spatial reference
+   out_Data: output features resulting from copy or reprojection
+   copy: indicates whether to make a copy (1) or not (0) for data that don't need to be reprojected
    '''
    
    # Compare the spatial references of input and template data
    (sr_In, sr_Out, reproject, transform, geoTrans) = CompareSpatialRef(in_Data, in_Template)
    
    if reproject == 0:
-      printMsg('Coordinate systems for features and template data are the same. Copying...')
-      arcpy.CopyFeatures_management (in_Data, out_Data)
+      printMsg('Coordinate systems for features and template data are the same.')
+      if copy == 1: 
+         printMsg('Copying...')
+         arcpy.CopyFeatures_management (in_Data, out_Data)
+      else:
+         printMsg('Returning original data unchanged.')
+         out_Data = in_Data
    else:
       printMsg('Reprojecting features to match template...')
       if transform == 0:

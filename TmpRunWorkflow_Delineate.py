@@ -1,3 +1,5 @@
+### SLATED FOR DELETION 
+
 # ---------------------------------------------------------------------------
 # RunWorkflow_Delineate.py
 # Version:  ArcGIS 10.3 / Python 2.7
@@ -23,8 +25,8 @@ def main():
    
    # Define your output workspaces (geodatabases) and other options
    # The geodatabases may or may not already exist
-   out_GDB = r"F:\Working\SCS\TestOutputs_20200623.gdb" # GDB to store all processing outputs
-   scratchGDB = r"F:\Working\SCS\scratch_20200623.gdb" # GDB to store scratch products. To maximize speed, set to "in_memory". If trouble-shooting, replace "in_memory" with path to a scratch geodatabase on your hard drive.
+   out_GDB = r"F:\Working\SCS\TestOutputs_20200624.gdb" # GDB to store all processing outputs
+   scratchGDB = r"F:\Working\SCS\scratch_20200624.gdb" # GDB to store scratch products. To maximize speed, set to "in_memory". If trouble-shooting, replace "in_memory" with path to a scratch geodatabase on your hard drive.
    siteType = "SCS" # Determines which site type to run. Choices are: TCS, AHZ, SCS, or COMBO (for all site types)
    ysnQC = "N" # Determines whether or not to run QC process after site delineation Choices are Y or N
    
@@ -47,7 +49,9 @@ def main():
    # Ancillary Data for SCS sites - set it and forget it until you are notified of an update
    in_hydroNet = r"F:\Working\SCU\VA_HydroNet.gdb\HydroNet\HydroNet_ND"
    in_Catch = r"E:\SpatialData\NHD_Plus_HR\Proc_NHDPlus_HR.gdb\NHDPlusCatchment_Merge_valam"
+   in_FlowDist = r"E:\SpatialData\flowlengover_HU8_VA.gdb\flowlengover_HU8_VA"
    in_FlowBuff = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250"
+   FlowBuff_albers = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
    
    ### End of user input
    
@@ -94,7 +98,9 @@ def main():
    else:
       createFGDB(scratchGDB)
    
-   DelinSite_scs(scsLines, in_Catch, in_hydroNet, out_SCS, in_FlowBuff, "true", scratchGDB)
+   # prepFlowBuff(in_FlowDist, 250, FlowBuff_albers, snapRast = None)
+   scsLines = r"F:\Working\SCS\TestOutputs_20200623.gdb\scsLines"
+   DelinSite_scs(scsLines, in_Catch, in_hydroNet, out_SCS, FlowBuff_albers, "true", 250, scratchGDB)
 
 if __name__ == "__main__":
    main()

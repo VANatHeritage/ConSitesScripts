@@ -165,7 +165,7 @@ def main():
          
          # Delineate Stream Conservation Sites
          printMsg("Creating Sites...")
-         DelinSite_scs(scsLines, in_Catch, in_hydroNet, out_SCS, in_FlowBuff, "true", scratchGDB)
+         DelinSite_scs(scsLines, in_Catch, in_hydroNet, out_SCS, in_FlowBuff, "true", 250,scratchGDB)
          
          # Review ConSites
          if ysnQC == "Y":

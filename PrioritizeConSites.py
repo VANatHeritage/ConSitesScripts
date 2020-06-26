@@ -2,13 +2,14 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2020-06-04
+# Last Edit: 2020-06-25
 # Creator:  Kirsten R. Hazler
 
 # Summary:
 # Suite of functions to prioritize and review Conservation Sites.
 ### TO DO:
-# Add a function to generate set of prioritized EOs without sites and sites without EOs
+# - Add a function to generate set of prioritized EOs without sites and sites without EOs
+# - Move the main function stuff to a separate workflow script.
 # ---------------------------------------------------------------------------
 
 # Import modules and functions
@@ -308,7 +309,7 @@ def buildSlotDict(in_sumTab):
 
 ### MAIN FUNCTIONS ###
 def getBRANK(in_EOs, in_ConSites):
-   '''Automates the assignment of B-ranks to conservation sites
+   '''Automates the assignment of Biodiversity Ranks to conservation sites
    NOTE: Should only be run on one site type at a time, with type-specific inputs. Needs to run in foreground so tables update attributes. Best to close attribute tables prior to running.
    '''
    ### For the EOs, calculate the IBR (individual B-rank)
