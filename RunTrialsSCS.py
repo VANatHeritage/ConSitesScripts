@@ -4,7 +4,7 @@
 # RunTrialsSCS.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2020-06-25
+# Last Edit: 2020-07-27
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -22,8 +22,15 @@ def main():
    in_hydroNet = r"F:\Working\SCU\VA_HydroNet.gdb\HydroNet\HydroNet_ND"
    in_Catch = r"E:\SpatialData\NHD_Plus_HR\Proc_NHDPlus_HR.gdb\NHDPlusCatchment_Merge_valam"
    in_PF = r"F:\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ProcFeats_20191213_scu"
-   in_FlowBuff = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
-   out_GDB = r"F:\Working\SCS\TestOutputs_20200625.gdb"
+   OvrlndFlowLength = r"E:\SpatialData\flowlengover_HU8_VA.gdb\flowlengover_HU8_VA"
+   FlowBuff250 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
+   FlowBuff100 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff100_albers"
+   ImpactQuantiles = r"E:\SpatialData\HealthyWatersWork\hwProducts_20200724.gdb\ImpactScore_baseQ10"
+   scsPts = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsPts"
+   # out_GDB = r"F:\Working\SCS\TestOutputs_20200625.gdb" # Used for trials 1-4
+   # out_GDB = r"F:\Working\SCS\TestOutputs_20200715.gdb" # Used for trials 3b, 4b
+   out_GDB = r"F:\Working\SCS\TestOutputs_20200727.gdb" # Used for trials 3c, 4c
+   InclusionZone = out_GDB + os.sep + "scsInclusionZone"
 
    ### Set up trial variables
    # Trial 1
@@ -50,45 +57,108 @@ def main():
    buffDist4 = 250
    trial_4 = ["Trial_4", upDist4, downDist4, buffDist4]
    
+   # Trial 3b
+   dict3b = dict()
+   dict3b["nameTag"] = "Trial_3b"
+   dict3b["upDist"] = 3000
+   dict3b["downDist"] = 1000
+   dict3b["buffDist"] = 100
+   dict3b["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_3" 
+   dict3b["flowBuff"] = FlowBuff100
+   
+   # Trial 4b
+   dict4b = dict()
+   dict4b["nameTag"] = "Trial_4b"
+   dict4b["upDist"] = 3000
+   dict4b["downDist"] = 500
+   dict4b["buffDist"] = 100
+   dict4b["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_4"
+   dict4b["flowBuff"] = FlowBuff100
+   
+   # Trial 3c
+   dict3c = dict()
+   dict3c["nameTag"] = "Trial_3c"
+   dict3c["upDist"] = 3000
+   dict3c["downDist"] = 1000
+   dict3c["buffDist"] = 250
+   dict3c["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_3" 
+   dict3c["flowBuff"] = InclusionZone
+   
+   # Trial 4c
+   dict4c = dict()
+   dict4c["nameTag"] = "Trial_4c"
+   dict4c["upDist"] = 3000
+   dict4c["downDist"] = 500
+   dict4c["buffDist"] = 250
+   dict4c["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_4"
+   dict4c["flowBuff"] = InclusionZone
+   
    ### End of user input
 
    ### Function(s) to run
    
    createFGDB(out_GDB)
+   # prepFlowBuff(OvrlndFlowLength, 100, FlowBuff100)
+   # prepInclusionZone(FlowBuff100, FlowBuff250, ImpactQuantiles, InclusionZone, truncVal = 9)
    
-   # Create points on network - these are used for all trials
-   printMsg("Starting MakeNetworkPts_scs function.")
-   tStart = datetime.now()
-   scsPts = out_GDB + os.sep + "scsPts"
-   MakeNetworkPts_scs(in_hydroNet, in_Catch, in_PF, scsPts)
-   tEnd = datetime.now()
-   ds = GetElapsedTime (tStart, tEnd)
-   printMsg("Time elapsed: %s" % ds)
+   # # Create points on network - these are used for all trials
+   # printMsg("Starting MakeNetworkPts_scs function.")
+   # tStart = datetime.now()
+   # scsPts = out_GDB + os.sep + "scsPts"
+   # MakeNetworkPts_scs(in_hydroNet, in_Catch, in_PF, scsPts)
+   # tEnd = datetime.now()
+   # ds = GetElapsedTime (tStart, tEnd)
+   # printMsg("Time elapsed: %s" % ds)
    
-   for t in [trial_1, trial_2, trial_3, trial_4]:
+   # # for t in [trial_1, trial_2, trial_3, trial_4]:
+      # # timestamp
+      # tStart = datetime.now()
+      
+      # printMsg("Working on %s" %t[0])
+      
+      # nameTag = t[0]
+      # upDist = t[1]
+      # downDist = t[2]
+      # buffDist = t[3]
+
+      # scsLines = out_GDB + os.sep + "scsLines_%s" %nameTag
+      # scsFinal = out_GDB + os.sep + "scsFinal_%s" %nameTag
+      
+      # printMsg("Starting MakeServiceLayers_scs function.")
+      # (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scs(in_hydroNet, upDist, downDist)
+      
+      # printMsg("Starting CreateLines_scs function.")
+      # CreateLines_scs(scsLines, in_PF, scsPts, lyrDownTrace, lyrUpTrace)
+      
+      # printMsg("Starting DelinSite_scs function.")
+      # DelinSite_scs(scsLines, in_Catch, in_hydroNet, scsFinal, in_FlowBuff, "true", buffDist)
+
+      # printMsg("Finished with %s." %t[0])
+      
+      # # timestamp
+      # tEnd = datetime.now()
+      # ds = GetElapsedTime (tStart, tEnd)
+      # printMsg("Time elapsed: %s" % ds)
+      
+   #for d in [dict3b, dict4b]:
+   for d in [dict3c, dict4c]:
       # timestamp
       tStart = datetime.now()
       
-      printMsg("Working on %s" %t[0])
+      printMsg("Working on %s" %d["nameTag"])
       
-      nameTag = t[0]
-      upDist = t[1]
-      downDist = t[2]
-      buffDist = t[3]
-
-      scsLines = out_GDB + os.sep + "scsLines_%s" %nameTag
+      nameTag = d["nameTag"]
+      upDist = d["upDist"]
+      downDist = d["downDist"]
+      buffDist = d["buffDist"]
+      scsLines = d["scsLines"]
+      flowBuff = d["flowBuff"]
       scsFinal = out_GDB + os.sep + "scsFinal_%s" %nameTag
       
-      printMsg("Starting MakeServiceLayers_scs function.")
-      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scs(in_hydroNet, upDist, downDist)
-      
-      printMsg("Starting CreateLines_scs function.")
-      CreateLines_scs(scsLines, in_PF, scsPts, lyrDownTrace, lyrUpTrace)
-      
       printMsg("Starting DelinSite_scs function.")
-      DelinSite_scs(scsLines, in_Catch, in_hydroNet, scsFinal, in_FlowBuff, "true", buffDist)
+      DelinSite_scs(scsLines, in_Catch, in_hydroNet, scsFinal, flowBuff, "true", buffDist, "in_memory")
 
-      printMsg("Finished with %s." %t[0])
+      printMsg("Finished with %s." %nameTag)
       
       # timestamp
       tEnd = datetime.now()

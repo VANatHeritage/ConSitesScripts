@@ -2,7 +2,7 @@
 # CreateConSites.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2016-02-25
-# Last Edit: 2020-06-25
+# Last Edit: 2020-07-27
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -531,6 +531,11 @@ def prepFlowBuff(in_FlowDist, truncDist, out_Rast, snapRast = None):
    # Check out Spatial Analyst extention
    arcpy.CheckOutExtension("Spatial")
    
+   # Set environment - had to do this b/c SetNull was inexplicably failing when saving temporary raster
+   # I also had to delete my scratch workspace before I could proceed, for future reference...
+   scratchGDB = arcpy.env.scratchGDB
+   arcpy.env.scratchWorkspace = scratchGDB
+   
    # Cast string as raster
    in_FlowDist = Raster(in_FlowDist)
    
@@ -555,6 +560,44 @@ def prepFlowBuff(in_FlowDist, truncDist, out_Rast, snapRast = None):
    
    printMsg("Mission complete.")
    
+   return out_Rast
+
+def prepInclusionZone(in_Zone1, in_Zone2, in_Score, out_Rast, truncVal = 9):
+   '''Creates a binary raster which is set to 1 to indicate an "inclusion zone", null otherwise. A cell is in the inclusion zone if either of these conditions is true:
+      - the Zone1 raster is non-null
+      - the Zone2 raster is non-null AND the Impact Score is greater than or equal to the truncation value (truncVal)
+      
+   Parameters:
+      - in_Zone1: input raster representing Zone 1 (the more critical zone, e.g., the inner flow buffer)
+      - in_Zone2: input raster representing Zone 2 (the less critical zone, e.g., the outer flow buffer. Zone1 is assumed to be nested within Zone2.)
+      - in_Score: input raster representing a score indicating relative importance. (In practice, it may be better to use a "sliced" score raster, so that the inclusion can be based on a quantile.)
+      - out_Rast: output raster representing the inclusion zone
+      - truncVal: truncation value; values in the Score raster greater than or equal to this value are eligible for inclusion in the final raster
+   '''
+   
+   # Check out Spatial Analyst extention
+   arcpy.CheckOutExtension("Spatial")
+   
+   # # Set environment - had to do this b/c SetNull was inexplicably failing when saving temporary raster
+   # # I also had to delete my scratch workspace before I could proceed, for future reference...
+   # scratchGDB = arcpy.env.scratchGDB
+   # arcpy.env.scratchWorkspace = scratchGDB
+   arcpy.env.extent = in_Score
+   
+   # Cast strings as rasters
+   print("Casting strings as rasters...")
+   in_Zone1 = Raster(in_Zone1)
+   in_Zone2 = Raster(in_Zone2)
+   in_Score = Raster(in_Score)
+   
+   # Calculate zone and save
+   print("Calculating inclusion zone...")
+   # r = Con(in_Zone1, 1, Con(in_Zone2, Con(in_Score >= truncVal, 1)))
+   r = Con(in_Score >= truncVal, Con(in_Zone2, 1), Con(in_Zone1, 1))
+   print("Saving...")
+   r.save(out_Rast)
+   
+   print("Mission complete.")
    return out_Rast
    
 def ReviewConSites(auto_CS, orig_CS, cutVal, out_Sites, fld_SiteID = "SITEID", scratchGDB = arcpy.env.scratchWorkspace):
@@ -2149,18 +2192,21 @@ def BufferLines_scs(in_Lines, in_StreamRiver, in_LakePond, in_Catch, out_Buffers
    # arcpy.MakeFeatureLayer_management (out_Buffers, "clipBuffers")
    
    return out_Buffers
-   
+
 def DelinSite_scs(in_Lines, in_Catch, in_hydroNet, out_Polys, in_FlowBuff, trim = "true", buffDist = 250, out_Scratch = "in_memory"):
    """Creates Stream Conservation Sites.
    
+   STILL TO DO: Need to use existing SCS as template; append final results to blank template.
+   
    Parameters:
-   in_Lines = Input SCU lines, generated as output from CreateLines_scu function
-   in_Catch = Input catchments from NHDPlus
-   in_hydroNet = Input hydrological network dataset
-   out_Polys = Output polygons representing partial watersheds draining to the SCU lines
-   in_FlowBuff = Input raster where the flow distances shorter than a specified truncation distance are coded 1; output from the prepFlowBuff function. Ignored if trim = "false", in which case "None" can be entered.
-   trim = Indicates whether sites should be restricted to buffers ("true"; default) or encompass entire catchments ("false")
-   out_Scratch = Geodatabase to contain output products 
+   - in_Lines: Input SCU lines, generated as output from CreateLines_scu function
+   - in_Catch: Input catchments from NHDPlus
+   - in_hydroNet: Input hydrological network dataset
+   - out_Polys: Output polygons representing partial watersheds draining to the SCU lines
+   - in_FlowBuff: Input raster where the flow distances shorter than a specified truncation distance are coded 1; output from the prepFlowBuff function. Ignored if trim = "false", in which case "None" can be entered.
+   - trim: Indicates whether sites should be restricted to buffers ("true"; default) or encompass entire catchments ("false")
+   - buffDist: Buffer distance used to make clipping buffers
+   - out_Scratch: Geodatabase to contain output products 
    """
    
    # timestamp
