@@ -2,7 +2,7 @@
 # Helper.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2017-08-08
-# Last Edit: 2020-06-22
+# Last Edit: 2020-09-15
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -129,9 +129,12 @@ def countFeatures(features):
    return count
    
 def countSelectedFeatures(featureLyr):
-   '''Gets count of selected features in a feature layer'''
+   '''Gets count of selected features in a feature layer. It seems like there ought to be an easier way than this but...'''
    desc = arcpy.Describe(featureLyr)
-   count = len(desc.FIDSet)
+   set = desc.FIDSet
+   count = len(set)
+   if count != 0:
+      count = len(set.split(";"))
    return count
 
 def SelectCopy(in_FeatLyr, selFeats, selDist, out_Feats):

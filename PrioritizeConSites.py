@@ -2,14 +2,11 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2020-06-25
+# Last Edit: 2020-09-15
 # Creator:  Kirsten R. Hazler
 
 # Summary:
 # Suite of functions to prioritize and review Conservation Sites.
-### TO DO:
-# - Add a function to generate set of prioritized EOs without sites and sites without EOs
-# - Move the main function stuff to a separate workflow script.
 # ---------------------------------------------------------------------------
 
 # Import modules and functions
@@ -950,21 +947,22 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "false", ysnYear = "
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
    
-def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, in_consLands_flat, build = 'NEW'):
+def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, out_Excel, in_consLands_flat, build = "NEW", ):
    '''Builds a portfolio of EOs and Conservation Sites of highest conservation priority.
    Parameters:
    - in_sortedEOs: input feature class of scored EOs (i.e., out_sortedEOs from the ScoreEOs function)
    - out_sortedEOs: output prioritized EOs
-   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
+   - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function
    - out_sumTab: updated output element portfolio summary table
    - in_ConSites: input Conservation Site boundaries
    - out_ConSites: output prioritized Conservation Sites
+   - out_Excel: Output prioritized ConSite attribute table converted to Excel spreadsheet. Specify "None" if none is desired.
+   - in_consLands_flat: Input "flattened" version of Conservation Lands, based on level of Biodiversity Management Intent (BMI)
    - build: type of portfolio build to perform. The options are:
       - NEW: overwrite any existing portfolio picks for both EOs and ConSites
       - NEW_EO: overwrite existing EO picks, but keep previous ConSite picks
       - NEW_CS: overwrite existing ConSite picks, but keep previous EO picks
       - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites
-   - in_consLands_flat: Input "flattened" version of Conservation Lands, based on level of Biodiversity Management Intent (BMI).
    '''
    
    scratchGDB = arcpy.env.scratchGDB
@@ -1221,7 +1219,16 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       
    printMsg('Conservation sites prioritized and portfolio summary updated.')
    
-   return (out_sortedEOs, out_sumTab, out_ConSites)
+   # Export to Excel
+   if out_Excel == "None":
+      pass
+   else:
+      printMsg("Exporting to Excel...")
+      arcpy.TableToExcel_conversion(out_ConSites, out_Excel)
+      
+   printMsg('Prioritization process complete.')
+   
+   return (out_sortedEOs, out_sumTab, out_ConSites, out_Excel)
 
 def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out_Excel):
    '''Creates a master list relating a summary of processed, viable EOs to a set of boundary polygons, which could be Conservation Sites, Natural Area Preserves, parcels, or any other boundaries. The output table is sorted by polygon ID, Element, tier, and G-rank. Optionally, the output table can be exported to an excel spreadsheet.
@@ -1314,143 +1321,37 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
       arcpy.TableToExcel_conversion(out_Tab, out_Excel)
    
    return out_Tab
-   
-   
-# Use the main function below to run desired function(s) directly from Python IDE or command line with hard-coded variables
-def main():
-   ### Run preliminary steps. You need to be on COV network to be able to extract Biotics data.
-   # Prior to running this script, the following should be done:
-   # - Open the map document set up for ECS (i.e., ECS_Working_yyyymmdd.mxd), and save it as a new document in a new output folder with appropriate date tags.
-   # - Create an input geodatabase named ECS_Inputs_[MonthYear].gdb
-   # - Create an output geodatabase named ECS_Outputs_[MonthYear].gdb
-   # - Run the "Extract Biotics data" tool, with output going to the input geodatabase
-   # - Run the "Parse site types" tool, with output going to the input geodatabase
-   # - Import required inputs into the input geodatabase:
-   #   -- ElementExclusions table (get annually from biologists)
-   #   -- ConsLands feature class (get quarterly from Dave Boyd)
-   #   -- EcoRegions feature class (fairly static data)
-   # - Run the "Flatten Conservation Lands" tool, with output going to the input geodatabase
-   # - Update all the paths and cutoff years as needed in the variables set up below.
-   # - Close ArcMap and run the script from the Python environment
-   
-   ### Set up input variables ###
-   # Path to input and output geodatabases and directories
-   in_GDB = r'F:\Working\EssentialConSites\ECS_Run_June2020\ECS_Inputs_June2020.gdb'
-   out_GDB = r'F:\Working\EssentialConSites\ECS_Run_June2020\ECS_Outputs_June2020.gdb'
-   out_DIR = r'F:\Working\EssentialConSites\ECS_Run_June2020\Spreadsheets_June2020' 
-   
-   # Input Procedural Features by site type
-   in_pf_tcs = in_GDB + os.sep + 'pfTerrestrial'
-   in_pf_scu = in_GDB + os.sep + 'pfStream'
-   in_pf_kcs = in_GDB + os.sep + 'pfKarst'
-   
-   # Input Conservation Sites by type
-   in_cs_tcs = in_GDB + os.sep + 'csTerrestrial'
-   in_cs_scu = in_GDB + os.sep + 'csStream'
-   in_cs_kcs = in_GDB + os.sep + 'csKarst'
-   
-   # Input other standard variables
-   in_elExclude = in_GDB + os.sep + 'ElementExclusions'
-   in_consLands = in_GDB + os.sep + 'ConsLands_20200602'
-   in_consLands_flat = in_GDB + os.sep + 'ConsLands_20200602_flat'
-   in_ecoReg = in_GDB + os.sep + 'tncEcoRegions_lam'
-   fld_RegCode = 'GEN_REG'
-   
-   # Input cutoff years
-   cutYear = 1995 # yyyy - 25 for TCS and SCU
-   flagYear = 2000 # yyyy - 20 for TCS and SCU
-   cutYear_kcs = 1980 # yyyy - 40 for KCS
-   flagYear_kcs = 1985 # yyyy - 35 for KCS
 
-   # Set up outputs by type - no need to change these as long as your out_GDB above is valid
-   attribEOs_tcs = out_GDB + os.sep + 'attribEOs_tcs'
-   sumTab_tcs = out_GDB + os.sep + 'sumTab_tcs'
-   scoredEOs_tcs = out_GDB + os.sep + 'scoredEOs_tcs'
-   priorEOs_tcs = out_GDB + os.sep + 'priorEOs_tcs'
-   sumTab_upd_tcs = out_GDB + os.sep + 'sumTab_upd_tcs'
-   priorConSites_tcs = out_GDB + os.sep + 'priorConSites_tcs'
-   elementList_tcs = out_GDB + os.sep + 'elementList_tcs'
-   excelList_tcs = out_DIR + os.sep + 'elementList_tcs.xls'
+def qcSitesVsEOs(in_Sites, in_EOs, out_siteList, out_eoList):
+   '''Performs a QC protocol to determine if there are any EOs not intersecting a site, or vice versa. If any issues are found, they are exported to Excel tables for further review.
+   Parameters:
+   - in_Sites: Input feature class representing Conservation Sites of one specific type only
+   - in_EOs: Input features representing EOs corresponding to the same site type
+   - out_siteList: An Excel file to contain a list of sites without EOs
+   - out_eoList: An Excel file to contain a list of EOs without sites
+   '''
+   # Make feature layers for in_Sites and in_EOs
+   sites = arcpy.MakeFeatureLayer_management(in_Sites,"Sites_lyr")
+   EOs = arcpy.MakeFeatureLayer_management(in_EOs,"EOs_lyr")
    
-   attribEOs_scu = out_GDB + os.sep + 'attribEOs_scu'
-   sumTab_scu = out_GDB + os.sep + 'sumTab_scu'
-   scoredEOs_scu = out_GDB + os.sep + 'scoredEOs_scu'
-   priorEOs_scu = out_GDB + os.sep + 'priorEOs_scu'
-   sumTab_upd_scu = out_GDB + os.sep + 'sumTab_upd_scu'
-   priorConSites_scu = out_GDB + os.sep + 'priorConSites_scu'
-   elementList_scu = out_GDB + os.sep + 'elementList_scu'
-   excelList_scu = out_DIR + os.sep + 'elementList_scu.xls'   
-      
-   attribEOs_kcs = out_GDB + os.sep + 'attribEOs_kcs'
-   sumTab_kcs = out_GDB + os.sep + 'sumTab_kcs'
-   scoredEOs_kcs = out_GDB + os.sep + 'scoredEOs_kcs'
-   priorEOs_kcs = out_GDB + os.sep + 'priorEOs_kcs'
-   sumTab_upd_kcs = out_GDB + os.sep + 'sumTab_upd_kcs'
-   priorConSites_kcs = out_GDB + os.sep + 'priorConSites_kcs'
-   elementList_kcs = out_GDB + os.sep + 'elementList_kcs'
-   excelList_kcs = out_DIR + os.sep + 'elementList_kcs.xls'
+   # Select by location the EOs intersecting sites, reverse selection, and count selected records
+   arcpy.SelectLayerByLocation_management (EOs, "INTERSECT", in_Sites, "", "NEW_SELECTION", "INVERT")
+   count = countSelectedFeatures(EOs)
    
+   # If count > 0, export list of EOs for QC
+   if count > 0:
+      arcpy.TableToExcel_conversion(EOs, out_eoList)
+      printMsg("There are %s EOs without sites. Exporting list."%count)
+   else:
+      printMsg("There are no EOs without sites.")
    
-   ### Specify functions to run - no need to change these as long as all your input/output variables above are valid ###
+   # Select by location the EOs intersecting sites, reverse selection, and count selected records
+   arcpy.SelectLayerByLocation_management (sites, "INTERSECT", in_EOs, "", "NEW_SELECTION", "INVERT")
+   count = countSelectedFeatures(sites)
    
-   # Get timestamp
-   tStart = datetime.now()
-   printMsg("Processing started at %s on %s" %(tStart.strftime("%H:%M:%S"), tStart.strftime("%Y-%m-%d")))
-   
-   # Attribute EOs
-   printMsg("Attributing terrestrial EOs...")
-   AttributeEOs(in_pf_tcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_tcs, sumTab_tcs)
-   
-   printMsg("Attributing stream EOs...")
-   AttributeEOs(in_pf_scu, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_scu, sumTab_scu)
-   
-   printMsg("Attributing karst EOs...")
-   AttributeEOs(in_pf_kcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear_kcs, flagYear_kcs, attribEOs_kcs, sumTab_kcs)
-   
-   tNow = datetime.now()
-   printMsg("EO attribution ended at %s" %tNow.strftime("%H:%M:%S"))
-   
-   # Score EOs
-   printMsg("Scoring terrestrial EOs...")
-   ScoreEOs(attribEOs_tcs, sumTab_tcs, scoredEOs_tcs, ysnMil = "false", ysnYear = "true")
-   
-   printMsg("Scoring stream EOs...")
-   ScoreEOs(attribEOs_scu, sumTab_scu, scoredEOs_scu, ysnMil = "false", ysnYear = "true")
-   
-   printMsg("Scoring karst EOs...")
-   ScoreEOs(attribEOs_kcs, sumTab_kcs, scoredEOs_kcs, ysnMil = "false", ysnYear = "true")
-   
-   tNow = datetime.now()
-   printMsg("EO scoring ended at %s" %tNow.strftime("%H:%M:%S"))
-   
-   # Build Portfolio
-   printMsg("Building terrestrial portfolio...")
-   BuildPortfolio(scoredEOs_tcs, priorEOs_tcs, sumTab_tcs, sumTab_upd_tcs, in_cs_tcs, priorConSites_tcs, in_consLands_flat, build = 'NEW')
-   
-   printMsg("Building stream portfolio...")
-   BuildPortfolio(scoredEOs_scu, priorEOs_scu, sumTab_scu, sumTab_upd_scu, in_cs_scu, priorConSites_scu, in_consLands_flat, build = 'NEW')
-   
-   printMsg("Building karst portfolio...")
-   BuildPortfolio(scoredEOs_kcs, priorEOs_kcs, sumTab_kcs, sumTab_upd_kcs, in_cs_kcs, priorConSites_kcs, in_consLands_flat, build = 'NEW')
-   
-   tNow = datetime.now()
-   printMsg("Portolio building ended at %s" %tNow.strftime("%H:%M:%S"))
-   
-   # Build Elements List
-   printMsg("Building terrestrial elements list...")
-   BuildElementLists(in_cs_tcs, 'SITENAME', priorEOs_tcs, sumTab_upd_tcs, elementList_tcs, excelList_tcs)
-   
-   printMsg("Building stream elements list...")
-   BuildElementLists(in_cs_scu, 'SITENAME', priorEOs_scu, sumTab_upd_scu, elementList_scu, excelList_scu)
-   
-   printMsg("Building karst elements list...")
-   BuildElementLists(in_cs_kcs, 'SITENAME', priorEOs_kcs, sumTab_upd_kcs, elementList_kcs, excelList_kcs)
-   
-   # Get timestamp and elapsed time
-   tEnd = datetime.now()
-   printMsg("Processing ended at %s" %tNow.strftime("%H:%M:%S"))
-   deltaString = GetElapsedTime (tStart, tEnd)
-   printMsg("Mission complete. Elapsed time: %s" %deltaString)
-   
-if __name__ == '__main__':
-   main()
+   # If count > 0, export list of sites for QC
+   if count > 0:
+      arcpy.TableToExcel_conversion(sites, out_siteList)
+      printMsg("There are %s sites without EOs. Exporting list."%count)
+   else:
+      printMsg("There are no sites without EOs.")
