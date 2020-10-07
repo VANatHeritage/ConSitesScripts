@@ -4,7 +4,7 @@
 # RunTrialsSCS.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2020-07-27
+# Last Edit: 2020-09-25
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -25,6 +25,7 @@ def main():
    OvrlndFlowLength = r"E:\SpatialData\flowlengover_HU8_VA.gdb\flowlengover_HU8_VA"
    FlowBuff250 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
    FlowBuff100 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff100_albers"
+   FlowBuff150 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff150_albers"
    ImpactQuantiles = r"E:\SpatialData\HealthyWatersWork\hwProducts_20200724.gdb\ImpactScore_baseQ10"
    scsPts = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsPts"
    # out_GDB = r"F:\Working\SCS\TestOutputs_20200625.gdb" # Used for trials 1-4
@@ -93,12 +94,21 @@ def main():
    dict4c["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_4"
    dict4c["flowBuff"] = InclusionZone
    
+   # Trial 4d
+   dict4d = dict()
+   dict4d["nameTag"] = "Trial_4d"
+   dict4d["upDist"] = 3000
+   dict4d["downDist"] = 500
+   dict4d["buffDist"] = 150
+   dict4d["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_4"
+   dict4d["flowBuff"] = FlowBuff150
+   
    ### End of user input
 
    ### Function(s) to run
    
    createFGDB(out_GDB)
-   # prepFlowBuff(OvrlndFlowLength, 100, FlowBuff100)
+   prepFlowBuff(OvrlndFlowLength, 150, FlowBuff150)
    # prepInclusionZone(FlowBuff100, FlowBuff250, ImpactQuantiles, InclusionZone, truncVal = 9)
    
    # # Create points on network - these are used for all trials
@@ -141,7 +151,8 @@ def main():
       # printMsg("Time elapsed: %s" % ds)
       
    #for d in [dict3b, dict4b]:
-   for d in [dict3c, dict4c]:
+   #for d in [dict3c, dict4c]:
+   for d in [dict4d]:
       # timestamp
       tStart = datetime.now()
       
