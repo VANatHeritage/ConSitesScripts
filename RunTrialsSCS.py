@@ -22,15 +22,15 @@ def main():
    in_hydroNet = r"Y:\DavidData\From_David\VA_HydroNetHR.gdb\HydroNet\HydroNet_ND"
    in_Catch = r"Y:\DavidData\From_David\VA_HydroNetHR.gdb\NHDPlusCatchment"
    
-   marshPF = r"F:\Working\ConSites\BioticsExtracts.gdb\MarshPFs_20201204"
-   marshGDB = r"F:\Working\ConSites\MarshTest_SCS.gdb"
+   marshPF = r"N:\ProProjects\ConSites\BioticsExtracts.gdb\MarshPFs_20201204"
+   marshGDB = r"N:\ProProjects\ConSites\MarshTest_SCS.gdb"
    marshPts = marshGDB + os.sep + "marshPts"
    marshLines = marshGDB + os.sep + "marshLines"
    
    OvrlndFlowLength = r"Y:\SpatialData\flowlengover_HU8_VA.gdb\flowlengover_HU8_VA"
-   FlowBuff250 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
-   FlowBuff100 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff100_albers"
-   FlowBuff150 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff150_albers"
+   FlowBuff250 = r"N:\ProProjects\ConSites\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
+   FlowBuff100 = r"N:\ProProjects\ConSites\ConSite_Tools_Inputs.gdb\FlowBuff100_albers"
+   FlowBuff150 = r"N:\ProProjects\ConSites\ConSite_Tools_Inputs.gdb\FlowBuff150_albers"
    ImpactQuantiles = r"Y:\SpatialData\HealthyWatersWork\hwProducts_20200724.gdb\ImpactScore_baseQ10"
    
    # in_PF = r"F:\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ProcFeats_20191213_scu"
