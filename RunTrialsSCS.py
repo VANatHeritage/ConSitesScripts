@@ -22,10 +22,10 @@ def main():
    in_hydroNet = r"Y:\DavidData\From_David\VA_HydroNetHR.gdb\HydroNet\HydroNet_ND"
    in_Catch = r"Y:\DavidData\From_David\VA_HydroNetHR.gdb\NHDPlusCatchment"
    
-   marshPF = r"N:\ProProjects\ConSites\BioticsExtracts.gdb\MarshPFs_20201204"
-   marshGDB = r"N:\ProProjects\ConSites\MarshTest_SCS.gdb"
-   marshPts = marshGDB + os.sep + "marshPts"
-   marshLines = marshGDB + os.sep + "marshLines"
+   tidalPF = r"N:\ProProjects\ConSites\ConSites\BioticsExtracts.gdb\TidalPFs_20201204"
+   tidalGDB = r"N:\ProProjects\ConSites\TidalTest_SCS.gdb"
+   tidalPts = tidalGDB + os.sep + "tidalPts"
+   tidalLines = tidalGDB + os.sep + "tidalLines"
    
    OvrlndFlowLength = r"Y:\SpatialData\flowlengover_HU8_VA.gdb\flowlengover_HU8_VA"
    FlowBuff250 = r"N:\ProProjects\ConSites\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
@@ -110,20 +110,20 @@ def main():
    # dict4d["scsLines"] = r"F:\Working\SCS\TestOutputs_20200625.gdb\scsLines_Trial_4"
    # dict4d["flowBuff"] = FlowBuff150
    
-   # Marsh Trial
-   dictMarsh = dict()
-   dictMarsh["nameTag"] = "MarshTrial"
-   dictMarsh["upDist"] = 3000
-   dictMarsh["downDist"] = 500
-   dictMarsh["buffDist"] = 250
-   dictMarsh["scsLines"] = marshLines
-   dictMarsh["flowBuff"] = FlowBuff250
-   marshTrial = [dictMarsh["nameTag"], dictMarsh["upDist"], dictMarsh["downDist"], dictMarsh["buffDist"]]
+   # Tidal Trial
+   dictTidal = dict()
+   dictTidal["nameTag"] = "TidalTrial"
+   dictTidal["upDist"] = 3000
+   dictTidal["downDist"] = 500
+   dictTidal["buffDist"] = 250
+   dictTidal["scsLines"] = tidalLines
+   dictTidal["flowBuff"] = FlowBuff250
+   tidalTrial = [dictTidal["nameTag"], dictTidal["upDist"], dictTidal["downDist"], dictTidal["buffDist"]]
    
    ### End of user input
 
    ### Function(s) to run
-   out_GDB = marshGDB
+   out_GDB = tidalGDB
    
    createFGDB(out_GDB)
    # prepFlowBuff(OvrlndFlowLength, 150, FlowBuff150)
@@ -133,8 +133,8 @@ def main():
    printMsg("Starting MakeNetworkPts_scs function.")
    tStart = datetime.now()
    # scsPts = out_GDB + os.sep + "scsPts"
-   scsPts = marshPts
-   in_PF = marshPF
+   scsPts = tidalPts
+   in_PF = tidalPF
    
    MakeNetworkPts_scs(in_hydroNet, in_Catch, in_PF, scsPts)
    tEnd = datetime.now()
@@ -142,7 +142,7 @@ def main():
    printMsg("Time elapsed: %s" % ds)
    
    # # for t in [trial_1, trial_2, trial_3, trial_4]:
-   for t in [marshTrial]:
+   for t in [tidalTrial]:
       # timestamp
       tStart = datetime.now()
       
@@ -152,15 +152,16 @@ def main():
       upDist = t[1]
       downDist = t[2]
       buffDist = t[3]
+      in_FlowBuff = FlowBuff250
 
       scsLines = out_GDB + os.sep + "scsLines_%s" %nameTag
       scsFinal = out_GDB + os.sep + "scsFinal_%s" %nameTag
       
-      printMsg("Starting MakeServiceLayers_scs function.")
-      (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scs(in_hydroNet, upDist, downDist)
+      # printMsg("Starting MakeServiceLayers_scs function.")
+      # (lyrDownTrace, lyrUpTrace) = MakeServiceLayers_scs(in_hydroNet, upDist, downDist)
       
-      printMsg("Starting CreateLines_scs function.")
-      CreateLines_scs(scsLines, in_PF, scsPts, lyrDownTrace, lyrUpTrace)
+      # printMsg("Starting CreateLines_scs function.")
+      # CreateLines_scs(scsLines, in_PF, scsPts, lyrDownTrace, lyrUpTrace)
       
       printMsg("Starting DelinSite_scs function.")
       DelinSite_scs(scsLines, in_Catch, in_hydroNet, scsFinal, in_FlowBuff, "true", buffDist)
@@ -176,29 +177,29 @@ def main():
    #for d in [dict3c, dict4c]:
    #for d in [dict4d]:
    
-   for d in [dictMarsh]:
-      # timestamp
-      tStart = datetime.now()
+   # for d in [dictTidal]:
+      # # timestamp
+      # tStart = datetime.now()
       
-      printMsg("Working on %s" %d["nameTag"])
+      # printMsg("Working on %s" %d["nameTag"])
       
-      nameTag = d["nameTag"]
-      upDist = d["upDist"]
-      downDist = d["downDist"]
-      buffDist = d["buffDist"]
-      scsLines = d["scsLines"]
-      flowBuff = d["flowBuff"]
-      scsFinal = out_GDB + os.sep + "scsFinal_%s" %nameTag
+      # nameTag = d["nameTag"]
+      # upDist = d["upDist"]
+      # downDist = d["downDist"]
+      # buffDist = d["buffDist"]
+      # scsLines = d["scsLines"]
+      # flowBuff = d["flowBuff"]
+      # scsFinal = out_GDB + os.sep + "scsFinal_%s" %nameTag
       
-      printMsg("Starting DelinSite_scs function.")
-      DelinSite_scs(scsLines, in_Catch, in_hydroNet, scsFinal, flowBuff, "true", buffDist, "in_memory")
+      # printMsg("Starting DelinSite_scs function.")
+      # DelinSite_scs(scsLines, in_Catch, in_hydroNet, scsFinal, flowBuff, "true", buffDist, "in_memory")
 
-      printMsg("Finished with %s." %nameTag)
+      # printMsg("Finished with %s." %nameTag)
       
-      # timestamp
-      tEnd = datetime.now()
-      ds = GetElapsedTime (tStart, tEnd)
-      printMsg("Time elapsed: %s" % ds)
+      # # timestamp
+      # tEnd = datetime.now()
+      # ds = GetElapsedTime (tStart, tEnd)
+      # printMsg("Time elapsed: %s" % ds)
    
 if __name__ == "__main__":
    main()
