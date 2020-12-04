@@ -4,7 +4,7 @@
 # RunTrialsSCS.py
 # Version:  ArcGIS 10.3.1 / Python 2.7.8
 # Creation Date: 2018-11-05
-# Last Edit: 2020-09-25
+# Last Edit: 2020-12-04
 # Creator(s):  Kirsten R. Hazler
 
 # Summary:
@@ -19,8 +19,12 @@ from CreateConSites import *
 # Use the main function below to run functions directly from Python IDE or command line with hard-coded variables
 def main():
    ### Set up basic input variables
-   in_hydroNet = r"F:\Working\SCU\VA_HydroNet.gdb\HydroNet\HydroNet_ND"
-   in_Catch = r"E:\SpatialData\NHD_Plus_HR\Proc_NHDPlus_HR.gdb\NHDPlusCatchment_Merge_valam"
+   in_hydroNet = r"Y:\DavidData\From_David\VA_HydroNetHR.gdb\HydroNet\HydroNet_ND"
+   in_Catch = r"Y:\DavidData\From_David\VA_HydroNetHR.gdb\NHDPlusCatchment"
+   
+   marshPF = r"F:\Working\ConSites\BioticsExtracts.gdb\MarshPFs_20201204"
+   marshGDB = r"F:\Working\ConSites\MarshTest_SCS.gdb"
+   
    in_PF = r"F:\Working\EssentialConSites\ECS_Inputs_December2019.gdb\ProcFeats_20191213_scu"
    OvrlndFlowLength = r"E:\SpatialData\flowlengover_HU8_VA.gdb\flowlengover_HU8_VA"
    FlowBuff250 = r"F:\CurrentData\ConSite_Tools_Inputs.gdb\FlowBuff250_albers"
