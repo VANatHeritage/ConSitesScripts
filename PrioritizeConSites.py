@@ -2,7 +2,7 @@
 # EssentialConSites.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2018-02-21
-# Last Edit: 2020-09-15
+# Last Edit: 2020-12-11
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -1012,7 +1012,8 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       with arcpy.da.UpdateCursor(in_ConSites, ["SHAPE@", "CS_CONSVALUE", "ECS_TIER"]) as mySites:
          for site in mySites:
             myShp = site[0]
-            arcpy.SelectLayerByLocation_management("lyr_EO", "INTERSECT", myShp, "", "NEW_SELECTION", "NOT_INVERT")
+            # arcpy.SelectLayerByLocation_management("lyr_EO", "INTERSECT", myShp, "", "NEW_SELECTION", "NOT_INVERT")
+            arcpy.SelectLayerByLocation_management("lyr_EO", "WITHIN_A_DISTANCE", myShp, "15 METERS", "NEW_SELECTION", "NOT_INVERT")
             c = countSelectedFeatures("lyr_EO")
             if c > 0:
                #printMsg('%s EOs selected' % str(c))
