@@ -235,19 +235,21 @@ def updateSlots(in_procEOs, elcode, availSlots, rankFld):
          break
    return availSlots
 
-def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
+def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab, slopFactor = "15 METERS"):
    '''A helper function called by BuildPortfolio. Selects ConSites intersecting EOs in the EO portfolio, and adds them to the ConSite portfolio. Then selects "Choice" EOs intersecting ConSites in the portfolio, and adds them to the EO portfolio (bycatch). Finally, updates the summary table to indicate how many EOs of each element are in the different tier classes, and how many are included in the current portfolio.
    Parameters:
    - in_procEOs: input feature class of processed EOs (i.e., out_procEOs from the AttributeEOs function, further processed by the ScoreEOs function)
    - in_ConSites: input Conservation Site boundaries
    - in_sumTab: input table summarizing number of included EOs per element (i.e., out_sumTab from the AttributeEOs function.
+   - slopFactor: Maximum distance allowable between features for them to still me considered coincident
    '''
    # Intersect ConSites with subset of EOs, and set PORTFOLIO to 1
    where_clause = '("ChoiceRANK" < 4 OR "PORTFOLIO" = 1) AND "OVERRIDE" <> -1' 
    arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
    where_clause = '"OVERRIDE" <> -1'
    arcpy.MakeFeatureLayer_management (in_ConSites, "lyr_CS", where_clause)
-   arcpy.SelectLayerByLocation_management ("lyr_CS", "INTERSECT", "lyr_EO", 0, "NEW_SELECTION", "NOT_INVERT")
+   # arcpy.SelectLayerByLocation_management ("lyr_CS", "INTERSECT", "lyr_EO", 0, "NEW_SELECTION", "NOT_INVERT")
+   arcpy.SelectLayerByLocation_management ("lyr_CS", "WITHIN_A_DISTANCE", "lyr_EO", slopFactor, "NEW_SELECTION", "NOT_INVERT")
    arcpy.CalculateField_management("lyr_CS", "PORTFOLIO", 1, "PYTHON_9.3")
    arcpy.CalculateField_management("lyr_EO", "PORTFOLIO", 1, "PYTHON_9.3")
    printMsg('ConSites portfolio updated')
@@ -257,7 +259,8 @@ def UpdatePortfolio(in_procEOs,in_ConSites,in_sumTab):
    arcpy.MakeFeatureLayer_management (in_procEOs, "lyr_EO", where_clause)
    where_clause = '"PORTFOLIO" = 1'
    arcpy.MakeFeatureLayer_management (in_ConSites, "lyr_CS", where_clause)
-   arcpy.SelectLayerByLocation_management ("lyr_EO", "INTERSECT", "lyr_CS", 0, "NEW_SELECTION", "NOT_INVERT")
+   # arcpy.SelectLayerByLocation_management ("lyr_EO", "INTERSECT", "lyr_CS", 0, "NEW_SELECTION", "NOT_INVERT")
+   arcpy.SelectLayerByLocation_management ("lyr_EO", "WITHIN_A_DISTANCE", "lyr_CS", slopFactor, "NEW_SELECTION", "NOT_INVERT")
    arcpy.CalculateField_management("lyr_EO", "PORTFOLIO", 1, "PYTHON_9.3")
    printMsg('EOs portfolio updated')
    
@@ -947,7 +950,7 @@ def ScoreEOs(in_procEOs, in_sumTab, out_sortedEOs, ysnMil = "false", ysnYear = "
    printMsg("Attribution and sorting complete.")
    return out_sortedEOs
    
-def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, out_Excel, in_consLands_flat, build = "NEW", ):
+def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSites, out_ConSites, out_Excel, in_consLands_flat, build = "NEW", slopFactor = "15 METERS"):
    '''Builds a portfolio of EOs and Conservation Sites of highest conservation priority.
    Parameters:
    - in_sortedEOs: input feature class of scored EOs (i.e., out_sortedEOs from the ScoreEOs function)
@@ -963,6 +966,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       - NEW_EO: overwrite existing EO picks, but keep previous ConSite picks
       - NEW_CS: overwrite existing ConSite picks, but keep previous EO picks
       - UPDATE: Update portfolio but keep existing picks for both EOs and ConSites
+   - slopFactor: Maximum distance allowable between features for them to still me considered coincident
    '''
    
    scratchGDB = arcpy.env.scratchGDB
@@ -1013,7 +1017,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
          for site in mySites:
             myShp = site[0]
             # arcpy.SelectLayerByLocation_management("lyr_EO", "INTERSECT", myShp, "", "NEW_SELECTION", "NOT_INVERT")
-            arcpy.SelectLayerByLocation_management("lyr_EO", "WITHIN_A_DISTANCE", myShp, "15 METERS", "NEW_SELECTION", "NOT_INVERT")
+            arcpy.SelectLayerByLocation_management("lyr_EO", "WITHIN_A_DISTANCE", myShp, slopFactor, "NEW_SELECTION", "NOT_INVERT")
             c = countSelectedFeatures("lyr_EO")
             if c > 0:
                #printMsg('%s EOs selected' % str(c))
@@ -1060,7 +1064,8 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
       field_mapping="""%s;%s;%s""" %(fldmap1,fldmap2,fldmap3)
       
       printMsg('Performing spatial join between EOs and ConSites...')
-      arcpy.SpatialJoin_analysis(in_sortedEOs, in_ConSites, joinFeats, "JOIN_ONE_TO_ONE", "KEEP_ALL", field_mapping, "INTERSECT")
+      # arcpy.SpatialJoin_analysis(in_sortedEOs, in_ConSites, joinFeats, "JOIN_ONE_TO_ONE", "KEEP_ALL", field_mapping, "INTERSECT")
+      arcpy.SpatialJoin_analysis(in_sortedEOs, in_ConSites, joinFeats, "JOIN_ONE_TO_ONE", "KEEP_ALL", field_mapping, "WITHIN_A_DISTANCE", slopFactor)
       for fld in ["CS_CONSVALUE", "CS_AREA_HA"]:
          arcpy.JoinField_management (in_sortedEOs, "SF_EOID", joinFeats, "SF_EOID", fld)
       #printMsg('Field "CS_CONSVALUE" joined to table %s.' %in_sortedEOs)
@@ -1231,7 +1236,7 @@ def BuildPortfolio(in_sortedEOs, out_sortedEOs, in_sumTab, out_sumTab, in_ConSit
    
    return (out_sortedEOs, out_sumTab, out_ConSites, out_Excel)
 
-def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out_Excel):
+def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out_Excel, slopFactor = "15 METERS"):
    '''Creates a master list relating a summary of processed, viable EOs to a set of boundary polygons, which could be Conservation Sites, Natural Area Preserves, parcels, or any other boundaries. The output table is sorted by polygon ID, Element, tier, and G-rank. Optionally, the output table can be exported to an excel spreadsheet.
    Parameters:
    - in_Bounds: Input polygon feature class for which Elements will be summarized
@@ -1240,6 +1245,7 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
    - in_elementTab: Input updated Element Portfolio Summary table, resulting from the BuildPortfolio function
    - out_Tab: Output table summarizing Elements by boundaries
    - out_Excel: Output table converted to Excel spreadsheet. Specify "None" if none is desired.
+   - slopFactor: Maximum distance allowable between features for them to still me considered coincident
    '''
    scratchGDB = arcpy.env.scratchGDB
    
@@ -1255,7 +1261,8 @@ def BuildElementLists(in_Bounds, fld_ID, in_procEOs, in_elementTab, out_Tab, out
    # Perform spatial join between EOs and dissolved boundaries
    printMsg("Spatial joining...")
    sjEOs = scratchGDB + os.sep + "sjEOs"
-   arcpy.SpatialJoin_analysis("lyr_EO", dissBnds, sjEOs, "JOIN_ONE_TO_MANY", "KEEP_COMMON", "", "INTERSECT")
+   # arcpy.SpatialJoin_analysis("lyr_EO", dissBnds, sjEOs, "JOIN_ONE_TO_MANY", "KEEP_COMMON", "", "INTERSECT")
+   arcpy.SpatialJoin_analysis("lyr_EO", dissBnds, sjEOs, "JOIN_ONE_TO_MANY", "KEEP_COMMON", "", "WITHIN_A_DISTANCE", slopFactor)
    
    # Export the table from the spatial join. This appears to be necessary for summary statistics to work. Why?
    printMsg("Exporting spatial join table...")
