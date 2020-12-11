@@ -2,7 +2,7 @@
 # RunWorkflow_Prioritize.py
 # Version:  ArcGIS 10.3 / Python 2.7
 # Creation Date: 2020-09-15
-# Last Edit: 2020-09-15
+# Last Edit: 2020-12-11
 # Creator:  Kirsten R. Hazler
 
 # Summary:
@@ -39,9 +39,9 @@ from PrioritizeConSites import *
 def main():
    ### Set up input variables ###
    # Paths to input and output geodatabases and directories - change these every time
-   in_GDB = r'F:\Working\EssentialConSites\ECS_Run_Sept2020\ECS_Inputs_Sept2020.gdb'
-   out_GDB = r'F:\Working\EssentialConSites\ECS_Run_Sept2020\ECS_Outputs_Sept2020.gdb'
-   out_DIR = r'F:\Working\EssentialConSites\ECS_Run_Sept2020\Spreadsheets_Sept2020' 
+   in_GDB = r'N:\EssentialConSites\ECS_Run_Dec2020\ECS_Inputs_Dec2020.gdb'
+   out_GDB = r'N:\EssentialConSites\ECS_Run_Dec2020\ECS_Outputs_Dec2020.gdb'
+   out_DIR = r'N:\EssentialConSites\ECS_Run_Dec2020\Spreadsheets_Dec2020' 
    
    # Input Procedural Features by site type
    # No need to change these as long as your in_GDB above is valid
@@ -57,8 +57,8 @@ def main():
    
    # Input other standard variables
    in_elExclude = in_GDB + os.sep + 'ElementExclusions'
-   in_consLands = in_GDB + os.sep + 'ConsLands_20200914'
-   in_consLands_flat = in_GDB + os.sep + 'ConsLands_20200914_flat'
+   in_consLands = in_GDB + os.sep + 'conslands_lam'
+   in_consLands_flat = in_GDB + os.sep + 'conslands_lam_flat'
    in_ecoReg = in_GDB + os.sep + 'tncEcoRegions_lam'
    fld_RegCode = 'GEN_REG'
    
@@ -112,54 +112,54 @@ def main():
    tStart = datetime.now()
    printMsg("Processing started at %s on %s" %(tStart.strftime("%H:%M:%S"), tStart.strftime("%Y-%m-%d")))
    
-   # # Attribute EOs
-   # printMsg("Attributing terrestrial EOs...")
-   # AttributeEOs(in_pf_tcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_tcs, sumTab_tcs)
+   # Attribute EOs
+   printMsg("Attributing terrestrial EOs...")
+   AttributeEOs(in_pf_tcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_tcs, sumTab_tcs)
    
-   # printMsg("Attributing stream EOs...")
-   # AttributeEOs(in_pf_scu, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_scu, sumTab_scu)
+   printMsg("Attributing stream EOs...")
+   AttributeEOs(in_pf_scu, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear, flagYear, attribEOs_scu, sumTab_scu)
    
-   # printMsg("Attributing karst EOs...")
-   # AttributeEOs(in_pf_kcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear_kcs, flagYear_kcs, attribEOs_kcs, sumTab_kcs)
+   printMsg("Attributing karst EOs...")
+   AttributeEOs(in_pf_kcs, in_elExclude, in_consLands, in_consLands_flat, in_ecoReg, fld_RegCode, cutYear_kcs, flagYear_kcs, attribEOs_kcs, sumTab_kcs)
    
-   # tNow = datetime.now()
-   # printMsg("EO attribution ended at %s" %tNow.strftime("%H:%M:%S"))
+   tNow = datetime.now()
+   printMsg("EO attribution ended at %s" %tNow.strftime("%H:%M:%S"))
    
-   # # Score EOs
-   # printMsg("Scoring terrestrial EOs...")
-   # ScoreEOs(attribEOs_tcs, sumTab_tcs, scoredEOs_tcs, ysnMil = "false", ysnYear = "true")
+   # Score EOs
+   printMsg("Scoring terrestrial EOs...")
+   ScoreEOs(attribEOs_tcs, sumTab_tcs, scoredEOs_tcs, ysnMil = "false", ysnYear = "true")
    
-   # printMsg("Scoring stream EOs...")
-   # ScoreEOs(attribEOs_scu, sumTab_scu, scoredEOs_scu, ysnMil = "false", ysnYear = "true")
+   printMsg("Scoring stream EOs...")
+   ScoreEOs(attribEOs_scu, sumTab_scu, scoredEOs_scu, ysnMil = "false", ysnYear = "true")
    
-   # printMsg("Scoring karst EOs...")
-   # ScoreEOs(attribEOs_kcs, sumTab_kcs, scoredEOs_kcs, ysnMil = "false", ysnYear = "true")
+   printMsg("Scoring karst EOs...")
+   ScoreEOs(attribEOs_kcs, sumTab_kcs, scoredEOs_kcs, ysnMil = "false", ysnYear = "true")
    
-   # tNow = datetime.now()
-   # printMsg("EO scoring ended at %s" %tNow.strftime("%H:%M:%S"))
+   tNow = datetime.now()
+   printMsg("EO scoring ended at %s" %tNow.strftime("%H:%M:%S"))
    
-   # # Build Portfolio
-   # printMsg("Building terrestrial portfolio...")
-   # BuildPortfolio(scoredEOs_tcs, priorEOs_tcs, sumTab_tcs, sumTab_upd_tcs, in_cs_tcs, priorConSites_tcs, priorConSites_tcs_XLS, in_consLands_flat, build = 'NEW')
+   # Build Portfolio
+   printMsg("Building terrestrial portfolio...")
+   BuildPortfolio(scoredEOs_tcs, priorEOs_tcs, sumTab_tcs, sumTab_upd_tcs, in_cs_tcs, priorConSites_tcs, priorConSites_tcs_XLS, in_consLands_flat, build = 'NEW')
    
-   # printMsg("Building stream portfolio...")
-   # BuildPortfolio(scoredEOs_scu, priorEOs_scu, sumTab_scu, sumTab_upd_scu, in_cs_scu, priorConSites_scu, priorConSites_scu_XLS, in_consLands_flat, build = 'NEW')
+   printMsg("Building stream portfolio...")
+   BuildPortfolio(scoredEOs_scu, priorEOs_scu, sumTab_scu, sumTab_upd_scu, in_cs_scu, priorConSites_scu, priorConSites_scu_XLS, in_consLands_flat, build = 'NEW')
    
-   # printMsg("Building karst portfolio...")
-   # BuildPortfolio(scoredEOs_kcs, priorEOs_kcs, sumTab_kcs, sumTab_upd_kcs, in_cs_kcs, priorConSites_kcs, priorConSites_kcs_XLS, in_consLands_flat, build = 'NEW')
+   printMsg("Building karst portfolio...")
+   BuildPortfolio(scoredEOs_kcs, priorEOs_kcs, sumTab_kcs, sumTab_upd_kcs, in_cs_kcs, priorConSites_kcs, priorConSites_kcs_XLS, in_consLands_flat, build = 'NEW')
    
-   # tNow = datetime.now()
-   # printMsg("Portolio building ended at %s" %tNow.strftime("%H:%M:%S"))
+   tNow = datetime.now()
+   printMsg("Portolio building ended at %s" %tNow.strftime("%H:%M:%S"))
    
-   # # Build Elements List
-   # printMsg("Building terrestrial elements list...")
-   # BuildElementLists(in_cs_tcs, 'SITENAME', priorEOs_tcs, sumTab_upd_tcs, elementList_tcs, elementList_tcs_XLS)
+   # Build Elements List
+   printMsg("Building terrestrial elements list...")
+   BuildElementLists(in_cs_tcs, 'SITENAME', priorEOs_tcs, sumTab_upd_tcs, elementList_tcs, elementList_tcs_XLS)
    
-   # printMsg("Building stream elements list...")
-   # BuildElementLists(in_cs_scu, 'SITENAME', priorEOs_scu, sumTab_upd_scu, elementList_scu, elementList_scu_XLS)
+   printMsg("Building stream elements list...")
+   BuildElementLists(in_cs_scu, 'SITENAME', priorEOs_scu, sumTab_upd_scu, elementList_scu, elementList_scu_XLS)
    
-   # printMsg("Building karst elements list...")
-   # BuildElementLists(in_cs_kcs, 'SITENAME', priorEOs_kcs, sumTab_upd_kcs, elementList_kcs, elementList_kcs_XLS)
+   printMsg("Building karst elements list...")
+   BuildElementLists(in_cs_kcs, 'SITENAME', priorEOs_kcs, sumTab_upd_kcs, elementList_kcs, elementList_kcs_XLS)
    
    # QC
    printMsg("QC'ing terrestrial sites and EOs")
